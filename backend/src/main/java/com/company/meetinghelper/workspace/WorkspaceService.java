@@ -32,8 +32,8 @@ import java.util.stream.Collectors;
 @Service
 public class WorkspaceService {
     private static final List<String> BATCH_COLORS = List.of(
-            "#DBEAFE", "#FEF3C7", "#DCFCE7", "#FCE7F3", "#EDE9FE",
-            "#FFEDD5", "#CFFAFE", "#F3E8FF", "#FEE2E2", "#ECFCCB"
+            "#DBEAFE", "#E0F2FE", "#CFFAFE", "#E0E7FF", "#EDE9FE",
+            "#ECFEFF", "#EFF6FF", "#EEF2FF", "#F0F9FF", "#F5F3FF"
     );
 
     private final MeetingRepository meetingRepository;
@@ -248,8 +248,10 @@ public class WorkspaceService {
         fields.add(new WorkspaceResponse.FieldDefinitionView("department", "部门", "TEXT", true, true, true, true));
         fields.add(new WorkspaceResponse.FieldDefinitionView(
                 "participantType", "人员类型", "ENUM", true, true, true, true));
-        fields.add(new WorkspaceResponse.FieldDefinitionView(
-                "primaryBatchName", "主排座批次", "ENUM", true, true, true, true));
+        if (participants.stream().anyMatch(value -> value.primaryBatchName() != null)) {
+            fields.add(new WorkspaceResponse.FieldDefinitionView(
+                    "primaryBatchName", "主排座批次", "ENUM", true, true, true, true));
+        }
         fields.add(new WorkspaceResponse.FieldDefinitionView("tags", "标签", "MULTI_ENUM", true, true, true, false));
         participants.stream()
                 .flatMap(participant -> participant.attributes().keySet().stream())

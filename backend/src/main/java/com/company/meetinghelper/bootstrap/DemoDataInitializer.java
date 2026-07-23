@@ -101,7 +101,7 @@ public class DemoDataInitializer implements ApplicationRunner {
     private List<VenueElementEntity> createVenueElements(String venueId) {
         var elements = new ArrayList<VenueElementEntity>();
         elements.add(element(venueId, ElementType.STAGE, "STAGE", "舞台", 1, 5, 2, 35,
-                false, true, 0, "#25324A", "#172033"));
+                false, true, 0, "#DBEAFE", "#93C5FD"));
         elements.add(element(venueId, ElementType.WALL, null, null, 1, 1, 4, 1,
                 false, false, 0, "#64748B", "#475569"));
         elements.add(element(venueId, ElementType.WALL, null, null, 6, 1, 13, 1,

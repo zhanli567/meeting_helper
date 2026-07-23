@@ -54,5 +54,12 @@ public class SeatingController {
     ) {
         return versionService.create(planId, request);
     }
-}
 
+    @PostMapping("/{planId}/versions/{versionId}/restore")
+    PlanVersionService.RestoreVersionResult restoreVersion(
+            @PathVariable String planId,
+            @PathVariable String versionId
+    ) {
+        return versionService.restore(planId, versionId);
+    }
+}

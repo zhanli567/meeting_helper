@@ -15,16 +15,26 @@ const emit = defineEmits<{
   select: [participant: Participant]
   unassign: [participantId: string]
   queueChange: [participantIds: string[]]
+  dragState: [participantId?: string]
 }>()
 
 const tab = ref<'pending' | 'all'>('pending')
 const search = ref('')
-const sortMode = ref('batch-level')
+const sortField = ref('level')
+const sortDirection = ref<'asc' | 'desc'>('desc')
 const groupField = ref('')
 const continuous = ref(false)
+const currentPage = ref(1)
+const pageSize = ref(8)
 const filters = reactive<Record<string, string[]>>({})
 const savedViews = ref<
-  Array<{ name: string; filters: Record<string, string[]>; sort: string; group: string }>
+  Array<{
+    name: string
+    filters: Record<string, string[]>
+    sortField: string
+    sortDirection: 'asc' | 'desc'
+    group: string
+  }>
 >(JSON.parse(localStorage.getItem('meeting-helper-views') || '[]'))
 
 const filterFields = computed(() =>
@@ -32,6 +42,7 @@ const filterFields = computed(() =>
     (field) => field.filterable && ['ENUM', 'MULTI_ENUM', 'TEXT'].includes(field.type),
   ),
 )
+const sortableFields = computed(() => props.fieldDefinitions.filter((field) => field.sortable))
 
 function fieldValue(
   person: Participant,
@@ -85,24 +96,40 @@ const filtered = computed(() => {
     })
   })
   return result.sort((left, right) => {
-    if (sortMode.value === 'level-desc') return (right.level ?? -1) - (left.level ?? -1)
-    if (sortMode.value === 'name') return left.name.localeCompare(right.name, 'zh-CN')
-    if (sortMode.value === 'type-level') {
-      const type = (left.participantType || '').localeCompare(right.participantType || '', 'zh-CN')
-      return type || (right.level ?? -1) - (left.level ?? -1)
+    const leftValue =
+      sortField.value === 'primaryBatchName'
+        ? left.primaryBatchOrder
+        : fieldValue(left, sortField.value)
+    const rightValue =
+      sortField.value === 'primaryBatchName'
+        ? right.primaryBatchOrder
+        : fieldValue(right, sortField.value)
+    const leftComparable = Array.isArray(leftValue) ? leftValue.join('、') : leftValue
+    const rightComparable = Array.isArray(rightValue) ? rightValue.join('、') : rightValue
+    let comparison = 0
+    if (typeof leftComparable === 'number' || typeof rightComparable === 'number') {
+      comparison = Number(leftComparable ?? -1) - Number(rightComparable ?? -1)
+    } else {
+      comparison = String(leftComparable ?? '').localeCompare(
+        String(rightComparable ?? ''),
+        'zh-CN',
+        { numeric: true },
+      )
     }
-    return (
-      (left.primaryBatchOrder ?? 999) - (right.primaryBatchOrder ?? 999) ||
-      (right.level ?? -1) - (left.level ?? -1) ||
+    return (sortDirection.value === 'asc' ? comparison : -comparison) ||
       left.name.localeCompare(right.name, 'zh-CN')
-    )
   })
 })
 
+const paged = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return filtered.value.slice(start, start + pageSize.value)
+})
+
 const grouped = computed(() => {
-  if (!groupField.value) return [{ key: '', label: '', people: filtered.value }]
+  if (!groupField.value) return [{ key: '', label: '', people: paged.value }]
   const result = new Map<string, Participant[]>()
-  filtered.value.forEach((person) => {
+  paged.value.forEach((person) => {
     const raw = fieldValue(person, groupField.value)
     const key = Array.isArray(raw) ? raw.join('、') : String(raw || '未分类')
     result.set(key, [...(result.get(key) || []), person])
@@ -118,11 +145,16 @@ watch(
 watch(continuous, () =>
   emit('queueChange', continuous.value ? filtered.value.map((person) => person.id) : []),
 )
+watch(
+  [tab, search, sortField, sortDirection, groupField, () => JSON.stringify(filters)],
+  () => (currentPage.value = 1),
+)
 
 function dragStart(event: DragEvent, participant: Participant) {
   event.dataTransfer?.setData('text/participant-id', participant.id)
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
   emit('select', participant)
+  emit('dragState', participant.id)
 }
 
 function dropToPending(event: DragEvent) {
@@ -141,7 +173,8 @@ async function saveView() {
     savedViews.value.push({
       name: value,
       filters: JSON.parse(JSON.stringify(filters)),
-      sort: sortMode.value,
+      sortField: sortField.value,
+      sortDirection: sortDirection.value,
       group: groupField.value,
     })
     localStorage.setItem('meeting-helper-views', JSON.stringify(savedViews.value))
@@ -156,7 +189,8 @@ function applyView(index: number) {
   if (!view) return
   Object.keys(filters).forEach((key) => delete filters[key])
   Object.assign(filters, JSON.parse(JSON.stringify(view.filters)))
-  sortMode.value = view.sort
+  sortField.value = view.sortField || 'level'
+  sortDirection.value = view.sortDirection || 'desc'
   groupField.value = view.group
 }
 </script>
@@ -180,7 +214,7 @@ function applyView(index: number) {
       </button>
     </div>
 
-    <el-input v-model="search" clearable placeholder="搜索姓名、工号、部门、奖项">
+    <el-input v-model="search" clearable placeholder="搜索姓名、工号、部门等">
       <template #prefix
         ><el-icon><Search /></el-icon
       ></template>
@@ -212,14 +246,21 @@ function applyView(index: number) {
         </div>
       </el-popover>
 
-      <el-select v-model="sortMode" size="small" class="sort-select">
+      <el-select v-model="sortField" size="small" class="sort-select" placeholder="排序字段">
         <template #prefix
           ><el-icon><Rank /></el-icon
         ></template>
-        <el-option label="批次升序，职级降序" value="batch-level" />
-        <el-option label="职级从高到低" value="level-desc" />
-        <el-option label="人员类型，职级降序" value="type-level" />
-        <el-option label="姓名排序" value="name" />
+        <el-option
+          v-for="field in sortableFields"
+          :key="field.code"
+          :label="field.label"
+          :value="field.code"
+        />
+      </el-select>
+
+      <el-select v-model="sortDirection" size="small" class="direction-select">
+        <el-option label="升序" value="asc" />
+        <el-option label="降序" value="desc" />
       </el-select>
 
       <el-select
@@ -241,7 +282,7 @@ function applyView(index: number) {
     <div class="view-row">
       <el-dropdown v-if="savedViews.length" trigger="click" @command="applyView">
         <el-button link size="small"
-          ><el-icon><Star /></el-icon> 我的视图</el-button
+          ><el-icon><Star /></el-icon> 筛选方案</el-button
         >
         <template #dropdown>
           <el-dropdown-menu>
@@ -251,15 +292,15 @@ function applyView(index: number) {
           </el-dropdown-menu>
         </template>
       </el-dropdown>
-      <el-button link size="small" @click="saveView">保存当前视图</el-button>
-      <el-switch
-        v-model="continuous"
-        size="small"
-        inline-prompt
-        active-text="连续"
-        inactive-text="拖动"
-        class="continuous-switch"
-      />
+      <el-tooltip content="保存当前筛选、排序和分组条件，方便下次一键恢复" placement="bottom">
+        <el-button link size="small" @click="saveView">保存筛选方案</el-button>
+      </el-tooltip>
+      <el-tooltip content="开启后，按当前排序逐人点击空座位安排；关闭时使用拖拽排座" placement="bottom">
+        <label class="continuous-switch">
+          <span>连续排座</span>
+          <el-switch v-model="continuous" size="small" />
+        </label>
+      </el-tooltip>
     </div>
 
     <div v-if="continuous && filtered[0]" class="continuous-card">
@@ -282,6 +323,7 @@ function applyView(index: number) {
             :class="{ selected: selectedId === person.id, assigned: person.assignedElementId }"
             :draggable="!person.locked"
             @dragstart="dragStart($event, person)"
+            @dragend="emit('dragState', undefined)"
             @click="emit('select', person)"
           >
             <span
@@ -312,6 +354,19 @@ function applyView(index: number) {
         <el-icon size="26"><UploadFilled /></el-icon>
         <p>当前条件下没有待排人员</p>
       </div>
+    </div>
+
+    <div v-if="filtered.length > pageSize" class="pagination-row">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        size="small"
+        background
+        layout="prev, pager, next"
+        :pager-count="5"
+        :total="filtered.length"
+      />
+      <span>共 {{ filtered.length }} 人</span>
     </div>
 
     <div class="pending-drop">将已排人员拖到这里，可移回待排列表</div>
@@ -371,14 +426,20 @@ function applyView(index: number) {
 
 .query-toolbar {
   gap: 7px;
+  flex-wrap: wrap;
 }
 
 .sort-select {
-  width: 150px;
+  width: 112px;
+}
+
+.direction-select {
+  width: 78px;
 }
 
 .group-select {
   flex: 1;
+  min-width: 100px;
 }
 
 .filter-list {
@@ -396,10 +457,17 @@ function applyView(index: number) {
 .view-row {
   min-height: 22px;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .continuous-switch {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #52647c;
+  font-size: 11px;
+  cursor: help;
 }
 
 .continuous-card {
@@ -451,8 +519,8 @@ function applyView(index: number) {
 
 .person-card {
   position: relative;
-  min-height: 67px;
-  margin-bottom: 7px;
+  min-height: 58px;
+  margin-bottom: 6px;
   display: flex;
   align-items: stretch;
   overflow: hidden;
@@ -488,7 +556,7 @@ function applyView(index: number) {
   display: grid;
   align-content: center;
   gap: 3px;
-  padding: 8px 10px;
+  padding: 6px 9px;
 }
 
 .person-main > div {
@@ -528,5 +596,20 @@ function applyView(index: number) {
   border-radius: 8px;
   font-size: 11px;
   text-align: center;
+}
+
+.pagination-row {
+  min-height: 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  color: #7a899d;
+  font-size: 10px;
+}
+
+.pagination-row :deep(.el-pagination) {
+  --el-pagination-button-width: 24px;
+  --el-pagination-button-height: 24px;
 }
 </style>

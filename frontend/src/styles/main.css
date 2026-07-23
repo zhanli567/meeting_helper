@@ -14,9 +14,10 @@
   text-rendering: optimizeLegibility;
   --ink: #172033;
   --muted: #667085;
-  --line: #dfe5ee;
-  --brand: #274f93;
-  --brand-soft: #eaf0fb;
+  --line: #d7e3f2;
+  --brand: #2563eb;
+  --brand-hover: #1d4ed8;
+  --brand-soft: #eaf2ff;
   --surface: #ffffff;
   --canvas: #f7f9fc;
   --danger: #c53e3e;
@@ -34,6 +35,7 @@ body,
   min-width: 1180px;
   height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 button,
@@ -43,9 +45,10 @@ select {
 }
 
 .app-page {
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
   background:
-    radial-gradient(circle at 10% -10%, rgba(92, 130, 190, 0.14), transparent 34%), #edf1f6;
+    radial-gradient(circle at 10% -10%, rgba(96, 165, 250, 0.16), transparent 34%), #eef5fc;
 }
 
 .app-header {
@@ -55,8 +58,8 @@ select {
   align-items: center;
   gap: 18px;
   color: #fff;
-  background: linear-gradient(112deg, #172642 0%, #243d68 58%, #2c548d 100%);
-  box-shadow: 0 3px 16px rgba(22, 38, 66, 0.2);
+  background: linear-gradient(112deg, #2f6fca 0%, #347bd6 58%, #5797e8 100%);
+  box-shadow: 0 3px 16px rgba(37, 99, 235, 0.18);
 }
 
 .brand-mark {
@@ -125,8 +128,8 @@ select {
 .el-button--primary {
   --el-button-bg-color: var(--brand);
   --el-button-border-color: var(--brand);
-  --el-button-hover-bg-color: #3565ad;
-  --el-button-hover-border-color: #3565ad;
+  --el-button-hover-bg-color: var(--brand-hover);
+  --el-button-hover-border-color: var(--brand-hover);
 }
 
 .el-dialog {

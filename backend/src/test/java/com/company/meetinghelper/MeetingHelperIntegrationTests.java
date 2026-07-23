@@ -3,6 +3,7 @@ package com.company.meetinghelper;
 import com.company.meetinghelper.export.ExportService;
 import com.company.meetinghelper.importing.ImportService;
 import com.company.meetinghelper.meeting.MeetingRepository;
+import com.company.meetinghelper.seating.PlanVersionService;
 import com.company.meetinghelper.seating.SeatingService;
 import com.company.meetinghelper.workspace.WorkspaceService;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -26,6 +27,9 @@ class MeetingHelperIntegrationTests {
 
     @Autowired
     private SeatingService seatingService;
+
+    @Autowired
+    private PlanVersionService planVersionService;
 
     @Autowired
     private ImportService importService;
@@ -70,6 +74,37 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
+    void savedVersionCanRestorePreviousSeatingState() {
+        var meeting = meetingRepository.findAllByDeletedFalseOrderByUpdatedAtDesc().getFirst();
+        var before = workspaceService.getWorkspace(meeting.getId());
+        var saved = planVersionService.create(before.plan().id(),
+                new PlanVersionService.CreateVersionRequest("恢复测试版本", "保存当前排座", false));
+        var participant = before.participants().stream()
+                .filter(value -> value.assignedElementId() == null)
+                .findFirst().orElseThrow();
+        var occupied = before.items().stream()
+                .flatMap(item -> item.targetElementIds().stream())
+                .collect(java.util.stream.Collectors.toSet());
+        var seat = before.layout().elements().stream()
+                .filter(value -> value.assignable() && !occupied.contains(value.id()))
+                .findFirst().orElseThrow();
+
+        seatingService.assign(before.plan().id(),
+                new SeatingService.AssignmentRequest(participant.id(), seat.id()));
+        assertThat(workspaceService.getWorkspace(meeting.getId()).participants().stream()
+                .filter(value -> value.assignedElementId() != null)
+                .count()).isEqualTo(13);
+
+        planVersionService.restore(before.plan().id(), saved.id());
+
+        var restored = workspaceService.getWorkspace(meeting.getId());
+        assertThat(restored.plan().currentVersionNo()).isEqualTo(saved.versionNo());
+        assertThat(restored.participants().stream()
+                .filter(value -> value.assignedElementId() != null)
+                .count()).isEqualTo(12);
+    }
+
+    @Test
     void awardTemplateAndExportsAreGenerated() throws Exception {
         var template = importService.templateFile("AWARD_CEREMONY_V1");
         try (var workbook = new XSSFWorkbook(new ByteArrayInputStream(template))) {
@@ -82,4 +117,3 @@ class MeetingHelperIntegrationTests {
         assertThat(exportService.exportPdf(meeting.getId()).length).isGreaterThan(5_000);
     }
 }
-

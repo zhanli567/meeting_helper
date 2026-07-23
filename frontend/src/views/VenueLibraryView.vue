@@ -46,7 +46,7 @@ async function createMeeting() {
     store.activeMeetingId = meeting.id
     await store.initialize()
     ElMessage.success('会议已创建，场馆布局已生成独立快照')
-    router.push('/')
+    router.push(`/workbench/${meeting.id}`)
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
   } finally {
@@ -59,7 +59,7 @@ async function createMeeting() {
   <div class="app-page venue-page">
     <header class="app-header">
       <el-button text class="back-button" :icon="ArrowLeft" @click="router.push('/')">
-        返回排座工作台
+        返回首页
       </el-button>
       <span class="header-divider" />
       <div class="brand-copy">
@@ -152,7 +152,10 @@ async function createMeeting() {
 
 <style scoped>
 .venue-page {
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .back-button {
@@ -161,8 +164,11 @@ async function createMeeting() {
 
 .venue-content {
   width: min(1380px, calc(100% - 64px));
+  flex: 1;
+  min-height: 0;
   margin: 0 auto;
   padding: 38px 0 64px;
+  overflow: auto;
 }
 
 .venue-intro {

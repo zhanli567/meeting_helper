@@ -37,6 +37,9 @@ export const meetingApi = {
   ) {
     return (await http.post(`/plans/${planId}/versions`, data)).data
   },
+  async restoreVersion(planId: string, versionId: string) {
+    return (await http.post(`/plans/${planId}/versions/${versionId}/restore`)).data
+  },
   async importTemplates() {
     return (await http.get<ImportTemplate[]>('/import-templates')).data
   },

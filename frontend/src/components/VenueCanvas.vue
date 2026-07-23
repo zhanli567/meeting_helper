@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
 import type { LayoutElement, Participant, PlanItem, Workspace } from '@/types/workspace'
 
@@ -8,13 +8,23 @@ const props = defineProps<{
   zoom: number
   selectedParticipantId?: string
   continuousParticipantId?: string
+  draggingParticipantId?: string
 }>()
 
 const emit = defineEmits<{
   assign: [participantId: string, targetElementId: string]
   select: [participant?: Participant]
   seatClick: [element: LayoutElement]
+  dragState: [participantId?: string]
 }>()
+
+const scrollRef = ref<HTMLElement>()
+const dragTargetId = ref<string>()
+const isPanning = ref(false)
+let panStartX = 0
+let panStartY = 0
+let panScrollLeft = 0
+let panScrollTop = 0
 
 const participantById = computed(
   () => new Map(props.workspace.participants.map((person) => [person.id, person])),
@@ -72,6 +82,7 @@ function onDragStart(event: DragEvent, participant: Participant) {
   event.dataTransfer?.setData('text/participant-id', participant.id)
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
   emit('select', participant)
+  emit('dragState', participant.id)
 }
 
 function startParticipantDrag(event: DragEvent, elementId: string) {
@@ -79,10 +90,23 @@ function startParticipantDrag(event: DragEvent, elementId: string) {
   if (participant) onDragStart(event, participant)
 }
 
+function onDragOver(event: DragEvent, element: LayoutElement) {
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  dragTargetId.value = element.id
+}
+
+function onDragLeave(event: DragEvent, element: LayoutElement) {
+  if ((event.currentTarget as HTMLElement).contains(event.relatedTarget as Node)) return
+  if (dragTargetId.value === element.id) dragTargetId.value = undefined
+}
+
 function onDrop(event: DragEvent, element: LayoutElement) {
   event.preventDefault()
   const participantId = event.dataTransfer?.getData('text/participant-id')
   if (participantId) emit('assign', participantId, element.id)
+  dragTargetId.value = undefined
+  emit('dragState', undefined)
 }
 
 function onSeatClick(element: LayoutElement) {
@@ -105,10 +129,45 @@ function typeLabel(type: string) {
     }[type] || ''
   )
 }
+
+function startPan(event: MouseEvent) {
+  if (event.button !== 0) return
+  const target = event.target as HTMLElement
+  if (target.closest('.seat-element, button, input')) return
+  const container = scrollRef.value
+  if (!container) return
+  isPanning.value = true
+  panStartX = event.clientX
+  panStartY = event.clientY
+  panScrollLeft = container.scrollLeft
+  panScrollTop = container.scrollTop
+  window.addEventListener('mousemove', movePan)
+  window.addEventListener('mouseup', endPan)
+  event.preventDefault()
+}
+
+function movePan(event: MouseEvent) {
+  if (!isPanning.value || !scrollRef.value) return
+  scrollRef.value.scrollLeft = panScrollLeft - (event.clientX - panStartX)
+  scrollRef.value.scrollTop = panScrollTop - (event.clientY - panStartY)
+}
+
+function endPan() {
+  isPanning.value = false
+  window.removeEventListener('mousemove', movePan)
+  window.removeEventListener('mouseup', endPan)
+}
+
+onBeforeUnmount(endPan)
 </script>
 
 <template>
-  <div class="canvas-scroll">
+  <div
+    ref="scrollRef"
+    class="canvas-scroll"
+    :class="{ panning: isPanning, 'drag-active': draggingParticipantId }"
+    @mousedown="startPan"
+  >
     <div class="venue-canvas" :style="canvasStyle">
       <template v-for="element in workspace.layout.elements" :key="element.id">
         <el-tooltip
@@ -155,9 +214,13 @@ function typeLabel(type: string) {
               locked: itemFor(element.id)?.locked,
               device: itemFor(element.id) && itemFor(element.id)?.type !== 'PERSON',
               'continuous-target': continuousParticipantId && !itemFor(element.id),
+              'drop-ready': draggingParticipantId && !itemFor(element.id),
+              'swap-ready': draggingParticipantId && participantFor(element.id),
+              'drop-target': dragTargetId === element.id,
             }"
             :style="visualStyle(element)"
-            @dragover.prevent
+            @dragover="onDragOver($event, element)"
+            @dragleave="onDragLeave($event, element)"
             @drop="onDrop($event, element)"
             @click="onSeatClick(element)"
           >
@@ -167,6 +230,7 @@ function typeLabel(type: string) {
                 class="seat-person"
                 :draggable="!itemFor(element.id)?.locked"
                 @dragstart="startParticipantDrag($event, element.id)"
+                @dragend="emit('dragState', undefined)"
               >
                 {{ participantFor(element.id)?.name }}
               </span>
@@ -177,6 +241,9 @@ function typeLabel(type: string) {
             </template>
             <span v-else-if="itemFor(element.id)" class="seat-device">
               {{ itemFor(element.id)?.label }}
+            </span>
+            <span v-if="dragTargetId === element.id" class="drop-copy">
+              {{ participantFor(element.id) ? '交换到这里' : '放到这里' }}
             </span>
           </div>
         </el-tooltip>
@@ -206,6 +273,12 @@ function typeLabel(type: string) {
     linear-gradient(#e9edf4 1px, transparent 1px),
     linear-gradient(90deg, #e9edf4 1px, transparent 1px), #f8fafc;
   background-size: 24px 24px;
+  cursor: grab;
+}
+
+.canvas-scroll.panning {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .venue-canvas {
@@ -235,7 +308,7 @@ function typeLabel(type: string) {
 }
 
 .type-stage {
-  color: #fff;
+  color: #1e3a5f;
   border-radius: 0 0 12px 12px;
   font-size: max(12px, calc(var(--unit) * 0.42));
   font-weight: 700;
@@ -265,6 +338,25 @@ function typeLabel(type: string) {
 .seat-element {
   cursor: pointer;
   user-select: none;
+}
+
+.canvas-scroll.drag-active .seat-element.drop-ready {
+  border-color: #60a5fa !important;
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.5);
+}
+
+.canvas-scroll.drag-active .seat-element.swap-ready:not(.locked) {
+  border-color: #a5b4fc !important;
+  box-shadow: inset 0 0 0 1px rgba(129, 140, 248, 0.45);
+}
+
+.seat-element.drop-target {
+  z-index: 20 !important;
+  border-color: #1d4ed8 !important;
+  box-shadow:
+    0 0 0 3px rgba(59, 130, 246, 0.46),
+    0 8px 18px rgba(37, 99, 235, 0.28) !important;
+  transform: scale(1.12);
 }
 
 .seat-element:hover {
@@ -338,6 +430,21 @@ function typeLabel(type: string) {
   bottom: 1px;
   color: #334155;
   font-size: 8px;
+}
+
+.drop-copy {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 2px;
+  color: #fff;
+  background: rgba(37, 99, 235, 0.9);
+  font-size: max(7px, calc(var(--unit) * 0.22));
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
 }
 
 .tooltip-card {

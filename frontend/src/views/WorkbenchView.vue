@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   Back,
   Clock,
   Download,
   FolderOpened,
+  House,
   Plus,
   RefreshRight,
   Upload,
@@ -22,6 +23,7 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import type { LayoutElement, Participant } from '@/types/workspace'
 
 const router = useRouter()
+const route = useRoute()
 const store = useWorkspaceStore()
 const zoom = ref(0.92)
 const importVisible = ref(false)
@@ -31,6 +33,7 @@ const queue = ref<string[]>([])
 const undoStack = ref<HistoryAction[]>([])
 const redoStack = ref<HistoryAction[]>([])
 const applyingHistory = ref(false)
+const draggingParticipantId = ref<string>()
 
 interface HistoryAction {
   label: string
@@ -45,7 +48,19 @@ const selectedSeat = computed(() =>
 )
 const continuousParticipantId = computed(() => queue.value[0])
 
-onMounted(() => store.initialize())
+onMounted(async () => {
+  const meetingId = typeof route.params.meetingId === 'string' ? route.params.meetingId : ''
+  if (meetingId) store.activeMeetingId = meetingId
+  await store.initialize()
+  if (store.activeMeetingId && store.activeMeetingId !== meetingId) {
+    router.replace(`/workbench/${store.activeMeetingId}`)
+  }
+})
+
+async function switchMeeting(meetingId: string) {
+  await store.switchMeeting(meetingId)
+  router.replace(`/workbench/${meetingId}`)
+}
 
 async function performAssign(participantId: string, targetElementId: string) {
   if (!store.workspace || applyingHistory.value) {
@@ -139,7 +154,7 @@ function versionLabel() {
         v-model="store.activeMeetingId"
         class="meeting-selector"
         popper-class="meeting-select-popper"
-        @change="store.switchMeeting"
+        @change="switchMeeting"
       >
         <el-option
           v-for="meeting in store.meetings"
@@ -164,6 +179,9 @@ function versionLabel() {
         <i :class="{ active: store.saving }" />
         {{ store.saving ? '保存中' : '草稿已自动保存' }}
       </span>
+      <el-button text class="header-text-button" :icon="House" @click="router.push('/')">
+        首页
+      </el-button>
       <el-button
         text
         class="header-text-button"
@@ -176,7 +194,7 @@ function versionLabel() {
         导入
       </el-button>
       <el-button type="primary" plain :icon="Clock" @click="versionVisible = true">
-        保存版本
+        版本管理
       </el-button>
     </header>
 
@@ -251,9 +269,11 @@ function versionLabel() {
             :zoom="zoom"
             :selected-participant-id="store.selectedParticipantId"
             :continuous-participant-id="continuousParticipantId"
+            :dragging-participant-id="draggingParticipantId"
             @assign="performAssign"
             @select="selectParticipant"
             @seat-click="onSeatClick"
+            @drag-state="draggingParticipantId = $event"
           />
         </div>
 
@@ -274,6 +294,7 @@ function versionLabel() {
         @select="selectParticipant"
         @unassign="performUnassign"
         @queue-change="queue = $event"
+        @drag-state="draggingParticipantId = $event"
       />
     </main>
 
@@ -295,6 +316,8 @@ function versionLabel() {
       v-if="store.workspace"
       v-model="versionVisible"
       :plan-id="store.workspace.plan.id"
+      :versions="store.workspace.versions"
+      :current-version-no="store.workspace.plan.currentVersionNo"
       @done="store.loadWorkspace"
     />
   </div>
@@ -393,15 +416,16 @@ function versionLabel() {
 }
 
 .canvas-stats span {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   color: #718096;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .canvas-stats b {
-  color: #26354e;
-  font-size: 16px;
+  color: #12325f;
+  font-size: 21px;
 }
 
 .toolbar-spacer {

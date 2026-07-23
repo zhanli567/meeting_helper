@@ -1,7 +1,9 @@
 package com.company.meetinghelper.seating;
 
 import com.company.meetinghelper.api.ApiException;
+import com.company.meetinghelper.meeting.MeetingElementRepository;
 import com.company.meetinghelper.participant.ParticipantRepository;
+import com.company.meetinghelper.workspace.WorkspaceResponse;
 import com.company.meetinghelper.workspace.WorkspaceService;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpStatus;
@@ -14,7 +16,9 @@ public class PlanVersionService {
     private final SeatingPlanRepository planRepository;
     private final PlanVersionRepository versionRepository;
     private final PlanItemRepository itemRepository;
+    private final PlanItemTargetRepository targetRepository;
     private final ParticipantRepository participantRepository;
+    private final MeetingElementRepository elementRepository;
     private final WorkspaceService workspaceService;
     private final ObjectMapper objectMapper;
 
@@ -22,14 +26,18 @@ public class PlanVersionService {
             SeatingPlanRepository planRepository,
             PlanVersionRepository versionRepository,
             PlanItemRepository itemRepository,
+            PlanItemTargetRepository targetRepository,
             ParticipantRepository participantRepository,
+            MeetingElementRepository elementRepository,
             WorkspaceService workspaceService,
             ObjectMapper objectMapper
     ) {
         this.planRepository = planRepository;
         this.versionRepository = versionRepository;
         this.itemRepository = itemRepository;
+        this.targetRepository = targetRepository;
         this.participantRepository = participantRepository;
+        this.elementRepository = elementRepository;
         this.workspaceService = workspaceService;
         this.objectMapper = objectMapper;
     }
@@ -39,7 +47,9 @@ public class PlanVersionService {
         var plan = planRepository.findById(planId)
                 .filter(value -> !value.isDeleted())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
-        var nextVersion = plan.getCurrentVersionNo() + 1;
+        var nextVersion = versionRepository.findFirstByPlanIdAndDeletedFalseOrderByVersionNoDesc(planId)
+                .map(value -> value.getVersionNo() + 1)
+                .orElse(1);
         var workspace = workspaceService.getWorkspace(plan.getMeetingId());
         var assignedCount = (int) workspace.participants().stream()
                 .filter(participant -> participant.assignedElementId() != null)
@@ -68,6 +78,78 @@ public class PlanVersionService {
                 version.getAssignedCount(), version.getUnassignedCount());
     }
 
+    @Transactional
+    public RestoreVersionResult restore(String planId, String versionId) {
+        var plan = planRepository.findById(planId)
+                .filter(value -> !value.isDeleted())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
+        var version = versionRepository.findById(versionId)
+                .filter(value -> !value.isDeleted() && value.getPlanId().equals(planId))
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "方案版本不存在"));
+
+        final WorkspaceResponse snapshot;
+        try {
+            snapshot = objectMapper.readValue(version.getSnapshotJson(), WorkspaceResponse.class);
+        } catch (Exception exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "读取方案快照失败");
+        }
+        if (!snapshot.meeting().id().equals(plan.getMeetingId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "方案版本不属于当前会议");
+        }
+
+        var participantIds = participantRepository
+                .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(plan.getMeetingId())
+                .stream()
+                .map(value -> value.getId())
+                .collect(java.util.stream.Collectors.toSet());
+        var elementIds = elementRepository
+                .findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(plan.getMeetingId())
+                .stream()
+                .map(value -> value.getId())
+                .collect(java.util.stream.Collectors.toSet());
+
+        var currentItems = itemRepository.findAllByPlanIdAndDeletedFalseOrderByCreatedAtAsc(planId);
+        currentItems.forEach(item -> targetRepository.deleteAllByPlanItemId(item.getId()));
+        targetRepository.flush();
+        itemRepository.deleteAll(currentItems);
+        itemRepository.flush();
+
+        var restoredItems = 0;
+        for (var source : snapshot.items()) {
+            if (source.participantId() != null && !participantIds.contains(source.participantId())) {
+                continue;
+            }
+            var validTargets = source.targetElementIds().stream().filter(elementIds::contains).toList();
+            if (validTargets.isEmpty()) {
+                continue;
+            }
+            var item = new PlanItemEntity();
+            item.setPlanId(planId);
+            item.setItemType(PlanItemType.valueOf(source.type()));
+            item.setParticipantId(source.participantId());
+            item.setLabel(source.label());
+            item.setLocked(source.locked());
+            item.setBackgroundColor(source.backgroundColor());
+            item.setTextColor(source.textColor());
+            item.setBold(source.bold());
+            itemRepository.save(item);
+            for (var elementId : validTargets) {
+                var target = new PlanItemTargetEntity();
+                target.setPlanItemId(item.getId());
+                target.setMeetingElementId(elementId);
+                targetRepository.save(target);
+            }
+            restoredItems++;
+        }
+
+        plan.setCurrentVersionNo(version.getVersionNo());
+        plan.setUpdatedById("demo-secretary");
+        plan.setUpdatedByName("演示秘书");
+        planRepository.save(plan);
+        return new RestoreVersionResult(
+                version.getId(), version.getVersionNo(), version.getVersionName(), restoredItems);
+    }
+
     public record CreateVersionRequest(
             @NotBlank String versionName,
             String changeNote,
@@ -83,5 +165,12 @@ public class PlanVersionService {
             int unassignedCount
     ) {
     }
-}
 
+    public record RestoreVersionResult(
+            String id,
+            int versionNo,
+            String versionName,
+            int restoredItems
+    ) {
+    }
+}
