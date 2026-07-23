@@ -28,7 +28,6 @@
 
 ```powershell
 cd backend
-$env:MEETING_DB_PASSWORD = "<本地 PostgreSQL 密码>"
 .\mvnw.cmd spring-boot:run
 ```
 
@@ -59,8 +58,8 @@ cd backend
 .\mvnw.cmd test
 ```
 
-后端默认连接 `localhost:5432/meeting_helper`，用户默认为 `postgres`，密码必须通过
-`MEETING_DB_PASSWORD` 环境变量提供，不会写入 Git。地址和用户也可分别用
-`MEETING_DB_URL`、`MEETING_DB_USERNAME` 覆盖。Flyway 负责数据库结构升级，首次启动会自动创建颁奖会议演示数据。
+后端本地配置位于 `backend/src/main/resources/application.yml`，默认连接
+`localhost:5432/meeting_helper`，用户名为 `postgres`，密码为 `123456`。
+这是当前本地开发约定，不依赖数据库环境变量。Flyway 负责数据库结构升级，首次启动会自动创建颁奖会议演示数据。
 
 自动化测试继续使用内存 H2，不依赖本机 PostgreSQL。
