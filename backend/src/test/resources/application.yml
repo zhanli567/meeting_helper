@@ -10,3 +10,4 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+    table: t_flyway_schema_history

@@ -13,7 +13,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "venue_templates")
+@Table(name = "t_venue_templates")
 public class VenueTemplateEntity extends AuditedEntity {
     private String name;
     private String description;
@@ -26,4 +26,3 @@ public class VenueTemplateEntity extends AuditedEntity {
     @Enumerated(EnumType.STRING)
     private FrontDirection frontDirection;
 }
-

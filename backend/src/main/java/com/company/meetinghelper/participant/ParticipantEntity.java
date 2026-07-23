@@ -12,7 +12,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "participants")
+@Table(name = "t_participants")
 public class ParticipantEntity extends AuditedEntity {
     private String meetingId;
     private String employeeNo;

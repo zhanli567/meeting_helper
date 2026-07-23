@@ -11,7 +11,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "meetings")
+@Table(name = "t_meetings")
 public class MeetingEntity extends AuditedEntity {
     private String name;
     private String status;
@@ -22,4 +22,3 @@ public class MeetingEntity extends AuditedEntity {
     private int cellSize;
     private int layoutVersion;
 }
-

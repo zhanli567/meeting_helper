@@ -12,7 +12,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "plan_versions")
+@Table(name = "t_plan_versions")
 public class PlanVersionEntity extends AuditedEntity {
     private String planId;
     private int versionNo;

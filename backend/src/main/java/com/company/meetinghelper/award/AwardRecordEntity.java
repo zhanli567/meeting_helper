@@ -11,7 +11,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "award_records")
+@Table(name = "t_award_records")
 public class AwardRecordEntity extends AuditedEntity {
     private String participantId;
     private int batchOrder;
@@ -21,4 +21,3 @@ public class AwardRecordEntity extends AuditedEntity {
     private String projectName;
     private Integer teamSize;
 }
-

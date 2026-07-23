@@ -13,7 +13,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "plan_items")
+@Table(name = "t_plan_items")
 public class PlanItemEntity extends AuditedEntity {
     private String planId;
 
@@ -27,4 +27,3 @@ public class PlanItemEntity extends AuditedEntity {
     private String textColor;
     private boolean bold;
 }
-

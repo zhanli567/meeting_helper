@@ -14,7 +14,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "meeting_elements")
+@Table(name = "t_meeting_elements")
 public class MeetingElementEntity extends AuditedEntity {
     private String meetingId;
     private String sourceElementId;
@@ -38,4 +38,3 @@ public class MeetingElementEntity extends AuditedEntity {
     private String backgroundColor;
     private String borderColor;
 }
-

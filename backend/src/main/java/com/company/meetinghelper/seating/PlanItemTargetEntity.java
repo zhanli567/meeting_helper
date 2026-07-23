@@ -11,9 +11,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "plan_item_targets")
+@Table(name = "t_plan_item_targets")
 public class PlanItemTargetEntity extends AuditedEntity {
     private String planItemId;
     private String meetingElementId;
 }
-

@@ -6,6 +6,7 @@
 
 - `frontend`：Vue 3 + TypeScript 前端。
 - `backend`：Spring Boot 后端。
+- `DDL`：数据库初始化建表脚本的唯一存放目录。
 - `docs/architecture.md`：领域边界、数据关系和扩展点说明。
 - `CHANGELOG.md`：持续变更记录。
 
@@ -60,6 +61,8 @@ cd backend
 
 后端本地配置位于 `backend/src/main/resources/application.yml`，默认连接
 `localhost:5432/meeting_helper`，用户名为 `postgres`，密码为 `123456`。
-这是当前本地开发约定，不依赖数据库环境变量。Flyway 负责数据库结构升级，首次启动会自动创建颁奖会议演示数据。
+这是当前本地开发约定，不依赖数据库环境变量。Maven 构建时会把根目录 `DDL`
+中的脚本复制到 Flyway 类路径；SQL 源文件只允许包含 `CREATE TABLE`，所有表名统一使用
+`t_` 前缀。首次启动会自动创建颁奖会议演示数据。
 
 自动化测试继续使用内存 H2，不依赖本机 PostgreSQL。

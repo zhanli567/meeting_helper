@@ -11,11 +11,10 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "seating_plans")
+@Table(name = "t_seating_plans")
 public class SeatingPlanEntity extends AuditedEntity {
     private String meetingId;
     private String name;
     private String status;
     private int currentVersionNo;
 }
-

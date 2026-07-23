@@ -1,4 +1,4 @@
-create table venue_templates (
+create table t_venue_templates (
     id varchar(36) primary key,
     name varchar(120) not null,
     description varchar(500),
@@ -18,7 +18,7 @@ create table venue_templates (
     row_version bigint not null
 );
 
-create table venue_elements (
+create table t_venue_elements (
     id varchar(36) primary key,
     venue_template_id varchar(36) not null,
     element_type varchar(30) not null,
@@ -45,10 +45,10 @@ create table venue_elements (
     updated_at timestamp with time zone not null,
     deleted boolean not null,
     row_version bigint not null,
-    constraint fk_venue_element_template foreign key (venue_template_id) references venue_templates(id)
+    constraint fk_t_venue_element_template foreign key (venue_template_id) references t_venue_templates(id)
 );
 
-create table meetings (
+create table t_meetings (
     id varchar(36) primary key,
     name varchar(160) not null,
     status varchar(30) not null,
@@ -66,10 +66,10 @@ create table meetings (
     updated_at timestamp with time zone not null,
     deleted boolean not null,
     row_version bigint not null,
-    constraint fk_meeting_template foreign key (venue_template_id) references venue_templates(id)
+    constraint fk_t_meeting_template foreign key (venue_template_id) references t_venue_templates(id)
 );
 
-create table meeting_elements (
+create table t_meeting_elements (
     id varchar(36) primary key,
     meeting_id varchar(36) not null,
     source_element_id varchar(36),
@@ -97,10 +97,10 @@ create table meeting_elements (
     updated_at timestamp with time zone not null,
     deleted boolean not null,
     row_version bigint not null,
-    constraint fk_meeting_element_meeting foreign key (meeting_id) references meetings(id)
+    constraint fk_t_meeting_element_meeting foreign key (meeting_id) references t_meetings(id)
 );
 
-create table participants (
+create table t_participants (
     id varchar(36) primary key,
     meeting_id varchar(36) not null,
     employee_no varchar(9) not null,
@@ -119,11 +119,11 @@ create table participants (
     updated_at timestamp with time zone not null,
     deleted boolean not null,
     row_version bigint not null,
-    constraint fk_participant_meeting foreign key (meeting_id) references meetings(id),
-    constraint uk_participant_employee unique (meeting_id, employee_no)
+    constraint fk_t_participant_meeting foreign key (meeting_id) references t_meetings(id),
+    constraint uk_t_participant_employee unique (meeting_id, employee_no)
 );
 
-create table award_records (
+create table t_award_records (
     id varchar(36) primary key,
     participant_id varchar(36) not null,
     batch_order integer not null,
@@ -140,10 +140,10 @@ create table award_records (
     updated_at timestamp with time zone not null,
     deleted boolean not null,
     row_version bigint not null,
-    constraint fk_award_participant foreign key (participant_id) references participants(id)
+    constraint fk_t_award_participant foreign key (participant_id) references t_participants(id)
 );
 
-create table seating_plans (
+create table t_seating_plans (
     id varchar(36) primary key,
     meeting_id varchar(36) not null,
     name varchar(120) not null,
@@ -157,10 +157,10 @@ create table seating_plans (
     updated_at timestamp with time zone not null,
     deleted boolean not null,
     row_version bigint not null,
-    constraint fk_plan_meeting foreign key (meeting_id) references meetings(id)
+    constraint fk_t_plan_meeting foreign key (meeting_id) references t_meetings(id)
 );
 
-create table plan_items (
+create table t_plan_items (
     id varchar(36) primary key,
     plan_id varchar(36) not null,
     item_type varchar(30) not null,
@@ -178,11 +178,11 @@ create table plan_items (
     updated_at timestamp with time zone not null,
     deleted boolean not null,
     row_version bigint not null,
-    constraint fk_item_plan foreign key (plan_id) references seating_plans(id),
-    constraint fk_item_participant foreign key (participant_id) references participants(id)
+    constraint fk_t_item_plan foreign key (plan_id) references t_seating_plans(id),
+    constraint fk_t_item_participant foreign key (participant_id) references t_participants(id)
 );
 
-create table plan_item_targets (
+create table t_plan_item_targets (
     id varchar(36) primary key,
     plan_item_id varchar(36) not null,
     meeting_element_id varchar(36) not null,
@@ -194,12 +194,12 @@ create table plan_item_targets (
     updated_at timestamp with time zone not null,
     deleted boolean not null,
     row_version bigint not null,
-    constraint fk_target_item foreign key (plan_item_id) references plan_items(id),
-    constraint fk_target_element foreign key (meeting_element_id) references meeting_elements(id),
-    constraint uk_target_element unique (meeting_element_id)
+    constraint fk_t_target_item foreign key (plan_item_id) references t_plan_items(id),
+    constraint fk_t_target_element foreign key (meeting_element_id) references t_meeting_elements(id),
+    constraint uk_t_target_element unique (meeting_element_id)
 );
 
-create table plan_versions (
+create table t_plan_versions (
     id varchar(36) primary key,
     plan_id varchar(36) not null,
     version_no integer not null,
@@ -217,15 +217,6 @@ create table plan_versions (
     updated_at timestamp with time zone not null,
     deleted boolean not null,
     row_version bigint not null,
-    constraint fk_version_plan foreign key (plan_id) references seating_plans(id),
-    constraint uk_plan_version unique (plan_id, version_no)
+    constraint fk_t_version_plan foreign key (plan_id) references t_seating_plans(id),
+    constraint uk_t_plan_version unique (plan_id, version_no)
 );
-
-create index idx_element_template on venue_elements(venue_template_id);
-create index idx_meeting_element_meeting on meeting_elements(meeting_id);
-create index idx_participant_meeting on participants(meeting_id);
-create index idx_award_participant on award_records(participant_id);
-create index idx_plan_meeting on seating_plans(meeting_id);
-create index idx_item_plan on plan_items(plan_id);
-create index idx_target_item on plan_item_targets(plan_item_id);
-create index idx_version_plan on plan_versions(plan_id);

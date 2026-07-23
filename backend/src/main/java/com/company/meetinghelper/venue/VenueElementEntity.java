@@ -13,7 +13,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "venue_elements")
+@Table(name = "t_venue_elements")
 public class VenueElementEntity extends AuditedEntity {
     private String venueTemplateId;
 
@@ -36,4 +36,3 @@ public class VenueElementEntity extends AuditedEntity {
     private String backgroundColor;
     private String borderColor;
 }
-
