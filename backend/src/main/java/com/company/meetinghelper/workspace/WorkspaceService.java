@@ -104,12 +104,20 @@ public class WorkspaceService {
                         item -> targetsByItem.getOrDefault(item.getId(), List.of()).stream().findFirst().orElse(null),
                         (left, right) -> left
                 ));
+        var lockedByParticipant = items.stream()
+                .filter(item -> item.getItemType() == PlanItemType.PERSON && item.getParticipantId() != null)
+                .collect(Collectors.toMap(
+                        item -> item.getParticipantId(),
+                        item -> item.isLocked(),
+                        (left, right) -> left
+                ));
 
         var participantViews = participants.stream()
                 .map(participant -> toParticipantView(
                         participant,
                         awardsByParticipant.getOrDefault(participant.getId(), List.of()),
-                        assignedByParticipant.get(participant.getId())
+                        assignedByParticipant.get(participant.getId()),
+                        lockedByParticipant.getOrDefault(participant.getId(), false)
                 ))
                 .toList();
         var itemViews = items.stream().map(item -> new WorkspaceResponse.PlanItemView(
@@ -152,7 +160,7 @@ public class WorkspaceService {
                                 version.isAutomatic(), version.getAssignedCount(), version.getUnassignedCount(),
                                 version.getCreatedAt(), version.getCreatedByName()))
                         .toList(),
-                fieldDefinitions(),
+                fieldDefinitions(participantViews),
                 styleRules
         );
     }
@@ -170,7 +178,8 @@ public class WorkspaceService {
     private WorkspaceResponse.ParticipantView toParticipantView(
             ParticipantEntity participant,
             List<AwardRecordEntity> records,
-            String assignedElementId
+            String assignedElementId,
+            boolean locked
     ) {
         var sorted = records.stream()
                 .sorted(java.util.Comparator.comparingInt(AwardRecordEntity::getBatchOrder))
@@ -195,7 +204,7 @@ public class WorkspaceService {
                 participant.getParticipantType(),
                 splitTags(participant.getTags()),
                 readAttributes(participant.getCustomAttributesJson()),
-                participant.isLocked(),
+                locked,
                 assignedElementId,
                 primary == null ? null : primary.getBatchOrder(),
                 primary == null ? null : primary.getBatchName(),
@@ -229,7 +238,9 @@ public class WorkspaceService {
         }
     }
 
-    private List<WorkspaceResponse.FieldDefinitionView> fieldDefinitions() {
+    private List<WorkspaceResponse.FieldDefinitionView> fieldDefinitions(
+            List<WorkspaceResponse.ParticipantView> participants
+    ) {
         var fields = new ArrayList<WorkspaceResponse.FieldDefinitionView>();
         fields.add(new WorkspaceResponse.FieldDefinitionView("name", "姓名", "TEXT", true, false, true, true));
         fields.add(new WorkspaceResponse.FieldDefinitionView("employeeNo", "工号", "TEXT", true, false, true, false));
@@ -240,7 +251,12 @@ public class WorkspaceService {
         fields.add(new WorkspaceResponse.FieldDefinitionView(
                 "primaryBatchName", "主排座批次", "ENUM", true, true, true, true));
         fields.add(new WorkspaceResponse.FieldDefinitionView("tags", "标签", "MULTI_ENUM", true, true, true, false));
+        participants.stream()
+                .flatMap(participant -> participant.attributes().keySet().stream())
+                .distinct()
+                .sorted()
+                .forEach(code -> fields.add(new WorkspaceResponse.FieldDefinitionView(
+                        code, code, "TEXT", true, true, true, false)));
         return fields;
     }
 }
-
