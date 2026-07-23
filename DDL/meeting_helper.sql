@@ -1,4 +1,4 @@
-create table t_venue_templates (
+create table if not exists t_venue_templates (
     id varchar(36) primary key,
     name varchar(120) not null,
     description varchar(500),
@@ -18,7 +18,7 @@ create table t_venue_templates (
     row_version bigint not null
 );
 
-create table t_venue_elements (
+create table if not exists t_venue_elements (
     id varchar(36) primary key,
     venue_template_id varchar(36) not null,
     element_type varchar(30) not null,
@@ -48,7 +48,7 @@ create table t_venue_elements (
     constraint fk_t_venue_element_template foreign key (venue_template_id) references t_venue_templates(id)
 );
 
-create table t_meetings (
+create table if not exists t_meetings (
     id varchar(36) primary key,
     name varchar(160) not null,
     status varchar(30) not null,
@@ -69,7 +69,7 @@ create table t_meetings (
     constraint fk_t_meeting_template foreign key (venue_template_id) references t_venue_templates(id)
 );
 
-create table t_meeting_elements (
+create table if not exists t_meeting_elements (
     id varchar(36) primary key,
     meeting_id varchar(36) not null,
     source_element_id varchar(36),
@@ -100,7 +100,7 @@ create table t_meeting_elements (
     constraint fk_t_meeting_element_meeting foreign key (meeting_id) references t_meetings(id)
 );
 
-create table t_participants (
+create table if not exists t_participants (
     id varchar(36) primary key,
     meeting_id varchar(36) not null,
     employee_no varchar(9) not null,
@@ -123,7 +123,7 @@ create table t_participants (
     constraint uk_t_participant_employee unique (meeting_id, employee_no)
 );
 
-create table t_award_records (
+create table if not exists t_award_records (
     id varchar(36) primary key,
     participant_id varchar(36) not null,
     batch_order integer not null,
@@ -143,7 +143,7 @@ create table t_award_records (
     constraint fk_t_award_participant foreign key (participant_id) references t_participants(id)
 );
 
-create table t_seating_plans (
+create table if not exists t_seating_plans (
     id varchar(36) primary key,
     meeting_id varchar(36) not null,
     name varchar(120) not null,
@@ -160,7 +160,7 @@ create table t_seating_plans (
     constraint fk_t_plan_meeting foreign key (meeting_id) references t_meetings(id)
 );
 
-create table t_plan_items (
+create table if not exists t_plan_items (
     id varchar(36) primary key,
     plan_id varchar(36) not null,
     item_type varchar(30) not null,
@@ -182,7 +182,7 @@ create table t_plan_items (
     constraint fk_t_item_participant foreign key (participant_id) references t_participants(id)
 );
 
-create table t_plan_item_targets (
+create table if not exists t_plan_item_targets (
     id varchar(36) primary key,
     plan_item_id varchar(36) not null,
     meeting_element_id varchar(36) not null,
@@ -199,7 +199,7 @@ create table t_plan_item_targets (
     constraint uk_t_target_element unique (meeting_element_id)
 );
 
-create table t_plan_versions (
+create table if not exists t_plan_versions (
     id varchar(36) primary key,
     plan_id varchar(36) not null,
     version_no integer not null,

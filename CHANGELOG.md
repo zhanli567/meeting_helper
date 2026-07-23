@@ -8,7 +8,7 @@
 
 - 初始化 Git 仓库。
 - 使用 Vue、TypeScript、Vite、Pinia 和 Vue Router 创建前端工程。
-- 使用 Spring Boot、Spring Data JPA、Flyway、H2 和 Bean Validation 创建后端工程。
+- 使用 Spring Boot、Spring Data JPA、PostgreSQL、H2 和 Bean Validation 创建后端工程。
 - 建立场馆模板、会议布局快照、参会人员、颁奖记录、排座方案、方案版本和多目标临时占用模型。
 - 提供排座工作台、人员移动与交换、锁定、手工新增和软删除接口。
 - 提供元数据驱动的通用会议与颁奖会议Excel导入模板、重复工号预览和导入提交接口。
@@ -41,12 +41,14 @@
 ### 变更
 
 - 正式运行数据库由文件型 H2 切换为 PostgreSQL，连接信息通过环境变量提供。
-- H2 调整为仅供自动化测试使用，并增加 PostgreSQL 对应的 Flyway 数据库支持。
+- H2 调整为仅供自动化测试使用，正式运行数据统一保存到 PostgreSQL。
 - 将迁移脚本中的大文本列改为 PostgreSQL 与 H2 均支持的 `text` 类型。
 - 将人员扩展属性和方案快照的实体映射同步调整为 `text`，保持 Hibernate 校验与迁移结构一致。
-- 系统主色调整为蓝白色，舞台和业务分类色改用低饱和浅色；新增 Flyway 迁移同步更新既有演示场馆。
+- 系统主色调整为蓝白色，舞台和业务分类色改用低饱和浅色。
 - 将写死的“批次升序、职级降序”改为按后端字段定义生成排序选项；非颁奖会议不再显示批次排序。
 - 将工作台顶部统计改为横向大字号展示，并将“保存当前视图”更名为含义明确的“保存筛选方案”。
 - 后端正式配置和测试配置统一改用 YAML；本地 PostgreSQL 连接信息直接写入配置，不再依赖数据库环境变量。
-- 数据库脚本统一迁移到根目录 `DDL`，Maven 构建时复制给 Flyway；删除包含更新语句的历史迁移。
-- 10 张业务表和 Flyway 历史表全部改用 `t_` 前缀，初始化脚本仅保留 `CREATE TABLE` 语句。
+- 数据库脚本统一为根目录 `DDL/meeting_helper.sql`，Maven 构建时复制给 Spring Boot SQL 初始化器。
+- 10 张业务表全部改用 `t_` 前缀，初始化脚本仅保留可重复执行的 `CREATE TABLE IF NOT EXISTS` 语句。
+- 移除不再需要的 Flyway 依赖和历史表，避免固定 DDL 文件名无法被识别。
+- 删除本地遗留的 H2 文件数据库和临时 PostgreSQL 备份目录，并重新创建 UTF-8 的 `meeting_helper` 数据库。

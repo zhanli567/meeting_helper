@@ -8,6 +8,8 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
-  flyway:
-    enabled: true
-    table: t_flyway_schema_history
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:DDL/meeting_helper.sql
+      continue-on-error: false

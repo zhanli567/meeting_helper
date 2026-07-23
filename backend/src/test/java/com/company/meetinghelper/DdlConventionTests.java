@@ -1,5 +1,6 @@
 package com.company.meetinghelper;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,7 +17,9 @@ import org.junit.jupiter.api.Test;
 class DdlConventionTests {
 
     private static final Pattern CREATE_TABLE_PATTERN =
-            Pattern.compile("^create\\s+table\\s+([a-zA-Z0-9_]+)", Pattern.CASE_INSENSITIVE);
+            Pattern.compile(
+                    "^create\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?([a-zA-Z0-9_]+)",
+                    Pattern.CASE_INSENSITIVE);
 
     @Test
     void sqlFilesStayInRootDdlAndOnlyCreatePrefixedTables() throws IOException {
@@ -33,6 +36,11 @@ class DdlConventionTests {
         }
 
         assertFalse(sqlFiles.isEmpty(), "根目录 DDL 文件夹至少应包含一个 SQL 文件");
+        assertEquals(1, sqlFiles.size(), "仓库只能保留一份数据库建表 SQL");
+        assertEquals(
+                ddlDirectory.resolve("meeting_helper.sql"),
+                sqlFiles.getFirst().normalize(),
+                "数据库建表脚本必须命名为 DDL/meeting_helper.sql");
         assertTrue(
                 sqlFiles.stream().allMatch(path -> path.normalize().startsWith(ddlDirectory)),
                 "所有 SQL 源文件必须统一放在根目录 DDL 文件夹中");

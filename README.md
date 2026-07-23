@@ -61,8 +61,8 @@ cd backend
 
 后端本地配置位于 `backend/src/main/resources/application.yml`，默认连接
 `localhost:5432/meeting_helper`，用户名为 `postgres`，密码为 `123456`。
-这是当前本地开发约定，不依赖数据库环境变量。Maven 构建时会把根目录 `DDL`
-中的脚本复制到 Flyway 类路径；SQL 源文件只允许包含 `CREATE TABLE`，所有表名统一使用
-`t_` 前缀。首次启动会自动创建颁奖会议演示数据。
+这是当前本地开发约定，不依赖数据库环境变量。Maven 构建时会把根目录
+`DDL/meeting_helper.sql` 复制到应用类路径，由 Spring Boot 在启动时执行。
+SQL 源文件只允许包含 `CREATE TABLE`，所有表名统一使用 `t_` 前缀。首次启动会自动创建颁奖会议演示数据。
 
 自动化测试继续使用内存 H2，不依赖本机 PostgreSQL。

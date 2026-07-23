@@ -11,7 +11,4 @@ frontend/.env.local
 frontend/.env.*.local
 
 backend/target/
-backend/data/
 backend/uploads/
-.local-backups/
-/data/
