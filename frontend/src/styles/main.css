@@ -1,0 +1,138 @@
+:root {
+  color-scheme: light;
+  font-family:
+    Inter,
+    'PingFang SC',
+    'Microsoft YaHei',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  color: #172033;
+  background: #edf1f6;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --ink: #172033;
+  --muted: #667085;
+  --line: #dfe5ee;
+  --brand: #274f93;
+  --brand-soft: #eaf0fb;
+  --surface: #ffffff;
+  --canvas: #f7f9fc;
+  --danger: #c53e3e;
+  --shadow: 0 12px 28px rgba(28, 39, 58, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  min-width: 1180px;
+  height: 100%;
+  margin: 0;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.app-page {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at 10% -10%, rgba(92, 130, 190, 0.14), transparent 34%), #edf1f6;
+}
+
+.app-header {
+  height: 66px;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  color: #fff;
+  background: linear-gradient(112deg, #172642 0%, #243d68 58%, #2c548d 100%);
+  box-shadow: 0 3px 16px rgba(22, 38, 66, 0.2);
+}
+
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.1);
+  font-weight: 750;
+  letter-spacing: -1px;
+}
+
+.brand-copy {
+  min-width: 178px;
+}
+
+.brand-copy strong {
+  display: block;
+  font-size: 16px;
+  letter-spacing: 0.03em;
+}
+
+.brand-copy span {
+  display: block;
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 11px;
+}
+
+.header-divider {
+  width: 1px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.header-spacer {
+  flex: 1;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.eyebrow {
+  color: #718096;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.panel-title {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.empty-copy {
+  padding: 36px 20px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.el-button--primary {
+  --el-button-bg-color: var(--brand);
+  --el-button-border-color: var(--brand);
+  --el-button-hover-bg-color: #3565ad;
+  --el-button-hover-border-color: #3565ad;
+}
+
+.el-dialog {
+  border-radius: 14px;
+}
+
+.el-tag {
+  border-radius: 999px;
+}
