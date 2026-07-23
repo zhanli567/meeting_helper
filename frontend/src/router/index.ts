@@ -21,6 +21,11 @@ const router = createRouter({
       name: 'venue-new',
       component: () => import('@/views/VenueDesignerView.vue'),
     },
+    {
+      path: '/venues/:venueId/edit',
+      name: 'venue-edit',
+      component: () => import('@/views/VenueDesignerView.vue'),
+    },
   ],
 })
 

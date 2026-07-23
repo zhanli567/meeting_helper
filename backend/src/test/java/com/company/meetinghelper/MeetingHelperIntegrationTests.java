@@ -3,8 +3,10 @@ package com.company.meetinghelper;
 import com.company.meetinghelper.export.ExportService;
 import com.company.meetinghelper.importing.ImportService;
 import com.company.meetinghelper.meeting.MeetingRepository;
+import com.company.meetinghelper.meeting.MeetingService;
 import com.company.meetinghelper.seating.PlanVersionService;
 import com.company.meetinghelper.seating.SeatingService;
+import com.company.meetinghelper.venue.VenueService;
 import com.company.meetinghelper.workspace.WorkspaceService;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.ByteArrayInputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @Transactional
@@ -36,6 +39,12 @@ class MeetingHelperIntegrationTests {
 
     @Autowired
     private ExportService exportService;
+
+    @Autowired
+    private VenueService venueService;
+
+    @Autowired
+    private MeetingService meetingService;
 
     @Test
     void workspaceContainsRealisticDemoLayoutAndParticipants() {
@@ -79,6 +88,10 @@ class MeetingHelperIntegrationTests {
         var before = workspaceService.getWorkspace(meeting.getId());
         var saved = planVersionService.create(before.plan().id(),
                 new PlanVersionService.CreateVersionRequest("恢复测试版本", "保存当前排座", false));
+        var immutableSnapshot = planVersionService.getSnapshot(before.plan().id(), saved.id());
+        assertThat(immutableSnapshot.participants().stream()
+                .filter(value -> value.assignedElementId() != null)
+                .count()).isEqualTo(12);
         var participant = before.participants().stream()
                 .filter(value -> value.assignedElementId() == null)
                 .findFirst().orElseThrow();
@@ -94,6 +107,10 @@ class MeetingHelperIntegrationTests {
         assertThat(workspaceService.getWorkspace(meeting.getId()).participants().stream()
                 .filter(value -> value.assignedElementId() != null)
                 .count()).isEqualTo(13);
+        assertThat(planVersionService.getSnapshot(before.plan().id(), saved.id()).participants().stream()
+                .filter(value -> value.assignedElementId() != null)
+                .count()).isEqualTo(12);
+        assertThat(exportService.exportExcel(meeting.getId(), saved.id()).length).isGreaterThan(5_000);
 
         planVersionService.restore(before.plan().id(), saved.id());
 
@@ -115,5 +132,52 @@ class MeetingHelperIntegrationTests {
         var meeting = meetingRepository.findAllByDeletedFalseOrderByUpdatedAtDesc().getFirst();
         assertThat(exportService.exportExcel(meeting.getId()).length).isGreaterThan(5_000);
         assertThat(exportService.exportPdf(meeting.getId()).length).isGreaterThan(5_000);
+    }
+
+    @Test
+    void customVenueSupportsDuplicateCheckUpdateAndSoftDelete() {
+        var name = "测试场馆-" + java.util.UUID.randomUUID();
+        var request = new VenueService.CreateVenueRequest(
+                name,
+                "用于验证场馆管理",
+                5,
+                5,
+                34,
+                "TOP",
+                java.util.List.of(new VenueService.ElementInput(
+                        "SEAT", "1排01", "座位", 1, 1, 1, 1, 0, 1,
+                        true, false, null, null, 1, "#ffffff", "#93b4df")));
+
+        var created = venueService.create(request);
+        assertThatThrownBy(() -> venueService.create(request))
+                .hasMessage("场馆名称已存在");
+
+        var renamed = new VenueService.CreateVenueRequest(
+                name + "-修改",
+                request.description(),
+                request.gridRows(),
+                request.gridColumns(),
+                request.cellSize(),
+                request.frontDirection(),
+                request.elements());
+        var updated = venueService.update(created.id(), renamed);
+        assertThat(updated.versionNo()).isEqualTo(2);
+        assertThat(updated.name()).isEqualTo(name + "-修改");
+
+        venueService.delete(created.id());
+        assertThat(venueService.list()).noneMatch(venue -> venue.id().equals(created.id()));
+        assertThat(venueService.create(renamed).name()).isEqualTo(name + "-修改");
+    }
+
+    @Test
+    void meetingNameIsCheckedOnBothCreateAttempts() {
+        var venue = venueService.list().getFirst();
+        var name = "测试会议-" + java.util.UUID.randomUUID();
+        var request = new MeetingService.CreateMeetingRequest(name, venue.id());
+
+        meetingService.create(request);
+
+        assertThatThrownBy(() -> meetingService.create(request))
+                .hasMessage("会议名称已存在");
     }
 }

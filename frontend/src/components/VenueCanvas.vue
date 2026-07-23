@@ -1,26 +1,32 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
 import type { LayoutElement, Participant, PlanItem, Workspace } from '@/types/workspace'
 
-const props = defineProps<{
-  workspace: Workspace
-  zoom: number
-  selectedParticipantId?: string
-  continuousParticipantId?: string
-  draggingParticipantId?: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    workspace: Workspace
+    zoom: number
+    selectedParticipantId?: string
+    continuousParticipantId?: string
+    draggingParticipantId?: string
+    readonly?: boolean
+  }>(),
+  { readonly: false },
+)
 
 const emit = defineEmits<{
   assign: [participantId: string, targetElementId: string]
   select: [participant?: Participant]
   seatClick: [element: LayoutElement]
   dragState: [participantId?: string]
+  zoomChange: [delta: number, event: WheelEvent]
 }>()
 
 const scrollRef = ref<HTMLElement>()
 const dragTargetId = ref<string>()
 const isPanning = ref(false)
+let panMoved = false
 let panStartX = 0
 let panStartY = 0
 let panScrollLeft = 0
@@ -79,6 +85,10 @@ function visualStyle(element: LayoutElement) {
 }
 
 function onDragStart(event: DragEvent, participant: Participant) {
+  if (props.readonly) {
+    event.preventDefault()
+    return
+  }
   event.dataTransfer?.setData('text/participant-id', participant.id)
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
   emit('select', participant)
@@ -91,6 +101,7 @@ function startParticipantDrag(event: DragEvent, elementId: string) {
 }
 
 function onDragOver(event: DragEvent, element: LayoutElement) {
+  if (props.readonly) return
   event.preventDefault()
   if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
   dragTargetId.value = element.id
@@ -102,6 +113,7 @@ function onDragLeave(event: DragEvent, element: LayoutElement) {
 }
 
 function onDrop(event: DragEvent, element: LayoutElement) {
+  if (props.readonly) return
   event.preventDefault()
   const participantId = event.dataTransfer?.getData('text/participant-id')
   if (participantId) emit('assign', participantId, element.id)
@@ -110,6 +122,7 @@ function onDrop(event: DragEvent, element: LayoutElement) {
 }
 
 function onSeatClick(element: LayoutElement) {
+  if (panMoved) return
   const person = participantFor(element.id)
   if (person) emit('select', person)
   else emit('seatClick', element)
@@ -133,7 +146,7 @@ function typeLabel(type: string) {
 function startPan(event: MouseEvent) {
   if (event.button !== 0) return
   const target = event.target as HTMLElement
-  if (target.closest('.seat-element, button, input')) return
+  if (target.closest('.seat-person, button, input')) return
   const container = scrollRef.value
   if (!container) return
   isPanning.value = true
@@ -141,6 +154,7 @@ function startPan(event: MouseEvent) {
   panStartY = event.clientY
   panScrollLeft = container.scrollLeft
   panScrollTop = container.scrollTop
+  panMoved = false
   window.addEventListener('mousemove', movePan)
   window.addEventListener('mouseup', endPan)
   event.preventDefault()
@@ -148,6 +162,9 @@ function startPan(event: MouseEvent) {
 
 function movePan(event: MouseEvent) {
   if (!isPanning.value || !scrollRef.value) return
+  if (Math.abs(event.clientX - panStartX) > 3 || Math.abs(event.clientY - panStartY) > 3) {
+    panMoved = true
+  }
   scrollRef.value.scrollLeft = panScrollLeft - (event.clientX - panStartX)
   scrollRef.value.scrollTop = panScrollTop - (event.clientY - panStartY)
 }
@@ -156,6 +173,25 @@ function endPan() {
   isPanning.value = false
   window.removeEventListener('mousemove', movePan)
   window.removeEventListener('mouseup', endPan)
+  window.setTimeout(() => {
+    panMoved = false
+  }, 0)
+}
+
+function onWheel(event: WheelEvent) {
+  event.preventDefault()
+  const container = scrollRef.value
+  if (!container) return
+  const oldZoom = props.zoom
+  const rect = container.getBoundingClientRect()
+  const pointerX = event.clientX - rect.left + container.scrollLeft
+  const pointerY = event.clientY - rect.top + container.scrollTop
+  emit('zoomChange', event.deltaY < 0 ? 0.08 : -0.08, event)
+  nextTick(() => {
+    if (!scrollRef.value || props.zoom === oldZoom) return
+    scrollRef.value.scrollLeft = (pointerX / oldZoom) * props.zoom - (event.clientX - rect.left)
+    scrollRef.value.scrollTop = (pointerY / oldZoom) * props.zoom - (event.clientY - rect.top)
+  })
 }
 
 onBeforeUnmount(endPan)
@@ -167,6 +203,7 @@ onBeforeUnmount(endPan)
     class="canvas-scroll"
     :class="{ panning: isPanning, 'drag-active': draggingParticipantId }"
     @mousedown="startPan"
+    @wheel="onWheel"
   >
     <div class="venue-canvas" :style="canvasStyle">
       <template v-for="element in workspace.layout.elements" :key="element.id">
@@ -228,7 +265,7 @@ onBeforeUnmount(endPan)
             <template v-if="participantFor(element.id)">
               <span
                 class="seat-person"
-                :draggable="!itemFor(element.id)?.locked"
+                :draggable="!readonly && !itemFor(element.id)?.locked"
                 @dragstart="startParticipantDrag($event, element.id)"
                 @dragend="emit('dragState', undefined)"
               >

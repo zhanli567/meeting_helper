@@ -2,10 +2,14 @@
 import { Delete, Lock, Unlock } from '@element-plus/icons-vue'
 import type { LayoutElement, Participant } from '@/types/workspace'
 
-defineProps<{
-  participant?: Participant
-  seat?: LayoutElement
-}>()
+withDefaults(
+  defineProps<{
+    participant?: Participant
+    seat?: LayoutElement
+    readonly?: boolean
+  }>(),
+  { readonly: false },
+)
 const emit = defineEmits<{
   lock: [participantId: string, locked: boolean]
   unassign: [participantId: string]
@@ -32,7 +36,7 @@ const emit = defineEmits<{
         <b>重复批次</b>{{ participant.repeatedBatches.join('、') }}
       </span>
     </div>
-    <div class="detail-actions">
+    <div v-if="!readonly" class="detail-actions">
       <el-button
         v-if="participant.assignedElementId"
         size="small"

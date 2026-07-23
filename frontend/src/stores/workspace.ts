@@ -112,10 +112,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
-  async function exportPlan(type: 'excel' | 'pdf') {
+  async function exportPlan(type: 'excel' | 'pdf', versionId?: string) {
     if (!workspace.value) return
     try {
-      const data = await meetingApi.exportFile(workspace.value.meeting.id, type)
+      const data = await meetingApi.exportFile(workspace.value.meeting.id, type, versionId)
       downloadBlob(
         data,
         `${workspace.value.meeting.name}-排座.${type === 'excel' ? 'xlsx' : 'pdf'}`,

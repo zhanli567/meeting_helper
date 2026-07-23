@@ -87,12 +87,7 @@ public class PlanVersionService {
                 .filter(value -> !value.isDeleted() && value.getPlanId().equals(planId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "方案版本不存在"));
 
-        final WorkspaceResponse snapshot;
-        try {
-            snapshot = objectMapper.readValue(version.getSnapshotJson(), WorkspaceResponse.class);
-        } catch (Exception exception) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "读取方案快照失败");
-        }
+        var snapshot = readSnapshot(version);
         if (!snapshot.meeting().id().equals(plan.getMeetingId())) {
             throw new ApiException(HttpStatus.CONFLICT, "方案版本不属于当前会议");
         }
@@ -148,6 +143,36 @@ public class PlanVersionService {
         planRepository.save(plan);
         return new RestoreVersionResult(
                 version.getId(), version.getVersionNo(), version.getVersionName(), restoredItems);
+    }
+
+    @Transactional(readOnly = true)
+    public WorkspaceResponse getSnapshot(String planId, String versionId) {
+        var plan = planRepository.findById(planId)
+                .filter(value -> !value.isDeleted())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
+        var version = versionRepository.findById(versionId)
+                .filter(value -> !value.isDeleted() && value.getPlanId().equals(planId))
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "方案版本不存在"));
+        var snapshot = readSnapshot(version);
+        if (!snapshot.meeting().id().equals(plan.getMeetingId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "方案版本不属于当前会议");
+        }
+        return snapshot;
+    }
+
+    @Transactional(readOnly = true)
+    public WorkspaceResponse getSnapshotForMeeting(String meetingId, String versionId) {
+        var plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议尚未建立排座方案"));
+        return getSnapshot(plan.getId(), versionId);
+    }
+
+    private WorkspaceResponse readSnapshot(PlanVersionEntity version) {
+        try {
+            return objectMapper.readValue(version.getSnapshotJson(), WorkspaceResponse.class);
+        } catch (Exception exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "读取方案快照失败");
+        }
     }
 
     public record CreateVersionRequest(

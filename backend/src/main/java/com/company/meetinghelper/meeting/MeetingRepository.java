@@ -6,5 +6,6 @@ import java.util.List;
 
 public interface MeetingRepository extends JpaRepository<MeetingEntity, String> {
     List<MeetingEntity> findAllByDeletedFalseOrderByUpdatedAtDesc();
-}
 
+    boolean existsByNameIgnoreCaseAndDeletedFalse(String name);
+}

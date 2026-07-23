@@ -177,3 +177,16 @@ export interface VenueSummary {
   preset: boolean
   seatCount: number
 }
+
+export interface VenueDetail {
+  id: string
+  name: string
+  description?: string
+  gridRows: number
+  gridColumns: number
+  cellSize: number
+  versionNo: number
+  preset: boolean
+  frontDirection: string
+  elements: Array<Omit<LayoutElement, 'id'>>
+}

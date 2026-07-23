@@ -48,8 +48,12 @@ public class VenueService {
 
     @Transactional
     public VenueDetail create(CreateVenueRequest request) {
+        var normalizedName = request.name().trim();
+        if (templateRepository.existsByNameIgnoreCaseAndDeletedFalse(normalizedName)) {
+            throw new ApiException(HttpStatus.CONFLICT, "场馆名称已存在");
+        }
         var template = new VenueTemplateEntity();
-        template.setName(request.name());
+        template.setName(normalizedName);
         template.setDescription(request.description());
         template.setGridRows(request.gridRows());
         template.setGridColumns(request.gridColumns());
@@ -66,6 +70,57 @@ public class VenueService {
         }).toList();
         elementRepository.saveAll(elements);
         return get(template.getId());
+    }
+
+    @Transactional
+    public VenueDetail update(String id, CreateVenueRequest request) {
+        var template = templateRepository.findById(id)
+                .filter(value -> !value.isDeleted())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "场馆模板不存在"));
+        if (template.isPreset()) {
+            throw new ApiException(HttpStatus.CONFLICT, "系统预置场馆不允许修改");
+        }
+        var normalizedName = request.name().trim();
+        if (templateRepository.existsByNameIgnoreCaseAndDeletedFalseAndIdNot(normalizedName, id)) {
+            throw new ApiException(HttpStatus.CONFLICT, "场馆名称已存在");
+        }
+        template.setName(normalizedName);
+        template.setDescription(request.description());
+        template.setGridRows(request.gridRows());
+        template.setGridColumns(request.gridColumns());
+        template.setCellSize(request.cellSize());
+        template.setVersionNo(template.getVersionNo() + 1);
+        template.setFrontDirection(FrontDirection.valueOf(request.frontDirection()));
+        templateRepository.save(template);
+
+        var oldElements = elementRepository
+                .findAllByVenueTemplateIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(id);
+        oldElements.forEach(element -> element.setDeleted(true));
+        elementRepository.saveAll(oldElements);
+        var newElements = request.elements().stream().map(source -> {
+            var target = new VenueElementEntity();
+            target.setVenueTemplateId(id);
+            applyElement(source, target);
+            return target;
+        }).toList();
+        elementRepository.saveAll(newElements);
+        return get(id);
+    }
+
+    @Transactional
+    public void delete(String id) {
+        var template = templateRepository.findById(id)
+                .filter(value -> !value.isDeleted())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "场馆模板不存在"));
+        if (template.isPreset()) {
+            throw new ApiException(HttpStatus.CONFLICT, "系统预置场馆不允许删除");
+        }
+        template.setDeleted(true);
+        templateRepository.save(template);
+        var elements = elementRepository
+                .findAllByVenueTemplateIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(id);
+        elements.forEach(element -> element.setDeleted(true));
+        elementRepository.saveAll(elements);
     }
 
     private void applyElement(ElementInput source, VenueElementEntity target) {
@@ -152,4 +207,3 @@ public class VenueService {
     ) {
     }
 }
-

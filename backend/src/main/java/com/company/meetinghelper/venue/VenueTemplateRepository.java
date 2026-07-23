@@ -6,5 +6,8 @@ import java.util.List;
 
 public interface VenueTemplateRepository extends JpaRepository<VenueTemplateEntity, String> {
     List<VenueTemplateEntity> findAllByDeletedFalseOrderByPresetDescNameAsc();
-}
 
+    boolean existsByNameIgnoreCaseAndDeletedFalse(String name);
+
+    boolean existsByNameIgnoreCaseAndDeletedFalseAndIdNot(String name, String id);
+}

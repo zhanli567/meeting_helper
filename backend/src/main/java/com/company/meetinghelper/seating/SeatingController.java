@@ -3,6 +3,7 @@ package com.company.meetinghelper.seating;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -53,6 +54,14 @@ public class SeatingController {
             @Valid @RequestBody PlanVersionService.CreateVersionRequest request
     ) {
         return versionService.create(planId, request);
+    }
+
+    @GetMapping("/{planId}/versions/{versionId}")
+    com.company.meetinghelper.workspace.WorkspaceResponse versionSnapshot(
+            @PathVariable String planId,
+            @PathVariable String versionId
+    ) {
+        return versionService.getSnapshot(planId, versionId);
     }
 
     @PostMapping("/{planId}/versions/{versionId}/restore")

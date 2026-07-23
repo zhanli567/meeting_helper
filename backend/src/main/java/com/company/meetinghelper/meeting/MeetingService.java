@@ -45,11 +45,15 @@ public class MeetingService {
 
     @Transactional
     public MeetingSummary create(CreateMeetingRequest request) {
+        var normalizedName = request.name().trim();
+        if (meetingRepository.existsByNameIgnoreCaseAndDeletedFalse(normalizedName)) {
+            throw new ApiException(HttpStatus.CONFLICT, "会议名称已存在");
+        }
         var venue = venueRepository.findById(request.venueTemplateId())
                 .filter(value -> !value.isDeleted())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "场馆模板不存在"));
         var meeting = new MeetingEntity();
-        meeting.setName(request.name());
+        meeting.setName(normalizedName);
         meeting.setStatus("DRAFT");
         meeting.setVenueTemplateId(venue.getId());
         meeting.setLayoutName(venue.getName());
@@ -111,4 +115,3 @@ public class MeetingService {
     ) {
     }
 }
-

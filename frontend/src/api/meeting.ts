@@ -4,6 +4,7 @@ import type {
   ImportTemplate,
   MeetingSummary,
   VenueSummary,
+  VenueDetail,
   Workspace,
 } from '@/types/workspace'
 
@@ -40,6 +41,9 @@ export const meetingApi = {
   async restoreVersion(planId: string, versionId: string) {
     return (await http.post(`/plans/${planId}/versions/${versionId}/restore`)).data
   },
+  async versionSnapshot(planId: string, versionId: string) {
+    return (await http.get<Workspace>(`/plans/${planId}/versions/${versionId}`)).data
+  },
   async importTemplates() {
     return (await http.get<ImportTemplate[]>('/import-templates')).data
   },
@@ -58,18 +62,28 @@ export const meetingApi = {
       await http.post(`/meetings/${meetingId}/imports/${token}/commit`, { selectedSourceRows })
     ).data
   },
-  async exportFile(meetingId: string, type: 'excel' | 'pdf') {
+  async exportFile(meetingId: string, type: 'excel' | 'pdf', versionId?: string) {
     return (
       await http.get<ArrayBuffer>(`/meetings/${meetingId}/exports/${type}`, {
         responseType: 'arraybuffer',
+        params: versionId ? { versionId } : undefined,
       })
     ).data
   },
   async venues() {
     return (await http.get<VenueSummary[]>('/venues')).data
   },
+  async venue(id: string) {
+    return (await http.get<VenueDetail>(`/venues/${id}`)).data
+  },
   async createVenue(data: Record<string, unknown>) {
     return (await http.post('/venues', data)).data
+  },
+  async updateVenue(id: string, data: Record<string, unknown>) {
+    return (await http.put(`/venues/${id}`, data)).data
+  },
+  async deleteVenue(id: string) {
+    await http.delete(`/venues/${id}`)
   },
   async createMeeting(name: string, venueTemplateId: string) {
     return (await http.post<MeetingSummary>('/meetings', { name, venueTemplateId })).data

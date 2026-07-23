@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Plus } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ArrowLeft, Delete, EditPen, Plus } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 import type { VenueSummary } from '@/types/workspace'
@@ -11,6 +11,7 @@ import { useWorkspaceStore } from '@/stores/workspace'
 const router = useRouter()
 const store = useWorkspaceStore()
 const venues = ref<VenueSummary[]>([])
+const meetingNames = ref<string[]>([])
 const loading = ref(false)
 const meetingVisible = ref(false)
 const submitting = ref(false)
@@ -21,7 +22,9 @@ onMounted(load)
 async function load() {
   loading.value = true
   try {
-    venues.value = await meetingApi.venues()
+    const [venueList, meetings] = await Promise.all([meetingApi.venues(), meetingApi.meetings()])
+    venues.value = venueList
+    meetingNames.value = meetings.map((meeting) => meeting.name.trim().toLocaleLowerCase())
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
   } finally {
@@ -36,13 +39,18 @@ function startMeeting(venue: VenueSummary) {
 }
 
 async function createMeeting() {
-  if (!form.name.trim()) {
+  const name = form.name.trim()
+  if (!name) {
     ElMessage.warning('请输入会议名称')
+    return
+  }
+  if (meetingNames.value.includes(name.toLocaleLowerCase())) {
+    ElMessage.warning('会议名称已存在，请换一个名称')
     return
   }
   submitting.value = true
   try {
-    const meeting = await meetingApi.createMeeting(form.name.trim(), form.venueTemplateId)
+    const meeting = await meetingApi.createMeeting(name, form.venueTemplateId)
     store.activeMeetingId = meeting.id
     await store.initialize()
     ElMessage.success('会议已创建，场馆布局已生成独立快照')
@@ -51,6 +59,26 @@ async function createMeeting() {
     ElMessage.error(apiErrorMessage(error))
   } finally {
     submitting.value = false
+  }
+}
+
+async function deleteVenue(venue: VenueSummary) {
+  try {
+    await ElMessageBox.confirm(
+      `删除“${venue.name}”后不可再用它创建新会议，已创建会议不会受影响。`,
+      '删除自定义场馆',
+      {
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+    await meetingApi.deleteVenue(venue.id)
+    ElMessage.success('场馆已删除')
+    await load()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(apiErrorMessage(error))
   }
 }
 </script>
@@ -85,47 +113,67 @@ async function createMeeting() {
         </div>
       </section>
 
-      <section class="venue-grid">
-        <article v-for="venue in venues" :key="venue.id" class="venue-card">
-          <div class="venue-preview">
-            <span class="mini-stage">舞台 / 主席区</span>
-            <div class="mini-seats">
-              <i v-for="index in 28" :key="index" :class="{ aisle: index % 9 === 0 }" />
+      <div class="venue-scroll">
+        <section class="venue-grid">
+          <article v-for="venue in venues" :key="venue.id" class="venue-card">
+            <div class="venue-preview">
+              <span class="mini-stage">舞台 / 主席区</span>
+              <div class="mini-seats">
+                <i v-for="index in 28" :key="index" :class="{ aisle: index % 9 === 0 }" />
+              </div>
+              <el-tag v-if="venue.preset" size="small" type="primary" effect="dark"
+                >系统预置</el-tag
+              >
+              <el-tag v-else size="small" effect="dark">自定义</el-tag>
             </div>
-            <el-tag v-if="venue.preset" size="small" type="primary" effect="dark">系统预置</el-tag>
-            <el-tag v-else size="small" effect="dark">自定义</el-tag>
-          </div>
-          <div class="venue-card-body">
-            <div>
-              <h2>{{ venue.name }}</h2>
-              <p>{{ venue.description || '未填写场馆说明' }}</p>
+            <div class="venue-card-body">
+              <div>
+                <h2>{{ venue.name }}</h2>
+                <p>{{ venue.description || '未填写场馆说明' }}</p>
+              </div>
+              <dl>
+                <div>
+                  <dt>网格</dt>
+                  <dd>{{ venue.gridRows }} × {{ venue.gridColumns }}</dd>
+                </div>
+                <div>
+                  <dt>座席</dt>
+                  <dd>{{ venue.seatCount }}</dd>
+                </div>
+                <div>
+                  <dt>版本</dt>
+                  <dd>V{{ venue.versionNo }}</dd>
+                </div>
+              </dl>
+              <div class="venue-actions">
+                <el-button type="primary" plain @click="startMeeting(venue)">
+                  使用该场馆创建会议
+                </el-button>
+                <template v-if="!venue.preset">
+                  <el-button
+                    :icon="EditPen"
+                    aria-label="编辑场馆"
+                    @click="router.push(`/venues/${venue.id}/edit`)"
+                  />
+                  <el-button
+                    type="danger"
+                    plain
+                    :icon="Delete"
+                    aria-label="删除场馆"
+                    @click="deleteVenue(venue)"
+                  />
+                </template>
+              </div>
             </div>
-            <dl>
-              <div>
-                <dt>网格</dt>
-                <dd>{{ venue.gridRows }} × {{ venue.gridColumns }}</dd>
-              </div>
-              <div>
-                <dt>座席</dt>
-                <dd>{{ venue.seatCount }}</dd>
-              </div>
-              <div>
-                <dt>版本</dt>
-                <dd>V{{ venue.versionNo }}</dd>
-              </div>
-            </dl>
-            <el-button type="primary" plain @click="startMeeting(venue)"
-              >使用该场馆创建会议</el-button
-            >
-          </div>
-        </article>
+          </article>
 
-        <button class="create-card" @click="router.push('/venues/new')">
-          <span><Plus /></span>
-          <strong>设计新的场馆模板</strong>
-          <small>设置网格大小，绘制舞台、座位、走廊、墙和桌子</small>
-        </button>
-      </section>
+          <button class="create-card" @click="router.push('/venues/new')">
+            <span><Plus /></span>
+            <strong>设计新的场馆模板</strong>
+            <small>设置网格大小，绘制舞台、座位、走廊、墙和桌子</small>
+          </button>
+        </section>
+      </div>
     </main>
 
     <el-dialog v-model="meetingVisible" title="使用场馆创建会议" width="460px">
@@ -167,15 +215,26 @@ async function createMeeting() {
   flex: 1;
   min-height: 0;
   margin: 0 auto;
-  padding: 38px 0 64px;
-  overflow: auto;
+  padding: 38px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .venue-intro {
+  flex: none;
   display: flex;
   justify-content: space-between;
   align-items: end;
   margin-bottom: 28px;
+}
+
+.venue-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 12px 64px 0;
+  scrollbar-gutter: stable;
 }
 
 .venue-intro h1 {
@@ -291,6 +350,19 @@ async function createMeeting() {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   margin: 0;
+}
+
+.venue-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.venue-actions > .el-button:first-child {
+  flex: 1;
+}
+
+.venue-actions > .el-button {
+  margin-left: 0;
 }
 
 .venue-card-body dl div {

@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.nio.charset.StandardCharsets;
 
@@ -21,16 +22,22 @@ public class ExportController {
     }
 
     @GetMapping("/excel")
-    ResponseEntity<byte[]> excel(@PathVariable String meetingId) {
+    ResponseEntity<byte[]> excel(
+            @PathVariable String meetingId,
+            @RequestParam(required = false) String versionId
+    ) {
         return download(
-                exportService.exportExcel(meetingId),
+                exportService.exportExcel(meetingId, versionId),
                 "meeting-seating.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     }
 
     @GetMapping("/pdf")
-    ResponseEntity<byte[]> pdf(@PathVariable String meetingId) {
-        return download(exportService.exportPdf(meetingId), "meeting-seating.pdf", "application/pdf");
+    ResponseEntity<byte[]> pdf(
+            @PathVariable String meetingId,
+            @RequestParam(required = false) String versionId
+    ) {
+        return download(exportService.exportPdf(meetingId, versionId), "meeting-seating.pdf", "application/pdf");
     }
 
     private ResponseEntity<byte[]> download(byte[] bytes, String filename, String contentType) {
@@ -43,4 +50,3 @@ public class ExportController {
                 .body(bytes);
     }
 }
-

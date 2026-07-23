@@ -3,6 +3,7 @@ package com.company.meetinghelper.export;
 import com.company.meetinghelper.api.ApiException;
 import com.company.meetinghelper.workspace.WorkspaceResponse;
 import com.company.meetinghelper.workspace.WorkspaceService;
+import com.company.meetinghelper.seating.PlanVersionService;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -33,13 +34,15 @@ import java.util.stream.Collectors;
 @Service
 public class ExportService {
     private final WorkspaceService workspaceService;
+    private final PlanVersionService versionService;
 
-    public ExportService(WorkspaceService workspaceService) {
+    public ExportService(WorkspaceService workspaceService, PlanVersionService versionService) {
         this.workspaceService = workspaceService;
+        this.versionService = versionService;
     }
 
-    public byte[] exportExcel(String meetingId) {
-        var workspace = workspaceService.getWorkspace(meetingId);
+    public byte[] exportExcel(String meetingId, String versionId) {
+        var workspace = resolveWorkspace(meetingId, versionId);
         try (var workbook = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
             writeLayoutSheet(workbook, workspace);
             writeSeatDetailSheet(workbook, workspace);
@@ -52,8 +55,12 @@ public class ExportService {
         }
     }
 
-    public byte[] exportPdf(String meetingId) {
-        var workspace = workspaceService.getWorkspace(meetingId);
+    public byte[] exportExcel(String meetingId) {
+        return exportExcel(meetingId, null);
+    }
+
+    public byte[] exportPdf(String meetingId, String versionId) {
+        var workspace = resolveWorkspace(meetingId, versionId);
         try (var document = new PDDocument(); var output = new ByteArrayOutputStream()) {
             var page = new PDPage(new PDRectangle(PDRectangle.A3.getHeight(), PDRectangle.A3.getWidth()));
             document.addPage(page);
@@ -66,6 +73,16 @@ public class ExportService {
         } catch (IOException exception) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "生成PDF失败");
         }
+    }
+
+    public byte[] exportPdf(String meetingId) {
+        return exportPdf(meetingId, null);
+    }
+
+    private WorkspaceResponse resolveWorkspace(String meetingId, String versionId) {
+        return versionId == null || versionId.isBlank()
+                ? workspaceService.getWorkspace(meetingId)
+                : versionService.getSnapshotForMeeting(meetingId, versionId);
     }
 
     private void writeLayoutSheet(XSSFWorkbook workbook, WorkspaceResponse workspace) {
