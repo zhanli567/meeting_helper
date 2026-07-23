@@ -1,0 +1,19 @@
+package com.company.meetinghelper.seating;
+
+import com.company.meetinghelper.common.AuditedEntity;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@Entity
+@Table(name = "plan_item_targets")
+public class PlanItemTargetEntity extends AuditedEntity {
+    private String planItemId;
+    private String meetingElementId;
+}
+
