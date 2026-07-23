@@ -1,8 +1,8 @@
 package com.company.meetinghelper.seating;
 
 import com.company.meetinghelper.common.AuditedEntity;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,10 +20,9 @@ public class PlanVersionEntity extends AuditedEntity {
     private String changeNote;
     private boolean automatic;
 
-    @Lob
+    @Column(columnDefinition = "text")
     private String snapshotJson;
 
     private int assignedCount;
     private int unassignedCount;
 }
-

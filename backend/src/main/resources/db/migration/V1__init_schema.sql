@@ -109,7 +109,7 @@ create table participants (
     department varchar(160),
     participant_type varchar(80),
     tags varchar(500),
-    custom_attributes_json clob,
+    custom_attributes_json text,
     locked boolean not null,
     created_by_id varchar(64) not null,
     created_by_name varchar(80) not null,
@@ -206,7 +206,7 @@ create table plan_versions (
     version_name varchar(120) not null,
     change_note varchar(500),
     automatic boolean not null,
-    snapshot_json clob not null,
+    snapshot_json text not null,
     assigned_count integer not null,
     unassigned_count integer not null,
     created_by_id varchar(64) not null,
@@ -229,4 +229,3 @@ create index idx_plan_meeting on seating_plans(meeting_id);
 create index idx_item_plan on plan_items(plan_id);
 create index idx_target_item on plan_item_targets(plan_item_id);
 create index idx_version_plan on plan_versions(plan_id);
-

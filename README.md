@@ -19,12 +19,13 @@
 
 ## 本地开发
 
-环境要求：Java 21、Node.js 22.18+。
+环境要求：Java 21、Node.js 22.18+、PostgreSQL。
 
 先启动后端：
 
 ```powershell
 cd backend
+$env:MEETING_DB_PASSWORD = "<本地 PostgreSQL 密码>"
 .\mvnw.cmd spring-boot:run
 ```
 
@@ -55,4 +56,8 @@ cd backend
 .\mvnw.cmd test
 ```
 
-后端默认使用 `backend/data` 下的本地 H2 数据库，Flyway 管理数据库结构；首次启动会自动创建颁奖会议演示数据。生产环境接入公司数据库和统一认证时，只需替换运行配置和安全适配层。
+后端默认连接 `localhost:5432/meeting_helper`，用户默认为 `postgres`，密码必须通过
+`MEETING_DB_PASSWORD` 环境变量提供，不会写入 Git。地址和用户也可分别用
+`MEETING_DB_URL`、`MEETING_DB_USERNAME` 覆盖。Flyway 负责数据库结构升级，首次启动会自动创建颁奖会议演示数据。
+
+自动化测试继续使用内存 H2，不依赖本机 PostgreSQL。

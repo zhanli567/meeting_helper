@@ -1,8 +1,8 @@
 package com.company.meetinghelper.participant;
 
 import com.company.meetinghelper.common.AuditedEntity;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,9 +22,8 @@ public class ParticipantEntity extends AuditedEntity {
     private String participantType;
     private String tags;
 
-    @Lob
+    @Column(columnDefinition = "text")
     private String customAttributesJson;
 
     private boolean locked;
 }
-

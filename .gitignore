@@ -13,4 +13,4 @@ frontend/.env.*.local
 backend/target/
 backend/data/
 backend/uploads/
-
+/data/
