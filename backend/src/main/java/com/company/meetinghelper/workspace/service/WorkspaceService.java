@@ -47,6 +47,19 @@ public class WorkspaceService {
     private final PlanVersionRepository versionRepository;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 创建会议工作区聚合服务。
+     *
+     * @param meetingRepository 会议仓储
+     * @param elementRepository 会议元素仓储
+     * @param participantRepository 参会人员仓储
+     * @param awardRepository 获奖记录仓储
+     * @param planRepository 排座方案仓储
+     * @param itemRepository 排座明细仓储
+     * @param targetRepository 排座目标仓储
+     * @param versionRepository 方案版本仓储
+     * @param objectMapper JSON序列化器
+     */
     public WorkspaceService(
             MeetingRepository meetingRepository,
             MeetingElementRepository elementRepository,
@@ -69,6 +82,12 @@ public class WorkspaceService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 聚合会议布局、人员、排座、样式和版本数据。
+     *
+     * @param meetingId 会议ID
+     * @return 当前草稿工作区
+     */
     @Transactional(readOnly = true)
     public WorkspaceResponse getWorkspace(String meetingId) {
         var meeting = meetingRepository.findById(meetingId)

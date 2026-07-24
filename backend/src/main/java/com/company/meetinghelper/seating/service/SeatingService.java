@@ -4,6 +4,7 @@ import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.meeting.repository.MeetingElementRepository;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
 import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
+import com.company.meetinghelper.seating.api.dto.request.SaveAssignmentsRequest;
 import com.company.meetinghelper.seating.entity.PlanItemEntity;
 import com.company.meetinghelper.seating.entity.PlanItemTargetEntity;
 import com.company.meetinghelper.seating.entity.PlanItemType;
@@ -15,6 +16,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 @Service
 public class SeatingService {
     private final SeatingPlanRepository planRepository;
@@ -23,6 +29,15 @@ public class SeatingService {
     private final ParticipantRepository participantRepository;
     private final MeetingElementRepository elementRepository;
 
+    /**
+     * 创建排座服务。
+     *
+     * @param planRepository 排座方案仓储
+     * @param itemRepository 排座明细仓储
+     * @param targetRepository 排座目标仓储
+     * @param participantRepository 参会人员仓储
+     * @param elementRepository 会议元素仓储
+     */
     public SeatingService(
             SeatingPlanRepository planRepository,
             PlanItemRepository itemRepository,
@@ -37,6 +52,12 @@ public class SeatingService {
         this.elementRepository = elementRepository;
     }
 
+    /**
+     * 将一名人员安排到目标座位；双方均已落座时交换座位。
+     *
+     * @param planId 排座方案ID
+     * @param request 单次排座请求
+     */
     @Transactional
     public void assign(String planId, AssignmentRequest request) {
         var plan = requirePlan(planId);
@@ -84,10 +105,13 @@ public class SeatingService {
             if (currentTarget == null) {
                 throw new ApiException(HttpStatus.CONFLICT, "待排人员只能拖入空座位");
             }
-            occupiedTarget.setMeetingElementId(currentTarget.getMeetingElementId());
-            currentTarget.setMeetingElementId(targetElement.getId());
-            targetRepository.save(occupiedTarget);
-            targetRepository.save(currentTarget);
+            var currentElementId = currentTarget.getMeetingElementId();
+            var occupiedItemId = occupiedTarget.getPlanItemId();
+            var currentItemId = currentTarget.getPlanItemId();
+            targetRepository.deleteAll(List.of(occupiedTarget, currentTarget));
+            targetRepository.flush();
+            targetRepository.save(createTarget(occupiedItemId, currentElementId));
+            targetRepository.save(createTarget(currentItemId, targetElement.getId()));
             touch(plan);
             return;
         }
@@ -109,6 +133,127 @@ public class SeatingService {
         touch(plan);
     }
 
+    /**
+     * 使用前端提交的完整人员座位关系替换当前草稿中的可编辑排座。
+     *
+     * @param planId 排座方案ID
+     * @param request 完整人员座位关系
+     */
+    @Transactional
+    public void replaceAssignments(String planId, SaveAssignmentsRequest request) {
+        var plan = requirePlan(planId);
+        var participants = participantRepository
+                .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(plan.getMeetingId())
+                .stream()
+                .collect(Collectors.toMap(value -> value.getId(), Function.identity()));
+        var elements = elementRepository
+                .findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(plan.getMeetingId())
+                .stream()
+                .collect(Collectors.toMap(value -> value.getId(), Function.identity()));
+
+        var participantIds = new HashSet<String>();
+        var targetElementIds = new HashSet<String>();
+        for (var assignment : request.assignments()) {
+            if (!participantIds.add(assignment.participantId())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "同一人员不能同时安排到多个座位");
+            }
+            if (!targetElementIds.add(assignment.targetElementId())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "同一座位不能同时安排多名人员");
+            }
+            var participant = participants.get(assignment.participantId());
+            if (participant == null) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "提交的人员不属于当前会议");
+            }
+            var element = elements.get(assignment.targetElementId());
+            if (element == null || !element.isAssignable() || element.getCapacity() != 1) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "提交的目标位置不是可用的单人座席");
+            }
+        }
+
+        var currentItems = itemRepository.findAllByPlanIdAndDeletedFalseOrderByCreatedAtAsc(planId);
+        var itemIds = currentItems.stream().map(PlanItemEntity::getId).toList();
+        var currentTargets = itemIds.isEmpty()
+                ? List.<PlanItemTargetEntity>of()
+                : targetRepository.findAllByPlanItemIdInAndDeletedFalse(itemIds);
+        var targetByItemId = currentTargets.stream().collect(Collectors.toMap(
+                PlanItemTargetEntity::getPlanItemId,
+                Function.identity(),
+                (left, right) -> left
+        ));
+        var requestedTargetByParticipant = request.assignments().stream().collect(Collectors.toMap(
+                value -> value.participantId(),
+                value -> value.targetElementId()
+        ));
+
+        var reservedTargetIds = new HashSet<String>();
+        var editableItems = new java.util.ArrayList<PlanItemEntity>();
+        var lockedParticipantIds = new HashSet<String>();
+        for (var item : currentItems) {
+            var target = targetByItemId.get(item.getId());
+            if (item.getItemType() != PlanItemType.PERSON) {
+                if (target != null) {
+                    reservedTargetIds.add(target.getMeetingElementId());
+                }
+                continue;
+            }
+            var participant = participants.get(item.getParticipantId());
+            var locked = item.isLocked() || (participant != null && participant.isLocked());
+            if (locked) {
+                var requestedTarget = requestedTargetByParticipant.get(item.getParticipantId());
+                if (target == null || !target.getMeetingElementId().equals(requestedTarget)) {
+                    throw new ApiException(HttpStatus.CONFLICT, "已锁定人员的座位不能修改或移除");
+                }
+                lockedParticipantIds.add(item.getParticipantId());
+            } else {
+                editableItems.add(item);
+            }
+        }
+        var newlyLockedParticipant = request.assignments().stream()
+                .map(value -> participants.get(value.participantId()))
+                .filter(value -> value.isLocked() && !lockedParticipantIds.contains(value.getId()))
+                .findFirst();
+        if (newlyLockedParticipant.isPresent()) {
+            throw new ApiException(HttpStatus.CONFLICT, "已锁定人员不能新增或修改座位");
+        }
+        if (targetElementIds.stream().anyMatch(reservedTargetIds::contains)) {
+            throw new ApiException(HttpStatus.CONFLICT, "目标座位已被设备、预留或禁用状态占用");
+        }
+
+        var editableItemIds = editableItems.stream().map(PlanItemEntity::getId).collect(Collectors.toSet());
+        var editableTargets = currentTargets.stream()
+                .filter(target -> editableItemIds.contains(target.getPlanItemId()))
+                .toList();
+        if (!editableTargets.isEmpty()) {
+            targetRepository.deleteAll(editableTargets);
+            targetRepository.flush();
+        }
+        if (!editableItems.isEmpty()) {
+            itemRepository.deleteAll(editableItems);
+            itemRepository.flush();
+        }
+
+        for (var assignment : request.assignments()) {
+            if (lockedParticipantIds.contains(assignment.participantId())) {
+                continue;
+            }
+            var participant = participants.get(assignment.participantId());
+            var item = new PlanItemEntity();
+            item.setPlanId(planId);
+            item.setItemType(PlanItemType.PERSON);
+            item.setParticipantId(participant.getId());
+            item.setLabel(participant.getName());
+            itemRepository.save(item);
+            targetRepository.save(createTarget(item.getId(), assignment.targetElementId()));
+        }
+        touch(plan);
+    }
+
+    /**
+     * 将指定人员从当前座位移回待排列表。
+     *
+     * @param planId 排座方案ID
+     * @param participantId 参会人员ID
+     */
     @Transactional
     public void unassign(String planId, String participantId) {
         var plan = requirePlan(planId);
@@ -125,6 +270,13 @@ public class SeatingService {
         touch(plan);
     }
 
+    /**
+     * 设置人员座位的锁定状态。
+     *
+     * @param planId 排座方案ID
+     * @param participantId 参会人员ID
+     * @param locked 是否锁定
+     */
     @Transactional
     public void setLocked(String planId, String participantId, boolean locked) {
         var plan = requirePlan(planId);
@@ -134,6 +286,13 @@ public class SeatingService {
         item.setLocked(locked);
         itemRepository.save(item);
         touch(plan);
+    }
+
+    private PlanItemTargetEntity createTarget(String planItemId, String meetingElementId) {
+        var target = new PlanItemTargetEntity();
+        target.setPlanItemId(planItemId);
+        target.setMeetingElementId(meetingElementId);
+        return target;
     }
 
     private SeatingPlanEntity requirePlan(String planId) {

@@ -32,6 +32,18 @@ public class PlanVersionService {
     private final WorkspaceService workspaceService;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 创建排座版本服务。
+     *
+     * @param planRepository 排座方案仓储
+     * @param versionRepository 方案版本仓储
+     * @param itemRepository 排座明细仓储
+     * @param targetRepository 排座目标仓储
+     * @param participantRepository 参会人员仓储
+     * @param elementRepository 会议元素仓储
+     * @param workspaceService 工作区服务
+     * @param objectMapper JSON序列化器
+     */
     public PlanVersionService(
             SeatingPlanRepository planRepository,
             PlanVersionRepository versionRepository,
@@ -52,6 +64,13 @@ public class PlanVersionService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 校验排座完成情况并发布只读版本。
+     *
+     * @param planId 排座方案ID
+     * @param request 版本创建请求
+     * @return 新版本信息
+     */
     @Transactional
     public VersionResult create(String planId, CreateVersionRequest request) {
         var plan = planRepository.findById(planId)
@@ -95,6 +114,13 @@ public class PlanVersionService {
                 version.getAssignedCount(), version.getUnassignedCount());
     }
 
+    /**
+     * 将历史版本快照恢复为当前草稿。
+     *
+     * @param planId 排座方案ID
+     * @param versionId 版本ID
+     * @return 恢复结果
+     */
     @Transactional
     public RestoreVersionResult restore(String planId, String versionId) {
         var plan = planRepository.findById(planId)
@@ -162,6 +188,13 @@ public class PlanVersionService {
                 version.getId(), version.getVersionNo(), version.getVersionName(), restoredItems);
     }
 
+    /**
+     * 查询排座方案指定版本的工作区快照。
+     *
+     * @param planId 排座方案ID
+     * @param versionId 版本ID
+     * @return 工作区快照
+     */
     @Transactional(readOnly = true)
     public WorkspaceResponse getSnapshot(String planId, String versionId) {
         var plan = planRepository.findById(planId)
@@ -177,6 +210,13 @@ public class PlanVersionService {
         return snapshot;
     }
 
+    /**
+     * 根据会议和版本查询工作区快照。
+     *
+     * @param meetingId 会议ID
+     * @param versionId 版本ID
+     * @return 工作区快照
+     */
     @Transactional(readOnly = true)
     public WorkspaceResponse getSnapshotForMeeting(String meetingId, String versionId) {
         var plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)

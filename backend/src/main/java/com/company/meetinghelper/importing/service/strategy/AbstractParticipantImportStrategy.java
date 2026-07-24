@@ -24,6 +24,11 @@ public abstract class AbstractParticipantImportStrategy implements WorkbookImpor
 
     protected final DataFormatter formatter = new DataFormatter();
 
+    /**
+     * 创建通用参会人员工作表，并交由具体场景补充扩展工作表。
+     *
+     * @param workbook Excel工作簿
+     */
     @Override
     public void customizeTemplate(XSSFWorkbook workbook) {
         var participantSheet = workbook.createSheet(PARTICIPANT_SHEET);

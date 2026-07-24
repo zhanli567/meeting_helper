@@ -25,6 +25,15 @@ public class MeetingService {
     private final VenueElementRepository venueElementRepository;
     private final SeatingPlanRepository planRepository;
 
+    /**
+     * 创建会议服务。
+     *
+     * @param meetingRepository 会议仓储
+     * @param meetingElementRepository 会议元素仓储
+     * @param venueRepository 场馆模板仓储
+     * @param venueElementRepository 场馆元素仓储
+     * @param planRepository 排座方案仓储
+     */
     public MeetingService(
             MeetingRepository meetingRepository,
             MeetingElementRepository meetingElementRepository,
@@ -39,6 +48,11 @@ public class MeetingService {
         this.planRepository = planRepository;
     }
 
+    /**
+     * 查询全部有效会议。
+     *
+     * @return 会议摘要列表
+     */
     @Transactional(readOnly = true)
     public List<MeetingSummary> list() {
         return meetingRepository.findAllByDeletedFalseOrderByUpdatedAtDesc().stream()
@@ -48,6 +62,12 @@ public class MeetingService {
                 .toList();
     }
 
+    /**
+     * 基于场馆模板创建会议、独立布局快照和草稿排座方案。
+     *
+     * @param request 会议创建请求
+     * @return 新建会议摘要
+     */
     @Transactional
     public MeetingSummary create(CreateMeetingRequest request) {
         var normalizedName = request.name().trim();

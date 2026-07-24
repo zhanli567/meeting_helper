@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Back,
@@ -16,7 +16,6 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AddParticipantDialog from '@/components/AddParticipantDialog.vue'
 import ImportDialog from '@/components/ImportDialog.vue'
-import ParticipantDetailDrawer from '@/components/ParticipantDetailDrawer.vue'
 import ParticipantPanel from '@/components/ParticipantPanel.vue'
 import VenueCanvas from '@/components/VenueCanvas.vue'
 import { meetingApi } from '@/api/meeting'
@@ -37,11 +36,11 @@ const publishedWorkspace = ref()
 const loadingVersion = ref(false)
 const publishing = ref(false)
 const addMenuVisible = ref(false)
+const autoSaveSeconds = ref(0)
 const fabReady = ref(false)
 const fab = reactive({
   x: 0,
   y: 0,
-  edge: 'right',
   dragging: false,
 })
 let fabOffsetX = 0
@@ -50,17 +49,11 @@ let fabPointerStartX = 0
 let fabPointerStartY = 0
 let fabMoved = false
 let suppressFabClick = false
+let addMenuHideTimer
+let autoSaveTimer
 const workspace = computed(() => publishedWorkspace.value || store.workspace)
 const readonlyMode = computed(() => activeVersionKey.value !== 'draft')
 const activeVersionId = computed(() => (readonlyMode.value ? activeVersionKey.value : undefined))
-const selectedParticipant = computed(() =>
-  workspace.value?.participants.find((person) => person.id === store.selectedParticipantId),
-)
-const selectedSeat = computed(() =>
-  workspace.value?.layout.elements.find(
-    (element) => element.id === selectedParticipant.value?.assignedElementId,
-  ),
-)
 const assignedCount = computed(
   () => workspace.value?.participants.filter((person) => person.assignedElementId).length || 0,
 )
@@ -91,12 +84,17 @@ onMounted(async () => {
   }
   resetFab()
   window.addEventListener('resize', keepFabInViewport)
+  window.addEventListener('beforeunload', warnUnsavedChanges)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', keepFabInViewport)
+  window.removeEventListener('beforeunload', warnUnsavedChanges)
+  window.clearTimeout(addMenuHideTimer)
+  window.clearInterval(autoSaveTimer)
   stopFabDrag()
 })
 async function switchMeeting(meetingId) {
+  if (!(await saveDraft(true))) return
   activeVersionKey.value = 'draft'
   publishedWorkspace.value = undefined
   undoStack.value = []
@@ -105,6 +103,8 @@ async function switchMeeting(meetingId) {
   await router.replace(`/workbench/${meetingId}`)
 }
 async function switchVersion(versionKey) {
+  if (versionKey !== 'draft' && !(await saveDraft(true))) return
+  activeVersionKey.value = versionKey
   store.selectParticipant(undefined)
   draggingParticipantId.value = undefined
   if (versionKey === 'draft') {
@@ -147,6 +147,7 @@ async function publishDraft() {
         inputType: 'textarea',
       },
     )
+    if (!(await saveDraft(true))) return
     publishing.value = true
     const version = await meetingApi.createVersion(store.workspace.plan.id, {
       versionName: `V${nextVersion}`,
@@ -164,6 +165,30 @@ async function publishDraft() {
     publishing.value = false
   }
 }
+async function saveDraft(silent = false) {
+  if (readonlyMode.value || !store.dirty) return true
+  return store.saveAssignments({ silent })
+}
+async function goHome() {
+  if (!(await saveDraft(true))) return
+  await router.push('/')
+}
+function resetAutoSaveTimer() {
+  window.clearInterval(autoSaveTimer)
+  autoSaveTimer = undefined
+  if (!autoSaveSeconds.value) return
+  autoSaveTimer = window.setInterval(() => {
+    if (!readonlyMode.value && store.dirty && !store.saving) {
+      saveDraft(true)
+    }
+  }, autoSaveSeconds.value * 1000)
+}
+function warnUnsavedChanges(event) {
+  if (!store.dirty) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+watch(autoSaveSeconds, resetAutoSaveTimer)
 async function performAssign(participantId, targetElementId) {
   if (readonlyMode.value) return
   if (!store.workspace || applyingHistory.value) {
@@ -227,7 +252,7 @@ async function redo() {
   undoStack.value.push(action)
 }
 function onSeatClick() {
-  // 第一版仅保留拖拽排座，空座位点击不再触发隐藏的“连续排座”模式。
+  if (!readonlyMode.value) openSingleAdd()
 }
 function selectParticipant(person) {
   store.selectParticipant(person)
@@ -241,7 +266,6 @@ function exportPlan(type) {
 function resetFab() {
   fab.x = Math.max(12, window.innerWidth - 440)
   fab.y = Math.max(76, window.innerHeight - 100)
-  fab.edge = 'right'
   fabReady.value = true
 }
 function keepFabInViewport() {
@@ -249,6 +273,8 @@ function keepFabInViewport() {
   fab.y = Math.min(Math.max(64, fab.y), window.innerHeight - 52)
 }
 function startFabDrag(event) {
+  window.clearTimeout(addMenuHideTimer)
+  addMenuVisible.value = false
   fab.dragging = true
   fabMoved = false
   suppressFabClick = false
@@ -278,17 +304,6 @@ function stopFabDrag() {
   window.removeEventListener('pointermove', moveFab)
   window.removeEventListener('pointerup', stopFabDrag)
   if (!wasMoved) return
-  const distances = {
-    left: fab.x,
-    right: window.innerWidth - fab.x - 48,
-    top: fab.y - 64,
-    bottom: window.innerHeight - fab.y - 48,
-  }
-  fab.edge = Object.entries(distances).sort((left, right) => left[1] - right[1])[0]?.[0] || 'right'
-  if (fab.edge === 'left') fab.x = 4
-  if (fab.edge === 'right') fab.x = window.innerWidth - 52
-  if (fab.edge === 'top') fab.y = 66
-  if (fab.edge === 'bottom') fab.y = window.innerHeight - 52
   suppressFabClick = true
   window.setTimeout(() => {
     fabMoved = false
@@ -297,16 +312,25 @@ function stopFabDrag() {
 }
 function handleFabClick() {
   if (suppressFabClick) return
-  toggleAddMenu()
+  showAddMenu()
 }
-function toggleAddMenu() {
-  addMenuVisible.value = !addMenuVisible.value
+function showAddMenu() {
+  window.clearTimeout(addMenuHideTimer)
+  if (!fab.dragging) addMenuVisible.value = true
 }
-function openSingleAdd() {
+function scheduleAddMenuHide() {
+  window.clearTimeout(addMenuHideTimer)
+  addMenuHideTimer = window.setTimeout(() => {
+    if (!fab.dragging) addMenuVisible.value = false
+  }, 140)
+}
+async function openSingleAdd() {
+  if (!(await saveDraft(true))) return
   addMenuVisible.value = false
   addVisible.value = true
 }
-function openBatchImport() {
+async function openBatchImport() {
+  if (!(await saveDraft(true))) return
   addMenuVisible.value = false
   importVisible.value = true
 }
@@ -315,7 +339,7 @@ function openBatchImport() {
 <template>
   <div class="app-page workbench-page" v-loading="store.loading || loadingVersion">
     <header class="app-header">
-      <button class="home-brand" title="返回首页" @click="router.push('/')">
+      <button class="home-brand" title="返回首页" @click="goHome">
         <span class="brand-mark">席</span>
         <span class="brand-copy">
           <strong>会议排座助手</strong>
@@ -325,7 +349,7 @@ function openBatchImport() {
       <span class="header-divider" />
 
       <el-select
-        v-model="store.activeMeetingId"
+        :model-value="store.activeMeetingId"
         class="meeting-selector header-selector"
         popper-class="meeting-select-popper"
         aria-label="选择会议"
@@ -346,7 +370,7 @@ function openBatchImport() {
 
       <el-select
         v-if="store.workspace"
-        v-model="activeVersionKey"
+        :model-value="activeVersionKey"
         class="version-selector header-selector"
         popper-class="version-select-popper"
         aria-label="选择会议版本"
@@ -374,14 +398,30 @@ function openBatchImport() {
       </div>
 
       <span class="header-spacer" />
-      <el-button class="header-home" text :icon="House" @click="router.push('/')">
+      <el-button class="header-home" text :icon="House" @click="goHome">
         首页
       </el-button>
       <span class="save-state">
-        <i :class="{ active: store.saving }" />
+        <i :class="{ active: store.saving, dirty: store.dirty }" />
         <template v-if="readonlyMode">正在查看已发布版本</template>
-        <template v-else>{{ store.saving ? '保存中' : '草稿已自动保存' }}</template>
+        <template v-else>
+          {{ store.saving ? '保存中' : store.dirty ? '有未保存改动' : '草稿已保存' }}
+        </template>
       </span>
+      <div v-if="!readonlyMode" class="header-save-control">
+        <el-button type="primary" @click="saveDraft(false)">保存</el-button>
+        <el-select
+          v-model="autoSaveSeconds"
+          class="header-auto-save"
+          aria-label="自动保存周期"
+        >
+          <el-option label="自动保存：关闭" :value="0" />
+          <el-option label="每30秒自动保存" :value="30" />
+          <el-option label="每1分钟自动保存" :value="60" />
+          <el-option label="每3分钟自动保存" :value="180" />
+          <el-option label="每5分钟自动保存" :value="300" />
+        </el-select>
+      </div>
       <el-button
         v-if="!readonlyMode"
         type="primary"
@@ -476,14 +516,6 @@ function openBatchImport() {
           />
         </div>
 
-        <ParticipantDetailDrawer
-          :participant="selectedParticipant"
-          :seat="selectedSeat"
-          :readonly="readonlyMode"
-          @lock="store.setLock"
-          @unassign="performUnassign"
-          @remove="store.removeParticipant"
-        />
       </section>
 
       <ParticipantPanel
@@ -503,6 +535,8 @@ function openBatchImport() {
         v-if="addMenuVisible"
         class="add-menu"
         :style="addMenuStyle"
+        @mouseenter="showAddMenu"
+        @mouseleave="scheduleAddMenuHide"
       >
         <button @click="openSingleAdd">
           <el-icon><User /></el-icon>
@@ -521,6 +555,8 @@ function openBatchImport() {
         title="拖动可调整位置"
         @pointerdown="startFabDrag"
         @click="handleFabClick"
+        @mouseenter="showAddMenu"
+        @mouseleave="scheduleAddMenuHide"
       >
         <Plus />
       </button>
@@ -614,6 +650,7 @@ function openBatchImport() {
   gap: 7px;
   color: rgba(255, 255, 255, 0.72);
   font-size: 11px;
+  white-space: nowrap;
 }
 
 .header-home {
@@ -623,6 +660,29 @@ function openBatchImport() {
 .header-home:hover {
   color: #fff !important;
   background: rgba(255, 255, 255, 0.12) !important;
+}
+
+.header-save-control {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.header-auto-save {
+  width: 142px;
+}
+
+.header-auto-save :deep(.el-select__wrapper) {
+  min-height: 32px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28) inset;
+}
+
+.header-auto-save :deep(.el-select__selected-item),
+.header-auto-save :deep(.el-select__caret) {
+  color: #fff !important;
 }
 
 .save-state i {
@@ -635,6 +695,10 @@ function openBatchImport() {
 .save-state i.active {
   background: #f5c451;
   animation: blink 1s infinite;
+}
+
+.save-state i.dirty:not(.active) {
+  background: #f59e0b;
 }
 
 .workspace-layout {
@@ -823,6 +887,31 @@ function openBatchImport() {
 .add-menu button:hover {
   color: #1d5ba7;
   background: #edf5ff;
+}
+
+@media (max-width: 1450px) {
+  .workbench-page > .app-header {
+    gap: 10px;
+    padding-inline: 16px;
+  }
+
+  .home-brand .brand-copy {
+    min-width: 132px;
+  }
+
+  .home-brand .brand-copy small,
+  .header-context,
+  .save-state {
+    display: none;
+  }
+
+  .meeting-selector {
+    width: 230px;
+  }
+
+  .version-selector {
+    width: 158px;
+  }
 }
 
 .add-menu .el-icon {

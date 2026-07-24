@@ -27,17 +27,33 @@ import java.util.List;
 public class ImportController {
     private final ImportService importService;
 
+    /**
+     * 创建人员导入接口控制器。
+     *
+     * @param importService 导入服务
+     */
     public ImportController(ImportService importService) {
         this.importService = importService;
     }
 
+    /**
+     * 查询可用的人员导入模板。
+     *
+     * @return 导入模板列表
+     */
     @GetMapping("/import-templates")
-    List<TemplateDescriptor> templates() {
+    public List<TemplateDescriptor> templates() {
         return importService.templates();
     }
 
+    /**
+     * 下载指定人员导入模板。
+     *
+     * @param templateCode 模板编码
+     * @return Excel模板文件响应
+     */
     @GetMapping("/import-templates/{templateCode}/file")
-    ResponseEntity<byte[]> templateFile(@PathVariable String templateCode) {
+    public ResponseEntity<byte[]> templateFile(@PathVariable String templateCode) {
         var bytes = importService.templateFile(templateCode);
         var disposition = ContentDisposition.attachment()
                 .filename(templateCode + ".xlsx", StandardCharsets.UTF_8)
@@ -49,11 +65,19 @@ public class ImportController {
                 .body(bytes);
     }
 
+    /**
+     * 解析上传文件并生成导入预览。
+     *
+     * @param meetingId 会议ID
+     * @param templateCode 模板编码
+     * @param file 上传的Excel文件
+     * @return 导入预览
+     */
     @PostMapping(
             value = "/meetings/{meetingId}/imports/preview",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
-    ImportPreview preview(
+    public ImportPreview preview(
             @PathVariable String meetingId,
             @RequestParam String templateCode,
             @RequestPart MultipartFile file
@@ -61,8 +85,16 @@ public class ImportController {
         return importService.preview(meetingId, templateCode, file);
     }
 
+    /**
+     * 确认导入预览中的人员数据。
+     *
+     * @param meetingId 会议ID
+     * @param token 预览令牌
+     * @param request 导入确认请求
+     * @return 导入结果
+     */
     @PostMapping("/meetings/{meetingId}/imports/{token}/commit")
-    CommitResult commit(
+    public CommitResult commit(
             @PathVariable String meetingId,
             @PathVariable String token,
             @RequestBody CommitRequest request

@@ -18,12 +18,24 @@ import java.nio.charset.StandardCharsets;
 public class ExportController {
     private final ExportService exportService;
 
+    /**
+     * 创建导出接口控制器。
+     *
+     * @param exportService 导出服务
+     */
     public ExportController(ExportService exportService) {
         this.exportService = exportService;
     }
 
+    /**
+     * 导出会议排座Excel文件。
+     *
+     * @param meetingId 会议ID
+     * @param versionId 可选的发布版本ID
+     * @return Excel文件响应
+     */
     @GetMapping("/excel")
-    ResponseEntity<byte[]> excel(
+    public ResponseEntity<byte[]> excel(
             @PathVariable String meetingId,
             @RequestParam(required = false) String versionId
     ) {
@@ -33,8 +45,15 @@ public class ExportController {
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     }
 
+    /**
+     * 导出会议排座PDF文件。
+     *
+     * @param meetingId 会议ID
+     * @param versionId 可选的发布版本ID
+     * @return PDF文件响应
+     */
     @GetMapping("/pdf")
-    ResponseEntity<byte[]> pdf(
+    public ResponseEntity<byte[]> pdf(
             @PathVariable String meetingId,
             @RequestParam(required = false) String versionId
     ) {

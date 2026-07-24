@@ -12,6 +12,9 @@ export const meetingApi = {
   async unassign(planId, participantId) {
     await http.delete(`/plans/${planId}/participants/${participantId}/assignment`)
   },
+  async saveAssignments(planId, assignments) {
+    await http.put(`/plans/${planId}/assignments`, { assignments })
+  },
   async setLock(planId, participantId, locked) {
     await http.put(`/plans/${planId}/participants/${participantId}/lock`, undefined, {
       params: { locked },

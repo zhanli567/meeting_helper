@@ -6,7 +6,9 @@ import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
 import com.company.meetinghelper.meeting.repository.MeetingRepository;
 import com.company.meetinghelper.meeting.service.MeetingService;
 import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
+import com.company.meetinghelper.seating.api.dto.request.AssignmentInput;
 import com.company.meetinghelper.seating.api.dto.request.CreateVersionRequest;
+import com.company.meetinghelper.seating.api.dto.request.SaveAssignmentsRequest;
 import com.company.meetinghelper.seating.service.PlanVersionService;
 import com.company.meetinghelper.seating.service.SeatingService;
 import com.company.meetinghelper.venue.api.dto.ElementInput;
@@ -85,6 +87,68 @@ class MeetingHelperIntegrationTests {
         assertThat(after.participants().stream()
                 .filter(value -> value.id().equals(participant.id()))
                 .findFirst().orElseThrow().assignedElementId()).isEqualTo(seat.id());
+    }
+
+    @Test
+    void twoAssignedParticipantsCanSwapSeatsWithoutViolatingUniqueConstraint() {
+        var meeting = meetingRepository.findAllByDeletedFalseOrderByUpdatedAtDesc().getFirst();
+        var before = workspaceService.getWorkspace(meeting.getId());
+        var assigned = before.participants().stream()
+                .filter(value -> value.assignedElementId() != null && !value.locked())
+                .limit(2)
+                .toList();
+        var first = assigned.get(0);
+        var second = assigned.get(1);
+
+        seatingService.assign(
+                before.plan().id(),
+                new AssignmentRequest(first.id(), second.assignedElementId())
+        );
+
+        var after = workspaceService.getWorkspace(meeting.getId());
+        var participantById = after.participants().stream()
+                .collect(java.util.stream.Collectors.toMap(value -> value.id(), value -> value));
+        assertThat(participantById.get(first.id()).assignedElementId())
+                .isEqualTo(second.assignedElementId());
+        assertThat(participantById.get(second.id()).assignedElementId())
+                .isEqualTo(first.assignedElementId());
+    }
+
+    @Test
+    void completeAssignmentSetCanBeSavedInOneBatch() {
+        var meeting = meetingRepository.findAllByDeletedFalseOrderByUpdatedAtDesc().getFirst();
+        var before = workspaceService.getWorkspace(meeting.getId());
+        var assigned = before.participants().stream()
+                .filter(value -> value.assignedElementId() != null && !value.locked())
+                .limit(2)
+                .toList();
+        var first = assigned.get(0);
+        var second = assigned.get(1);
+        var assignments = before.participants().stream()
+                .filter(value -> value.assignedElementId() != null)
+                .map(value -> {
+                    if (value.id().equals(first.id())) {
+                        return new AssignmentInput(value.id(), second.assignedElementId());
+                    }
+                    if (value.id().equals(second.id())) {
+                        return new AssignmentInput(value.id(), first.assignedElementId());
+                    }
+                    return new AssignmentInput(value.id(), value.assignedElementId());
+                })
+                .toList();
+
+        seatingService.replaceAssignments(
+                before.plan().id(),
+                new SaveAssignmentsRequest(assignments)
+        );
+
+        var after = workspaceService.getWorkspace(meeting.getId());
+        var participantById = after.participants().stream()
+                .collect(java.util.stream.Collectors.toMap(value -> value.id(), value -> value));
+        assertThat(participantById.get(first.id()).assignedElementId())
+                .isEqualTo(second.assignedElementId());
+        assertThat(participantById.get(second.id()).assignedElementId())
+                .isEqualTo(first.assignedElementId());
     }
 
     @Test

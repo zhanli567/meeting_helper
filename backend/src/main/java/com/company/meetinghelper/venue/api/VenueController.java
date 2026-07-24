@@ -21,35 +21,69 @@ import java.util.List;
 public class VenueController {
     private final VenueService venueService;
 
+    /**
+     * 创建场馆模板接口控制器。
+     *
+     * @param venueService 场馆模板服务
+     */
     public VenueController(VenueService venueService) {
         this.venueService = venueService;
     }
 
+    /**
+     * 查询全部可用场馆模板。
+     *
+     * @return 场馆模板列表
+     */
     @GetMapping
-    List<VenueSummary> list() {
+    public List<VenueSummary> list() {
         return venueService.list();
     }
 
+    /**
+     * 查询场馆模板详情。
+     *
+     * @param id 场馆模板ID
+     * @return 场馆模板详情
+     */
     @GetMapping("/{id}")
-    VenueDetail get(@PathVariable String id) {
+    public VenueDetail get(@PathVariable String id) {
         return venueService.get(id);
     }
 
+    /**
+     * 创建自定义场馆模板。
+     *
+     * @param request 场馆模板请求
+     * @return 新建场馆模板详情
+     */
     @PostMapping
-    VenueDetail create(@Valid @RequestBody CreateVenueRequest request) {
+    public VenueDetail create(@Valid @RequestBody CreateVenueRequest request) {
         return venueService.create(request);
     }
 
+    /**
+     * 更新自定义场馆模板。
+     *
+     * @param id 场馆模板ID
+     * @param request 场馆模板请求
+     * @return 更新后的场馆模板详情
+     */
     @PutMapping("/{id}")
-    VenueDetail update(
+    public VenueDetail update(
             @PathVariable String id,
             @Valid @RequestBody CreateVenueRequest request
     ) {
         return venueService.update(id, request);
     }
 
+    /**
+     * 删除自定义场馆模板。
+     *
+     * @param id 场馆模板ID
+     */
     @DeleteMapping("/{id}")
-    void delete(@PathVariable String id) {
+    public void delete(@PathVariable String id) {
         venueService.delete(id);
     }
 }

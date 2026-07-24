@@ -442,8 +442,8 @@ function renumberSeats() {
   ElMessage.success('已按行重新编号座位')
 }
 function startPan(event) {
-  if (event.button !== 0 || !scrollRef.value) return
-  if (event.target.closest('.designer-grid, .floating-settings, .element-editor, button, input')) {
+  if (event.button !== 2 || !scrollRef.value) return
+  if (event.target.closest('.floating-settings, .element-editor, button, input')) {
     return
   }
   closeEditor()
@@ -586,7 +586,7 @@ onBeforeUnmount(() => {
       <span class="header-divider" />
       <div class="brand-copy">
         <strong>{{ venueId ? '编辑场馆布局' : '自定义场馆设计器' }}</strong>
-        <span>框选网格后选择元素；拖动画布空白处平移，滚轮缩放</span>
+        <span>框选网格后选择元素；按住鼠标右键拖动画布平移，滚轮缩放</span>
       </div>
       <span class="header-spacer" />
       <el-button type="primary" :loading="saving" @click="save">
@@ -624,6 +624,7 @@ onBeforeUnmount(() => {
         class="designer-scroll"
         :class="{ panning: isPanning }"
         @pointerdown="startPan"
+        @contextmenu.prevent
         @wheel="onWheel"
       >
         <div class="zoom-stage" :style="stageStyle">
@@ -944,7 +945,7 @@ onBeforeUnmount(() => {
     linear-gradient(#e2ebf5 1px, transparent 1px),
     linear-gradient(90deg, #e2ebf5 1px, transparent 1px), #edf5fc;
   background-size: 24px 24px;
-  cursor: grab;
+  cursor: default;
   scrollbar-gutter: stable;
 }
 

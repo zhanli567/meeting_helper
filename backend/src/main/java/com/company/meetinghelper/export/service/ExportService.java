@@ -36,11 +36,24 @@ public class ExportService {
     private final WorkspaceService workspaceService;
     private final PlanVersionService versionService;
 
+    /**
+     * 创建导出服务。
+     *
+     * @param workspaceService 工作区服务
+     * @param versionService 版本服务
+     */
     public ExportService(WorkspaceService workspaceService, PlanVersionService versionService) {
         this.workspaceService = workspaceService;
         this.versionService = versionService;
     }
 
+    /**
+     * 将会议当前草稿或发布版本导出为Excel。
+     *
+     * @param meetingId 会议ID
+     * @param versionId 可选的发布版本ID
+     * @return Excel文件字节
+     */
     public byte[] exportExcel(String meetingId, String versionId) {
         var workspace = resolveWorkspace(meetingId, versionId);
         try (var workbook = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
@@ -55,10 +68,23 @@ public class ExportService {
         }
     }
 
+    /**
+     * 将会议当前草稿导出为Excel。
+     *
+     * @param meetingId 会议ID
+     * @return Excel文件字节
+     */
     public byte[] exportExcel(String meetingId) {
         return exportExcel(meetingId, null);
     }
 
+    /**
+     * 将会议当前草稿或发布版本导出为PDF。
+     *
+     * @param meetingId 会议ID
+     * @param versionId 可选的发布版本ID
+     * @return PDF文件字节
+     */
     public byte[] exportPdf(String meetingId, String versionId) {
         var workspace = resolveWorkspace(meetingId, versionId);
         try (var document = new PDDocument(); var output = new ByteArrayOutputStream()) {
@@ -75,6 +101,12 @@ public class ExportService {
         }
     }
 
+    /**
+     * 将会议当前草稿导出为PDF。
+     *
+     * @param meetingId 会议ID
+     * @return PDF文件字节
+     */
     public byte[] exportPdf(String meetingId) {
         return exportPdf(meetingId, null);
     }

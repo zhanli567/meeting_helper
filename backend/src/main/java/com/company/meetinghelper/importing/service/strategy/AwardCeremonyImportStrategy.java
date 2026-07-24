@@ -17,6 +17,11 @@ public class AwardCeremonyImportStrategy extends AbstractParticipantImportStrate
             "工号", "批次顺序", "批次名称", "奖项名称", "奖项等级", "项目名称", "团队人数"
     );
 
+    /**
+     * 返回颁奖会议导入模板说明。
+     *
+     * @return 模板说明
+     */
     @Override
     public TemplateDescriptor descriptor() {
         return new TemplateDescriptor(
@@ -37,6 +42,12 @@ public class AwardCeremonyImportStrategy extends AbstractParticipantImportStrate
         writeHeader(awardSheet, AWARD_HEADERS);
     }
 
+    /**
+     * 解析颁奖会议人员与获奖记录工作簿。
+     *
+     * @param workbook Excel工作簿
+     * @return 解析结果
+     */
     @Override
     public ParsedWorkbook parse(XSSFWorkbook workbook) {
         var participants = parseParticipants(workbook);

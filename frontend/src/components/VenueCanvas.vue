@@ -123,9 +123,7 @@ function typeLabel(type) {
   )
 }
 function startPan(event) {
-  if (event.button !== 0) return
-  const target = event.target
-  if (target.closest('.seat-person, button, input')) return
+  if (event.button !== 2) return
   const container = scrollRef.value
   if (!container) return
   isPanning.value = true
@@ -196,6 +194,7 @@ onBeforeUnmount(endPan)
     class="canvas-scroll"
     :class="{ panning: isPanning, 'drag-active': draggingParticipantId }"
     @mousedown="startPan"
+    @contextmenu.prevent
     @wheel="onWheel"
   >
     <div class="canvas-content">
@@ -306,7 +305,7 @@ onBeforeUnmount(endPan)
     linear-gradient(#e9edf4 1px, transparent 1px),
     linear-gradient(90deg, #e9edf4 1px, transparent 1px), #f8fafc;
   background-size: 24px 24px;
-  cursor: grab;
+  cursor: default;
 }
 
 .canvas-content {

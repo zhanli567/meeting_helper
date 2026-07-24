@@ -21,23 +21,46 @@ public class MeetingController {
     private final MeetingService meetingService;
     private final WorkspaceService workspaceService;
 
+    /**
+     * 创建会议接口控制器。
+     *
+     * @param meetingService 会议服务
+     * @param workspaceService 工作区服务
+     */
     public MeetingController(MeetingService meetingService, WorkspaceService workspaceService) {
         this.meetingService = meetingService;
         this.workspaceService = workspaceService;
     }
 
+    /**
+     * 查询当前用户可访问的会议。
+     *
+     * @return 会议列表
+     */
     @GetMapping
-    List<MeetingSummary> list() {
+    public List<MeetingSummary> list() {
         return meetingService.list();
     }
 
+    /**
+     * 创建会议及其独立场馆快照。
+     *
+     * @param request 会议创建请求
+     * @return 新建会议信息
+     */
     @PostMapping
-    MeetingSummary create(@Valid @RequestBody CreateMeetingRequest request) {
+    public MeetingSummary create(@Valid @RequestBody CreateMeetingRequest request) {
         return meetingService.create(request);
     }
 
+    /**
+     * 查询会议当前草稿工作区。
+     *
+     * @param meetingId 会议ID
+     * @return 工作区数据
+     */
     @GetMapping("/{meetingId}/workspace")
-    WorkspaceResponse workspace(@PathVariable String meetingId) {
+    public WorkspaceResponse workspace(@PathVariable String meetingId) {
         return workspaceService.getWorkspace(meetingId);
     }
 }

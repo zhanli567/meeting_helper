@@ -10,6 +10,11 @@ import java.util.List;
 
 @Component
 public class GeneralMeetingImportStrategy extends AbstractParticipantImportStrategy {
+    /**
+     * 返回通用会议导入模板说明。
+     *
+     * @return 模板说明
+     */
     @Override
     public TemplateDescriptor descriptor() {
         return new TemplateDescriptor(
@@ -21,6 +26,12 @@ public class GeneralMeetingImportStrategy extends AbstractParticipantImportStrat
         );
     }
 
+    /**
+     * 解析通用会议人员工作簿。
+     *
+     * @param workbook Excel工作簿
+     * @return 解析结果
+     */
     @Override
     public ParsedWorkbook parse(XSSFWorkbook workbook) {
         var result = parseParticipants(workbook);

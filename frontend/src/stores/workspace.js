@@ -18,6 +18,7 @@ function createWorkspaceStore() {
   const workspace = ref()
   const loading = ref(false)
   const saving = ref(false)
+  const dirty = ref(false)
   const selectedParticipantId = ref()
   const selectedParticipant = computed(() =>
     workspace.value?.participants.find((person) => person.id === selectedParticipantId.value),
@@ -47,6 +48,7 @@ function createWorkspaceStore() {
   async function loadWorkspace() {
     if (!activeMeetingId.value) return
     workspace.value = await meetingApi.workspace(activeMeetingId.value)
+    dirty.value = false
   }
   async function switchMeeting(meetingId) {
     rememberMeeting(meetingId)
@@ -60,27 +62,79 @@ function createWorkspaceStore() {
       loading.value = false
     }
   }
-  async function assign(participantId, targetElementId) {
+  function assign(participantId, targetElementId) {
     if (!workspace.value) return false
-    saving.value = true
-    try {
-      await meetingApi.assign(workspace.value.plan.id, participantId, targetElementId)
-      await loadWorkspace()
-      selectedParticipantId.value = participantId
-      return true
-    } catch (error) {
-      ElMessage.error(apiErrorMessage(error))
+    const person = workspace.value.participants.find((value) => value.id === participantId)
+    const target = workspace.value.layout.elements.find((value) => value.id === targetElementId)
+    if (!person || !target?.assignable || target.capacity !== 1) return false
+    if (person.locked) {
+      ElMessage.warning('该人员已锁定，无法移动')
       return false
-    } finally {
-      saving.value = false
     }
+    const originalTargetId = person.assignedElementId
+    if (originalTargetId === targetElementId) return true
+    const targetItem = workspace.value.items.find((item) =>
+      item.targetElementIds.includes(targetElementId),
+    )
+    if (targetItem && targetItem.type !== 'PERSON') {
+      ElMessage.warning('目标座位已被设备、预留或禁用状态占用')
+      return false
+    }
+    const occupiedPerson = workspace.value.participants.find(
+      (value) => value.assignedElementId === targetElementId,
+    )
+    if (occupiedPerson?.locked || targetItem?.locked) {
+      ElMessage.warning('目标座位已锁定')
+      return false
+    }
+    if (occupiedPerson && !originalTargetId) {
+      ElMessage.warning('待排人员只能拖入空座位')
+      return false
+    }
+
+    const currentItem = ensurePersonItem(person)
+    if (occupiedPerson) {
+      const occupiedItem = ensurePersonItem(occupiedPerson)
+      occupiedPerson.assignedElementId = originalTargetId
+      occupiedItem.targetElementIds = [originalTargetId]
+    }
+    person.assignedElementId = targetElementId
+    currentItem.targetElementIds = [targetElementId]
+    selectedParticipantId.value = participantId
+    dirty.value = true
+    return true
   }
-  async function unassign(participantId) {
+
+  function unassign(participantId) {
     if (!workspace.value) return false
+    const person = workspace.value.participants.find((value) => value.id === participantId)
+    const item = workspace.value.items.find(
+      (value) => value.type === 'PERSON' && value.participantId === participantId,
+    )
+    if (!person?.assignedElementId) return false
+    if (person.locked || item?.locked) {
+      ElMessage.warning('该座位已锁定')
+      return false
+    }
+    person.assignedElementId = undefined
+    workspace.value.items = workspace.value.items.filter((value) => value !== item)
+    dirty.value = true
+    return true
+  }
+
+  async function saveAssignments({ silent = false } = {}) {
+    if (!workspace.value || !dirty.value || saving.value) return true
     saving.value = true
     try {
-      await meetingApi.unassign(workspace.value.plan.id, participantId)
+      const assignments = workspace.value.participants
+        .filter((person) => person.assignedElementId)
+        .map((person) => ({
+          participantId: person.id,
+          targetElementId: person.assignedElementId,
+        }))
+      await meetingApi.saveAssignments(workspace.value.plan.id, assignments)
       await loadWorkspace()
+      if (!silent) ElMessage.success('排座草稿已保存')
       return true
     } catch (error) {
       ElMessage.error(apiErrorMessage(error))
@@ -129,6 +183,29 @@ function createWorkspaceStore() {
   function selectParticipant(participant) {
     selectedParticipantId.value = participant?.id
   }
+  function ensurePersonItem(person) {
+    let item = workspace.value.items.find(
+      (value) => value.type === 'PERSON' && value.participantId === person.id,
+    )
+    if (!item) {
+      item = {
+        id:
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? `local-${crypto.randomUUID()}`
+            : `local-${Date.now()}-${Math.random()}`,
+        type: 'PERSON',
+        participantId: person.id,
+        label: person.name,
+        locked: false,
+        backgroundColor: undefined,
+        textColor: undefined,
+        bold: false,
+        targetElementIds: [],
+      }
+      workspace.value.items.push(item)
+    }
+    return item
+  }
   function rememberMeeting(meetingId) {
     activeMeetingId.value = meetingId
     if (typeof window === 'undefined') return
@@ -145,6 +222,7 @@ function createWorkspaceStore() {
     workspace,
     loading,
     saving,
+    dirty,
     selectedParticipantId,
     selectedParticipant,
     assignedCount,
@@ -154,6 +232,7 @@ function createWorkspaceStore() {
     switchMeeting,
     assign,
     unassign,
+    saveAssignments,
     setLock,
     removeParticipant,
     exportPlan,

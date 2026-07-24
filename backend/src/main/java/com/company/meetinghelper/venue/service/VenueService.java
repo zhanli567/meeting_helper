@@ -22,11 +22,22 @@ public class VenueService {
     private final VenueTemplateRepository templateRepository;
     private final VenueElementRepository elementRepository;
 
+    /**
+     * 创建场馆模板服务。
+     *
+     * @param templateRepository 场馆模板仓储
+     * @param elementRepository 场馆元素仓储
+     */
     public VenueService(VenueTemplateRepository templateRepository, VenueElementRepository elementRepository) {
         this.templateRepository = templateRepository;
         this.elementRepository = elementRepository;
     }
 
+    /**
+     * 查询全部有效场馆模板。
+     *
+     * @return 场馆模板摘要列表
+     */
     @Transactional(readOnly = true)
     public List<VenueSummary> list() {
         return templateRepository.findAllByDeletedFalseOrderByPresetDescNameAsc().stream()
@@ -39,6 +50,12 @@ public class VenueService {
                 .toList();
     }
 
+    /**
+     * 查询场馆模板及其元素详情。
+     *
+     * @param id 场馆模板ID
+     * @return 场馆模板详情
+     */
     @Transactional(readOnly = true)
     public VenueDetail get(String id) {
         var template = templateRepository.findById(id)
@@ -52,6 +69,12 @@ public class VenueService {
                         .map(this::toElement).toList());
     }
 
+    /**
+     * 创建自定义场馆模板。
+     *
+     * @param request 场馆模板请求
+     * @return 新建场馆模板详情
+     */
     @Transactional
     public VenueDetail create(CreateVenueRequest request) {
         var normalizedName = request.name().trim();
@@ -78,6 +101,13 @@ public class VenueService {
         return get(template.getId());
     }
 
+    /**
+     * 更新自定义场馆模板并提升版本号。
+     *
+     * @param id 场馆模板ID
+     * @param request 场馆模板请求
+     * @return 更新后的场馆模板详情
+     */
     @Transactional
     public VenueDetail update(String id, CreateVenueRequest request) {
         var template = templateRepository.findById(id)
@@ -113,6 +143,11 @@ public class VenueService {
         return get(id);
     }
 
+    /**
+     * 软删除自定义场馆模板及其元素。
+     *
+     * @param id 场馆模板ID
+     */
     @Transactional
     public void delete(String id) {
         var template = templateRepository.findById(id)

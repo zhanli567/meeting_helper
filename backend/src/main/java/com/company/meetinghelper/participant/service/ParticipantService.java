@@ -26,6 +26,16 @@ public class ParticipantService {
     private final PlanItemTargetRepository targetRepository;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 创建参会人员服务。
+     *
+     * @param meetingRepository 会议仓储
+     * @param participantRepository 参会人员仓储
+     * @param planRepository 排座方案仓储
+     * @param itemRepository 排座明细仓储
+     * @param targetRepository 排座目标仓储
+     * @param objectMapper JSON序列化器
+     */
     public ParticipantService(
             MeetingRepository meetingRepository,
             ParticipantRepository participantRepository,
@@ -42,6 +52,13 @@ public class ParticipantService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 向指定会议添加一名参会人员。
+     *
+     * @param meetingId 会议ID
+     * @param request 人员创建请求
+     * @return 新增人员信息
+     */
     @Transactional
     public ParticipantResult create(String meetingId, CreateParticipantRequest request) {
         meetingRepository.findById(meetingId)
@@ -68,6 +85,12 @@ public class ParticipantService {
         return new ParticipantResult(participant.getId(), participant.getEmployeeNo(), participant.getName());
     }
 
+    /**
+     * 从会议名单中删除人员及其排座关系。
+     *
+     * @param meetingId 会议ID
+     * @param participantId 参会人员ID
+     */
     @Transactional
     public void delete(String meetingId, String participantId) {
         var participant = participantRepository.findById(participantId)

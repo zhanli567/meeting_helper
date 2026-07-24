@@ -17,20 +17,39 @@ import org.springframework.web.bind.annotation.RestController;
 public class ParticipantController {
     private final ParticipantService participantService;
 
+    /**
+     * 创建参会人员接口控制器。
+     *
+     * @param participantService 参会人员服务
+     */
     public ParticipantController(ParticipantService participantService) {
         this.participantService = participantService;
     }
 
+    /**
+     * 向会议添加一名参会人员。
+     *
+     * @param meetingId 会议ID
+     * @param request 人员创建请求
+     * @return 新增人员信息
+     */
     @PostMapping
-    ParticipantResult create(
+    public ParticipantResult create(
             @PathVariable String meetingId,
             @Valid @RequestBody CreateParticipantRequest request
     ) {
         return participantService.create(meetingId, request);
     }
 
+    /**
+     * 从会议名单中删除人员。
+     *
+     * @param meetingId 会议ID
+     * @param participantId 参会人员ID
+     * @return 空响应
+     */
     @DeleteMapping("/{participantId}")
-    ResponseEntity<Void> delete(@PathVariable String meetingId, @PathVariable String participantId) {
+    public ResponseEntity<Void> delete(@PathVariable String meetingId, @PathVariable String participantId) {
         participantService.delete(meetingId, participantId);
         return ResponseEntity.noContent().build();
     }

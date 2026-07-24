@@ -1,8 +1,9 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Delete, EditPen, Plus } from '@element-plus/icons-vue'
+import { ArrowLeft, Delete, EditPen, Plus, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import VenuePreviewDialog from '@/components/VenuePreviewDialog.vue'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -12,6 +13,8 @@ const venues = ref([])
 const meetingNames = ref([])
 const loading = ref(false)
 const meetingVisible = ref(false)
+const previewVisible = ref(false)
+const previewVenueId = ref('')
 const submitting = ref(false)
 const form = reactive({ name: '', venueTemplateId: '' })
 onMounted(load)
@@ -31,6 +34,10 @@ function startMeeting(venue) {
   form.venueTemplateId = venue.id
   form.name = ''
   meetingVisible.value = true
+}
+function previewVenue(venue) {
+  previewVenueId.value = venue.id
+  previewVisible.value = true
 }
 async function createMeeting() {
   const name = form.name.trim()
@@ -109,7 +116,7 @@ async function deleteVenue(venue) {
       <div class="venue-scroll">
         <section class="venue-grid">
           <article v-for="venue in venues" :key="venue.id" class="venue-card">
-            <div class="venue-preview">
+            <div class="venue-preview" title="点击预览场馆布局" @click="previewVenue(venue)">
               <span class="mini-stage">舞台 / 主席区</span>
               <div class="mini-seats">
                 <i v-for="index in 28" :key="index" :class="{ aisle: index % 9 === 0 }" />
@@ -142,6 +149,7 @@ async function deleteVenue(venue) {
                 <el-button type="primary" plain @click="startMeeting(venue)">
                   使用该场馆创建会议
                 </el-button>
+                <el-button :icon="View" aria-label="预览场馆" @click="previewVenue(venue)" />
                 <template v-if="!venue.preset">
                   <el-button
                     :icon="EditPen"
@@ -188,6 +196,7 @@ async function deleteVenue(venue) {
         >
       </template>
     </el-dialog>
+    <VenuePreviewDialog v-model="previewVisible" :venue-id="previewVenueId" />
   </div>
 </template>
 
@@ -287,6 +296,7 @@ async function deleteVenue(venue) {
     18px 18px,
     18px 18px,
     auto;
+  cursor: zoom-in;
 }
 
 .venue-preview > .el-tag {

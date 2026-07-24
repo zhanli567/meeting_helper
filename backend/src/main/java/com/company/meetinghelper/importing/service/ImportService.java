@@ -43,6 +43,16 @@ public class ImportService {
     private final ImportPreviewStore previewStore;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 创建人员导入服务。
+     *
+     * @param strategies 工作簿解析策略
+     * @param meetingRepository 会议仓储
+     * @param participantRepository 参会人员仓储
+     * @param awardRepository 获奖记录仓储
+     * @param previewStore 导入预览存储
+     * @param objectMapper JSON序列化器
+     */
     public ImportService(
             List<WorkbookImportStrategy> strategies,
             MeetingRepository meetingRepository,
@@ -59,10 +69,21 @@ public class ImportService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 查询系统支持的导入模板。
+     *
+     * @return 导入模板列表
+     */
     public List<TemplateDescriptor> templates() {
         return strategies.stream().map(WorkbookImportStrategy::descriptor).toList();
     }
 
+    /**
+     * 生成指定导入模板的Excel文件。
+     *
+     * @param templateCode 模板编码
+     * @return Excel模板字节
+     */
     public byte[] templateFile(String templateCode) {
         var strategy = requireStrategy(templateCode);
         try (var workbook = strategy.createTemplate(); var output = new ByteArrayOutputStream()) {
@@ -73,6 +94,14 @@ public class ImportService {
         }
     }
 
+    /**
+     * 解析上传的Excel并生成重复工号处理预览。
+     *
+     * @param meetingId 会议ID
+     * @param templateCode 模板编码
+     * @param file 上传文件
+     * @return 导入预览
+     */
     public ImportPreview preview(String meetingId, String templateCode, MultipartFile file) {
         meetingRepository.findById(meetingId)
                 .filter(value -> !value.isDeleted())
@@ -114,6 +143,14 @@ public class ImportService {
         return preview;
     }
 
+    /**
+     * 提交预览中确认后的人员和获奖数据。
+     *
+     * @param meetingId 会议ID
+     * @param token 预览令牌
+     * @param request 导入确认请求
+     * @return 导入统计结果
+     */
     @Transactional
     public CommitResult commit(
             String meetingId,
