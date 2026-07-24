@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
 const props = defineProps({
   workspace: { type: Object, required: true },
@@ -169,6 +169,24 @@ function onWheel(event) {
     scrollRef.value.scrollTop = (pointerY / oldZoom) * props.zoom - (event.clientY - rect.top)
   })
 }
+function centerCanvas() {
+  const container = scrollRef.value
+  if (!container) return
+  container.scrollLeft = Math.max(0, (container.scrollWidth - container.clientWidth) / 2)
+  container.scrollTop = Math.max(0, (container.scrollHeight - container.clientHeight) / 2)
+}
+function centerCanvasAfterRender() {
+  nextTick(centerCanvas)
+}
+onMounted(centerCanvasAfterRender)
+watch(
+  () => [
+    props.workspace.meeting.id,
+    props.workspace.layout.gridRows,
+    props.workspace.layout.gridColumns,
+  ],
+  centerCanvasAfterRender,
+)
 onBeforeUnmount(endPan)
 </script>
 
@@ -180,8 +198,9 @@ onBeforeUnmount(endPan)
     @mousedown="startPan"
     @wheel="onWheel"
   >
-    <div class="venue-canvas" :style="canvasStyle">
-      <template v-for="element in workspace.layout.elements" :key="element.id">
+    <div class="canvas-content">
+      <div class="venue-canvas" :style="canvasStyle">
+        <template v-for="element in workspace.layout.elements" :key="element.id">
         <el-tooltip
           v-if="element.assignable"
           :show-after="360"
@@ -272,7 +291,8 @@ onBeforeUnmount(endPan)
             {{ element.label || typeLabel(element.type) }}
           </span>
         </div>
-      </template>
+        </template>
+      </div>
     </div>
   </div>
 </template>
@@ -282,12 +302,22 @@ onBeforeUnmount(endPan)
   width: 100%;
   height: 100%;
   overflow: auto;
-  padding: 26px 30px 38px;
   background:
     linear-gradient(#e9edf4 1px, transparent 1px),
     linear-gradient(90deg, #e9edf4 1px, transparent 1px), #f8fafc;
   background-size: 24px 24px;
   cursor: grab;
+}
+
+.canvas-content {
+  width: max-content;
+  min-width: 100%;
+  height: max-content;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 26px 30px 38px;
 }
 
 .canvas-scroll.panning {
@@ -296,8 +326,8 @@ onBeforeUnmount(endPan)
 }
 
 .venue-canvas {
+  flex: none;
   position: relative;
-  margin: 0 auto;
   background: #fff;
   border: 1px solid #d8e0eb;
   box-shadow: 0 16px 36px rgba(30, 45, 72, 0.12);

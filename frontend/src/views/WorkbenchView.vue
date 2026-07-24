@@ -5,7 +5,6 @@ import {
   Back,
   Check,
   Download,
-  Document,
   House,
   Plus,
   RefreshRight,
@@ -43,7 +42,6 @@ const fab = reactive({
   x: 0,
   y: 0,
   edge: 'right',
-  hidden: false,
   dragging: false,
 })
 let fabOffsetX = 0
@@ -52,7 +50,6 @@ let fabPointerStartX = 0
 let fabPointerStartY = 0
 let fabMoved = false
 let suppressFabClick = false
-let hideTimer
 const workspace = computed(() => publishedWorkspace.value || store.workspace)
 const readonlyMode = computed(() => activeVersionKey.value !== 'draft')
 const activeVersionId = computed(() => (readonlyMode.value ? activeVersionKey.value : undefined))
@@ -79,7 +76,7 @@ const fabStyle = computed(() => ({
 }))
 const addMenuStyle = computed(() => {
   const width = 220
-  const height = 150
+  const height = 108
   return {
     left: `${Math.min(Math.max(10, fab.x - width + 48), window.innerWidth - width - 10)}px`,
     top: `${Math.min(Math.max(70, fab.y - height - 10), window.innerHeight - height - 10)}px`,
@@ -94,12 +91,10 @@ onMounted(async () => {
   }
   resetFab()
   window.addEventListener('resize', keepFabInViewport)
-  scheduleFabHide()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', keepFabInViewport)
   stopFabDrag()
-  if (hideTimer) window.clearTimeout(hideTimer)
 })
 async function switchMeeting(meetingId) {
   activeVersionKey.value = 'draft'
@@ -254,8 +249,6 @@ function keepFabInViewport() {
   fab.y = Math.min(Math.max(64, fab.y), window.innerHeight - 52)
 }
 function startFabDrag(event) {
-  if (hideTimer) window.clearTimeout(hideTimer)
-  fab.hidden = false
   fab.dragging = true
   fabMoved = false
   suppressFabClick = false
@@ -284,10 +277,7 @@ function stopFabDrag() {
   fab.dragging = false
   window.removeEventListener('pointermove', moveFab)
   window.removeEventListener('pointerup', stopFabDrag)
-  if (!wasMoved) {
-    scheduleFabHide()
-    return
-  }
+  if (!wasMoved) return
   const distances = {
     left: fab.x,
     right: window.innerWidth - fab.x - 48,
@@ -304,44 +294,21 @@ function stopFabDrag() {
     fabMoved = false
     suppressFabClick = false
   }, 0)
-  scheduleFabHide()
 }
 function handleFabClick() {
   if (suppressFabClick) return
   toggleAddMenu()
 }
 function toggleAddMenu() {
-  fab.hidden = false
   addMenuVisible.value = !addMenuVisible.value
-  if (addMenuVisible.value && hideTimer) window.clearTimeout(hideTimer)
-  else scheduleFabHide()
-}
-function revealFab() {
-  fab.hidden = false
-  if (hideTimer) window.clearTimeout(hideTimer)
-}
-function scheduleFabHide() {
-  if (hideTimer) window.clearTimeout(hideTimer)
-  hideTimer = window.setTimeout(() => {
-    if (!fab.dragging && !addMenuVisible.value) fab.hidden = true
-  }, 3600)
 }
 function openSingleAdd() {
   addMenuVisible.value = false
   addVisible.value = true
-  scheduleFabHide()
 }
 function openBatchImport() {
   addMenuVisible.value = false
   importVisible.value = true
-  scheduleFabHide()
-}
-function downloadTemplate() {
-  const hasAwardData = workspace.value?.participants.some((person) => person.awards.length)
-  const templateCode = hasAwardData ? 'AWARD_CEREMONY_V1' : 'GENERAL_V1'
-  window.open(`/api/import-templates/${templateCode}/file`, '_blank')
-  addMenuVisible.value = false
-  scheduleFabHide()
 }
 </script>
 
@@ -536,16 +503,10 @@ function downloadTemplate() {
         v-if="addMenuVisible"
         class="add-menu"
         :style="addMenuStyle"
-        @mouseenter="revealFab"
-        @mouseleave="scheduleFabHide"
       >
         <button @click="openSingleAdd">
           <el-icon><User /></el-icon>
           <span><strong>单个添加</strong><small>录入一位参会人员</small></span>
-        </button>
-        <button @click="downloadTemplate">
-          <el-icon><Document /></el-icon>
-          <span><strong>下载Excel模板</strong><small>按标准列名准备名单</small></span>
         </button>
         <button @click="openBatchImport">
           <el-icon><Upload /></el-icon>
@@ -554,14 +515,12 @@ function downloadTemplate() {
       </div>
       <button
         class="floating-add"
-        :class="[`edge-${fab.edge}`, { hidden: fab.hidden, dragging: fab.dragging }]"
+        :class="{ dragging: fab.dragging }"
         :style="fabStyle"
         aria-label="添加参会人员"
         title="拖动可调整位置"
         @pointerdown="startFabDrag"
         @click="handleFabClick"
-        @mouseenter="revealFab"
-        @mouseleave="scheduleFabHide"
       >
         <Plus />
       </button>
@@ -833,26 +792,6 @@ function downloadTemplate() {
 .floating-add.dragging {
   cursor: grabbing;
   transition: none;
-}
-
-.floating-add.hidden.edge-right {
-  transform: translateX(22px);
-}
-
-.floating-add.hidden.edge-left {
-  transform: translateX(-22px);
-}
-
-.floating-add.hidden.edge-top {
-  transform: translateY(-22px);
-}
-
-.floating-add.hidden.edge-bottom {
-  transform: translateY(22px);
-}
-
-.floating-add.hidden {
-  opacity: 0.72;
 }
 
 .add-menu {
