@@ -4,7 +4,7 @@
 
 ## 工程结构
 
-- `frontend`：Vue 3 + TypeScript 前端。
+- `frontend`：Vue 3 + JavaScript 前端。
 - `backend`：Spring Boot 后端。
 - `DDL`：数据库初始化建表脚本的唯一存放目录。
 - `docs/architecture.md`：领域边界、数据关系和扩展点说明。
@@ -23,7 +23,7 @@
 
 ## 本地开发
 
-环境要求：Java 21、Node.js 22.18+、PostgreSQL。
+环境要求：Java 21、Node.js 20+、PostgreSQL。
 
 先启动后端：
 
@@ -47,9 +47,7 @@ npm run dev
 
 ```powershell
 cd frontend
-npm run lint
 npm run build
-npm run test:unit -- --run
 ```
 
 ### 后端

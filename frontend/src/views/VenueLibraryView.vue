@@ -1,24 +1,20 @@
-<script setup lang="ts">
+<script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Delete, EditPen, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
-import type { VenueSummary } from '@/types/workspace'
 import { useWorkspaceStore } from '@/stores/workspace'
-
 const router = useRouter()
 const store = useWorkspaceStore()
-const venues = ref<VenueSummary[]>([])
-const meetingNames = ref<string[]>([])
+const venues = ref([])
+const meetingNames = ref([])
 const loading = ref(false)
 const meetingVisible = ref(false)
 const submitting = ref(false)
 const form = reactive({ name: '', venueTemplateId: '' })
-
 onMounted(load)
-
 async function load() {
   loading.value = true
   try {
@@ -31,13 +27,11 @@ async function load() {
     loading.value = false
   }
 }
-
-function startMeeting(venue: VenueSummary) {
+function startMeeting(venue) {
   form.venueTemplateId = venue.id
   form.name = ''
   meetingVisible.value = true
 }
-
 async function createMeeting() {
   const name = form.name.trim()
   if (!name) {
@@ -61,8 +55,7 @@ async function createMeeting() {
     submitting.value = false
   }
 }
-
-async function deleteVenue(venue: VenueSummary) {
+async function deleteVenue(venue) {
   try {
     await ElMessageBox.confirm(
       `删除“${venue.name}”后不可再用它创建新会议，已创建会议不会受影响。`,

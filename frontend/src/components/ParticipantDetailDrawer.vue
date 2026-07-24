@@ -1,20 +1,7 @@
-<script setup lang="ts">
+<script setup>
 import { Delete, Lock, Unlock } from '@element-plus/icons-vue'
-import type { LayoutElement, Participant } from '@/types/workspace'
-
-withDefaults(
-  defineProps<{
-    participant?: Participant
-    seat?: LayoutElement
-    readonly?: boolean
-  }>(),
-  { readonly: false },
-)
-const emit = defineEmits<{
-  lock: [participantId: string, locked: boolean]
-  unassign: [participantId: string]
-  remove: [participantId: string]
-}>()
+withDefaults(defineProps(), { readonly: false })
+const emit = defineEmits()
 </script>
 
 <template>

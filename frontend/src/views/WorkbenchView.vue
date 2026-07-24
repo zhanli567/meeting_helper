@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -22,20 +22,18 @@ import VenueCanvas from '@/components/VenueCanvas.vue'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 import { useWorkspaceStore } from '@/stores/workspace'
-import type { Participant, Workspace } from '@/types/workspace'
-
 const router = useRouter()
 const route = useRoute()
 const store = useWorkspaceStore()
 const zoom = ref(0.92)
 const importVisible = ref(false)
 const addVisible = ref(false)
-const undoStack = ref<HistoryAction[]>([])
-const redoStack = ref<HistoryAction[]>([])
+const undoStack = ref([])
+const redoStack = ref([])
 const applyingHistory = ref(false)
-const draggingParticipantId = ref<string>()
+const draggingParticipantId = ref()
 const activeVersionKey = ref('draft')
-const publishedWorkspace = ref<Workspace>()
+const publishedWorkspace = ref()
 const loadingVersion = ref(false)
 const publishing = ref(false)
 const addMenuVisible = ref(false)
@@ -43,21 +41,14 @@ const fabReady = ref(false)
 const fab = reactive({
   x: 0,
   y: 0,
-  edge: 'right' as 'left' | 'right' | 'top' | 'bottom',
+  edge: 'right',
   hidden: false,
   dragging: false,
 })
 let fabOffsetX = 0
 let fabOffsetY = 0
 let fabMoved = false
-let hideTimer: ReturnType<typeof window.setTimeout> | undefined
-
-interface HistoryAction {
-  label: string
-  undo: () => Promise<void>
-  redo: () => Promise<void>
-}
-
+let hideTimer
 const workspace = computed(() => publishedWorkspace.value || store.workspace)
 const readonlyMode = computed(() => activeVersionKey.value !== 'draft')
 const activeVersionId = computed(() => (readonlyMode.value ? activeVersionKey.value : undefined))
@@ -90,7 +81,6 @@ const addMenuStyle = computed(() => {
     top: `${Math.min(Math.max(70, fab.y - height - 10), window.innerHeight - height - 10)}px`,
   }
 })
-
 onMounted(async () => {
   const meetingId = typeof route.params.meetingId === 'string' ? route.params.meetingId : ''
   if (meetingId) store.activeMeetingId = meetingId
@@ -102,14 +92,12 @@ onMounted(async () => {
   window.addEventListener('resize', keepFabInViewport)
   scheduleFabHide()
 })
-
 onBeforeUnmount(() => {
   window.removeEventListener('resize', keepFabInViewport)
   stopFabDrag()
   if (hideTimer) window.clearTimeout(hideTimer)
 })
-
-async function switchMeeting(meetingId: string) {
+async function switchMeeting(meetingId) {
   activeVersionKey.value = 'draft'
   publishedWorkspace.value = undefined
   undoStack.value = []
@@ -117,8 +105,7 @@ async function switchMeeting(meetingId: string) {
   await store.switchMeeting(meetingId)
   await router.replace(`/workbench/${meetingId}`)
 }
-
-async function switchVersion(versionKey: string) {
+async function switchVersion(versionKey) {
   store.selectParticipant(undefined)
   draggingParticipantId.value = undefined
   if (versionKey === 'draft') {
@@ -136,7 +123,6 @@ async function switchVersion(versionKey: string) {
     loadingVersion.value = false
   }
 }
-
 async function publishDraft() {
   if (!store.workspace || readonlyMode.value) return
   try {
@@ -168,8 +154,7 @@ async function publishDraft() {
     publishing.value = false
   }
 }
-
-async function performAssign(participantId: string, targetElementId: string) {
+async function performAssign(participantId, targetElementId) {
   if (readonlyMode.value) return
   if (!store.workspace || applyingHistory.value) {
     await store.assign(participantId, targetElementId)
@@ -192,8 +177,7 @@ async function performAssign(participantId: string, targetElementId: string) {
   })
   redoStack.value = []
 }
-
-async function performUnassign(participantId: string) {
+async function performUnassign(participantId) {
   if (readonlyMode.value) return
   const person = store.workspace?.participants.find((value) => value.id === participantId)
   const originalTarget = person?.assignedElementId
@@ -213,7 +197,6 @@ async function performUnassign(participantId: string) {
     redoStack.value = []
   }
 }
-
 async function undo() {
   if (readonlyMode.value) return
   const action = undoStack.value.pop()
@@ -223,7 +206,6 @@ async function undo() {
   applyingHistory.value = false
   redoStack.value.push(action)
 }
-
 async function redo() {
   if (readonlyMode.value) return
   const action = redoStack.value.pop()
@@ -233,36 +215,29 @@ async function redo() {
   applyingHistory.value = false
   undoStack.value.push(action)
 }
-
 function onSeatClick() {
   // 第一版仅保留拖拽排座，空座位点击不再触发隐藏的“连续排座”模式。
 }
-
-function selectParticipant(person?: Participant) {
+function selectParticipant(person) {
   store.selectParticipant(person)
 }
-
-function changeZoom(delta: number) {
+function changeZoom(delta) {
   zoom.value = Math.min(2.5, Math.max(0.4, Number((zoom.value + delta).toFixed(2))))
 }
-
-function exportPlan(type: 'excel' | 'pdf') {
+function exportPlan(type) {
   store.exportPlan(type, activeVersionId.value)
 }
-
 function resetFab() {
   fab.x = Math.max(12, window.innerWidth - 440)
   fab.y = Math.max(76, window.innerHeight - 100)
   fab.edge = 'right'
   fabReady.value = true
 }
-
 function keepFabInViewport() {
   fab.x = Math.min(Math.max(4, fab.x), window.innerWidth - 52)
   fab.y = Math.min(Math.max(64, fab.y), window.innerHeight - 52)
 }
-
-function startFabDrag(event: PointerEvent) {
+function startFabDrag(event) {
   if (hideTimer) window.clearTimeout(hideTimer)
   fab.hidden = false
   fab.dragging = true
@@ -273,15 +248,13 @@ function startFabDrag(event: PointerEvent) {
   window.addEventListener('pointerup', stopFabDrag)
   event.preventDefault()
 }
-
-function moveFab(event: PointerEvent) {
+function moveFab(event) {
   if (!fab.dragging) return
   fabMoved = true
   fab.x = Math.min(Math.max(2, event.clientX - fabOffsetX), window.innerWidth - 50)
   fab.y = Math.min(Math.max(64, event.clientY - fabOffsetY), window.innerHeight - 50)
 }
-
-function stopFabDrag(event?: PointerEvent) {
+function stopFabDrag(event) {
   if (!fab.dragging) return
   const wasMoved = fabMoved
   fab.dragging = false
@@ -293,8 +266,7 @@ function stopFabDrag(event?: PointerEvent) {
     top: fab.y - 64,
     bottom: window.innerHeight - fab.y - 48,
   }
-  fab.edge = (Object.entries(distances).sort((left, right) => left[1] - right[1])[0]?.[0] ||
-    'right') as typeof fab.edge
+  fab.edge = Object.entries(distances).sort((left, right) => left[1] - right[1])[0]?.[0] || 'right'
   if (fab.edge === 'left') fab.x = 4
   if (fab.edge === 'right') fab.x = window.innerWidth - 52
   if (fab.edge === 'top') fab.y = 66
@@ -309,7 +281,6 @@ function stopFabDrag(event?: PointerEvent) {
   }, 0)
   scheduleFabHide()
 }
-
 function toggleAddMenu() {
   if (fabMoved) return
   fab.hidden = false
@@ -317,31 +288,26 @@ function toggleAddMenu() {
   if (addMenuVisible.value && hideTimer) window.clearTimeout(hideTimer)
   else scheduleFabHide()
 }
-
 function revealFab() {
   fab.hidden = false
   if (hideTimer) window.clearTimeout(hideTimer)
 }
-
 function scheduleFabHide() {
   if (hideTimer) window.clearTimeout(hideTimer)
   hideTimer = window.setTimeout(() => {
     if (!fab.dragging && !addMenuVisible.value) fab.hidden = true
   }, 3600)
 }
-
 function openSingleAdd() {
   addMenuVisible.value = false
   addVisible.value = true
   scheduleFabHide()
 }
-
 function openBatchImport() {
   addMenuVisible.value = false
   importVisible.value = true
   scheduleFabHide()
 }
-
 function downloadTemplate() {
   const hasAwardData = workspace.value?.participants.some((person) => person.awards.length)
   const templateCode = hasAwardData ? 'AWARD_CEREMONY_V1' : 'GENERAL_V1'

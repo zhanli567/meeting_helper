@@ -1,18 +1,14 @@
-import { computed, ref } from 'vue'
-import { defineStore } from 'pinia'
+import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { apiErrorMessage, downloadBlob } from '@/api/http'
 import { meetingApi } from '@/api/meeting'
-import type { MeetingSummary, Participant, Workspace } from '@/types/workspace'
-
-export const useWorkspaceStore = defineStore('workspace', () => {
-  const meetings = ref<MeetingSummary[]>([])
+function createWorkspaceStore() {
+  const meetings = ref([])
   const activeMeetingId = ref('')
-  const workspace = ref<Workspace>()
+  const workspace = ref()
   const loading = ref(false)
   const saving = ref(false)
-  const selectedParticipantId = ref<string>()
-
+  const selectedParticipantId = ref()
   const selectedParticipant = computed(() =>
     workspace.value?.participants.find((person) => person.id === selectedParticipantId.value),
   )
@@ -22,13 +18,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const pendingCount = computed(
     () => workspace.value?.participants.filter((person) => !person.assignedElementId).length ?? 0,
   )
-
   async function initialize() {
     loading.value = true
     try {
       meetings.value = await meetingApi.meetings()
       if (!activeMeetingId.value && meetings.value.length) {
-        activeMeetingId.value = meetings.value[0]!.id
+        activeMeetingId.value = meetings.value[0].id
       }
       if (activeMeetingId.value) {
         await loadWorkspace()
@@ -39,13 +34,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       loading.value = false
     }
   }
-
   async function loadWorkspace() {
     if (!activeMeetingId.value) return
     workspace.value = await meetingApi.workspace(activeMeetingId.value)
   }
-
-  async function switchMeeting(meetingId: string) {
+  async function switchMeeting(meetingId) {
     activeMeetingId.value = meetingId
     selectedParticipantId.value = undefined
     loading.value = true
@@ -57,8 +50,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       loading.value = false
     }
   }
-
-  async function assign(participantId: string, targetElementId: string) {
+  async function assign(participantId, targetElementId) {
     if (!workspace.value) return false
     saving.value = true
     try {
@@ -73,8 +65,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       saving.value = false
     }
   }
-
-  async function unassign(participantId: string) {
+  async function unassign(participantId) {
     if (!workspace.value) return false
     saving.value = true
     try {
@@ -88,8 +79,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       saving.value = false
     }
   }
-
-  async function setLock(participantId: string, locked: boolean) {
+  async function setLock(participantId, locked) {
     if (!workspace.value) return
     try {
       await meetingApi.setLock(workspace.value.plan.id, participantId, locked)
@@ -99,8 +89,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       ElMessage.error(apiErrorMessage(error))
     }
   }
-
-  async function removeParticipant(participantId: string) {
+  async function removeParticipant(participantId) {
     if (!workspace.value) return
     try {
       await meetingApi.deleteParticipant(workspace.value.meeting.id, participantId)
@@ -111,8 +100,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       ElMessage.error(apiErrorMessage(error))
     }
   }
-
-  async function exportPlan(type: 'excel' | 'pdf', versionId?: string) {
+  async function exportPlan(type, versionId) {
     if (!workspace.value) return
     try {
       const data = await meetingApi.exportFile(workspace.value.meeting.id, type, versionId)
@@ -128,11 +116,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       ElMessage.error(apiErrorMessage(error))
     }
   }
-
-  function selectParticipant(participant?: Participant) {
+  function selectParticipant(participant) {
     selectedParticipantId.value = participant?.id
   }
-
   return {
     meetings,
     activeMeetingId,
@@ -153,4 +139,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     exportPlan,
     selectParticipant,
   }
-})
+}
+
+const workspaceStore = reactive(createWorkspaceStore())
+
+export function useWorkspaceStore() {
+  return workspaceStore
+}

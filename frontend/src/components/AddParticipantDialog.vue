@@ -1,32 +1,28 @@
-<script setup lang="ts">
+<script setup>
 import { reactive, ref } from 'vue'
-import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
-
-const visible = defineModel<boolean>({ required: true })
-const props = defineProps<{ meetingId: string }>()
-const emit = defineEmits<{ done: [] }>()
-
-const formRef = ref<FormInstance>()
+const visible = defineModel({ required: true })
+const props = defineProps()
+const emit = defineEmits()
+const formRef = ref()
 const submitting = ref(false)
 const form = reactive({
   employeeNo: '',
   name: '',
-  level: undefined as number | undefined,
+  level: undefined,
   department: '',
   participantType: '获奖人员',
   tags: '',
 })
-const rules: FormRules = {
+const rules = {
   employeeNo: [
     { required: true, message: '请输入工号', trigger: 'blur' },
     { pattern: /^[A-Za-z][0-9]{8}$/, message: '工号必须为一个字母加8位数字', trigger: 'blur' },
   ],
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
 }
-
 async function submit() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return

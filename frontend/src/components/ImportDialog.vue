@@ -1,23 +1,18 @@
-<script setup lang="ts">
+<script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Download, UploadFilled } from '@element-plus/icons-vue'
-import type { UploadFile } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
-import type { ImportPreview, ImportTemplate } from '@/types/workspace'
-
-const visible = defineModel<boolean>({ required: true })
-const props = defineProps<{ meetingId: string }>()
-const emit = defineEmits<{ done: [] }>()
-
-const templates = ref<ImportTemplate[]>([])
+const visible = defineModel({ required: true })
+const props = defineProps()
+const emit = defineEmits()
+const templates = ref([])
 const templateCode = ref('AWARD_CEREMONY_V1')
-const file = ref<File>()
-const preview = ref<ImportPreview>()
-const selections = reactive<Record<string, number>>({})
+const file = ref()
+const preview = ref()
+const selections = reactive({})
 const loading = ref(false)
-
 const currentTemplate = computed(() =>
   templates.value.find((item) => item.code === templateCode.value),
 )
@@ -26,7 +21,6 @@ const canCommit = computed(
     preview.value &&
     preview.value.duplicateGroups.every((group) => selections[group.employeeNo] !== undefined),
 )
-
 onMounted(async () => {
   try {
     templates.value = await meetingApi.importTemplates()
@@ -34,7 +28,6 @@ onMounted(async () => {
     ElMessage.error(apiErrorMessage(error))
   }
 })
-
 watch(visible, (value) => {
   if (!value) {
     file.value = undefined
@@ -42,16 +35,13 @@ watch(visible, (value) => {
     Object.keys(selections).forEach((key) => delete selections[key])
   }
 })
-
-function onFileChange(uploadFile: UploadFile) {
+function onFileChange(uploadFile) {
   file.value = uploadFile.raw
   preview.value = undefined
 }
-
 function downloadTemplate() {
   window.open(`/api/import-templates/${templateCode.value}/file`, '_blank')
 }
-
 async function parseFile() {
   if (!file.value) {
     ElMessage.warning('请先选择Excel文件')
@@ -62,7 +52,7 @@ async function parseFile() {
     preview.value = await meetingApi.previewImport(props.meetingId, templateCode.value, file.value)
     preview.value.duplicateGroups.forEach((group) => {
       if (group.candidates.length === 1)
-        selections[group.employeeNo] = group.candidates[0]!.sourceRow
+        selections[group.employeeNo] = group.candidates[0].sourceRow
     })
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
@@ -70,7 +60,6 @@ async function parseFile() {
     loading.value = false
   }
 }
-
 async function commit() {
   if (!preview.value || !canCommit.value) return
   loading.value = true

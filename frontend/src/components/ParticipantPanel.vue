@@ -1,35 +1,14 @@
-<script setup lang="ts">
+<script setup>
 import { computed, ref, watch } from 'vue'
 import { Search, UploadFilled } from '@element-plus/icons-vue'
-import type { FieldDefinition, Participant } from '@/types/workspace'
-
-const props = withDefaults(
-  defineProps<{
-    participants: Participant[]
-    fieldDefinitions: FieldDefinition[]
-    selectedId?: string
-    saving: boolean
-    readonly?: boolean
-  }>(),
-  { readonly: false },
-)
-
-const emit = defineEmits<{
-  select: [participant: Participant]
-  unassign: [participantId: string]
-  dragState: [participantId?: string]
-}>()
-
-const tab = ref<'pending' | 'all'>('pending')
+const props = withDefaults(defineProps(), { readonly: false })
+const emit = defineEmits()
+const tab = ref('pending')
 const search = ref('')
 const groupField = ref('')
 const currentPage = ref(1)
 const pageSize = ref(8)
-
-function fieldValue(
-  person: Participant,
-  fieldCode: string,
-): string | string[] | number | undefined {
+function fieldValue(person, fieldCode) {
   if (fieldCode === 'name') return person.name
   if (fieldCode === 'employeeNo') return person.employeeNo
   if (fieldCode === 'level') return person.level
@@ -39,17 +18,14 @@ function fieldValue(
   if (fieldCode === 'tags') return person.tags
   return person.attributes[fieldCode]
 }
-
 const groupFields = computed(() =>
   props.fieldDefinitions.filter(
     (field) => field.filterable && !['name', 'employeeNo'].includes(field.code),
   ),
 )
-
 const pendingCount = computed(
   () => props.participants.filter((person) => !person.assignedElementId).length,
 )
-
 const filtered = computed(() => {
   const keyword = search.value.trim().toLocaleLowerCase()
   return props.participants.filter((person) => {
@@ -60,15 +36,13 @@ const filtered = computed(() => {
     return fuzzyName || exactEmployeeNo
   })
 })
-
 const paged = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
   return filtered.value.slice(start, start + pageSize.value)
 })
-
 const grouped = computed(() => {
   if (!groupField.value) return [{ key: '', label: '', people: paged.value }]
-  const result = new Map<string, Participant[]>()
+  const result = new Map()
   paged.value.forEach((person) => {
     const raw = fieldValue(person, groupField.value)
     const key = Array.isArray(raw) ? raw.join('、') : String(raw || '未分组')
@@ -76,11 +50,9 @@ const grouped = computed(() => {
   })
   return Array.from(result.entries()).map(([key, people]) => ({ key, label: key, people }))
 })
-
 watch([tab, search, groupField], () => {
   currentPage.value = 1
 })
-
 watch(
   () => filtered.value.length,
   (total) => {
@@ -88,8 +60,7 @@ watch(
     if (currentPage.value > lastPage) currentPage.value = lastPage
   },
 )
-
-function dragStart(event: DragEvent, participant: Participant) {
+function dragStart(event, participant) {
   if (props.readonly || participant.locked) {
     event.preventDefault()
     return
@@ -99,8 +70,7 @@ function dragStart(event: DragEvent, participant: Participant) {
   emit('select', participant)
   emit('dragState', participant.id)
 }
-
-function dropToPending(event: DragEvent) {
+function dropToPending(event) {
   if (props.readonly) return
   event.preventDefault()
   const participantId = event.dataTransfer?.getData('text/participant-id')

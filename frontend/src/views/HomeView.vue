@@ -1,22 +1,18 @@
-<script setup lang="ts">
+<script setup>
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight, Calendar, Plus, User } from '@element-plus/icons-vue'
 import { currentUser } from '@/auth/session'
 import { useWorkspaceStore } from '@/stores/workspace'
-
 const router = useRouter()
 const store = useWorkspaceStore()
 const recentMeeting = computed(() => store.meetings[0])
-
 onMounted(() => store.initialize())
-
-function openMeeting(meetingId: string) {
+function openMeeting(meetingId) {
   store.activeMeetingId = meetingId
   router.push(`/workbench/${meetingId}`)
 }
-
-function formatTime(value: string) {
+function formatTime(value) {
   return new Intl.DateTimeFormat('zh-CN', {
     month: 'numeric',
     day: 'numeric',
@@ -37,7 +33,10 @@ function formatTime(value: string) {
       <span class="header-spacer" />
       <div class="user-context">
         <span class="user-avatar"><User /></span>
-        <span><strong>{{ currentUser.name }}</strong><small>{{ currentUser.tenantName }}</small></span>
+        <span
+          ><strong>{{ currentUser.name }}</strong
+          ><small>{{ currentUser.tenantName }}</small></span
+        >
       </div>
     </header>
 
@@ -47,7 +46,9 @@ function formatTime(value: string) {
           <div>
             <span class="eyebrow">MEETING WORKSPACE</span>
             <h1>今天要安排哪场会议？</h1>
-            <p>每场会议拥有独立的人员名单、场馆快照和排座版本，后续接入统一认证后按用户与团队隔离。</p>
+            <p>
+              每场会议拥有独立的人员名单、场馆快照和排座版本，后续接入统一认证后按用户与团队隔离。
+            </p>
           </div>
           <div class="hero-actions">
             <el-button
@@ -88,7 +89,9 @@ function formatTime(value: string) {
                 <el-tag size="small" effect="light">{{ meeting.status }}</el-tag>
                 <h3>{{ meeting.name }}</h3>
                 <p>{{ meeting.layoutName }}</p>
-                <span>最近更新：{{ formatTime(meeting.updatedAt) }} · {{ meeting.updatedByName }}</span>
+                <span
+                  >最近更新：{{ formatTime(meeting.updatedAt) }} · {{ meeting.updatedByName }}</span
+                >
               </div>
               <el-button circle text :icon="ArrowRight" aria-label="进入排座工作台" />
             </article>

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -15,47 +15,6 @@ import {
 import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
-import type { ElementType, VenueSummary } from '@/types/workspace'
-
-interface DraftElement {
-  localId: string
-  type: ElementType
-  code?: string
-  label?: string
-  row: number
-  column: number
-  rowSpan: number
-  columnSpan: number
-  rotation: number
-  capacity: number
-  assignable: boolean
-  walkable: boolean
-  groupCode?: string
-  groupLabel?: string
-  sequenceNo?: number
-  backgroundColor: string
-  borderColor: string
-}
-
-interface GridPoint {
-  row: number
-  column: number
-}
-
-interface GridRect extends GridPoint {
-  rowSpan: number
-  columnSpan: number
-}
-
-interface DrawState {
-  start: GridPoint
-  current: GridPoint
-  pointerId: number
-}
-
-type PanelDock = 'left' | 'right' | 'bottom'
-type ElementChoice = ElementType | 'ERASER'
-
 const router = useRouter()
 const route = useRoute()
 const venueId = computed(() =>
@@ -69,26 +28,26 @@ const config = reactive({
   cellSize: 34,
   frontDirection: 'TOP',
 })
-const elements = ref<DraftElement[]>([])
-const existingVenues = ref<VenueSummary[]>([])
+const elements = ref([])
+const existingVenues = ref([])
 const saving = ref(false)
 const loading = ref(false)
-const drawing = ref<DrawState>()
-const pendingRect = ref<GridRect>()
+const drawing = ref()
+const pendingRect = ref()
 const pickerVisible = ref(false)
-const selectedId = ref<string>()
-const editorDraft = ref<DraftElement>()
+const selectedId = ref()
+const editorDraft = ref()
 const editorPosition = reactive({ left: 360, top: 110 })
-const undoStack = ref<DraftElement[][]>([])
-const redoStack = ref<DraftElement[][]>([])
+const undoStack = ref([])
+const redoStack = ref([])
 const zoom = ref(0.9)
-const scrollRef = ref<HTMLElement>()
-const canvasAreaRef = ref<HTMLElement>()
-const panelRef = ref<HTMLElement>()
+const scrollRef = ref()
+const canvasAreaRef = ref()
+const panelRef = ref()
 const isPanning = ref(false)
-const panelDock = ref<PanelDock>('left')
+const panelDock = ref('left')
 const panelCollapsed = ref(false)
-const panelFreePosition = ref<{ left: number; top: number }>()
+const panelFreePosition = ref()
 const isPanelDragging = ref(false)
 const unit = 32
 let panStartX = 0
@@ -97,13 +56,7 @@ let panScrollLeft = 0
 let panScrollTop = 0
 let panelOffsetX = 0
 let panelOffsetY = 0
-
-const elementOptions: Array<{
-  type: ElementChoice
-  label: string
-  description: string
-  color: string
-}> = [
+const elementOptions = [
   { type: 'SEAT', label: '座位', description: '每格生成一个独立座位', color: '#ffffff' },
   { type: 'AISLE', label: '走廊', description: '可通行的连续区域', color: '#eff6ff' },
   { type: 'STAGE', label: '舞台', description: '面向观众的舞台区域', color: '#dbeafe' },
@@ -116,10 +69,7 @@ const elementOptions: Array<{
   { type: 'LABEL', label: '文字', description: '添加说明文字', color: '#f1f5f9' },
   { type: 'ERASER', label: '清空区域', description: '删除框选区域内的元素', color: '#fee2e2' },
 ]
-const editableOptions = elementOptions.filter(
-  (option): option is (typeof elementOptions)[number] & { type: ElementType } =>
-    option.type !== 'ERASER',
-)
+const editableOptions = elementOptions.filter((option) => option.type !== 'ERASER')
 const colorSwatches = [
   '#ffffff',
   '#eff6ff',
@@ -134,7 +84,6 @@ const colorSwatches = [
   '#fed7aa',
   '#fee2e2',
 ]
-
 const selected = computed(() =>
   elements.value.find((element) => element.localId === selectedId.value),
 )
@@ -170,7 +119,6 @@ const panelStyle = computed(() =>
       }
     : undefined,
 )
-
 onMounted(async () => {
   loading.value = true
   try {
@@ -205,17 +153,14 @@ onMounted(async () => {
     loading.value = false
   }
 })
-
 function cloneElements(source = elements.value) {
   return source.map((element) => ({ ...element }))
 }
-
 function recordHistory() {
   undoStack.value.push(cloneElements())
   if (undoStack.value.length > 60) undoStack.value.shift()
   redoStack.value = []
 }
-
 function undo() {
   const snapshot = undoStack.value.pop()
   if (!snapshot) return
@@ -223,7 +168,6 @@ function undo() {
   elements.value = cloneElements(snapshot)
   closeEditor()
 }
-
 function redo() {
   const snapshot = redoStack.value.pop()
   if (!snapshot) return
@@ -231,9 +175,8 @@ function redo() {
   elements.value = cloneElements(snapshot)
   closeEditor()
 }
-
-function defaults(type: ElementType) {
-  const map: Record<ElementType, Partial<DraftElement>> = {
+function defaults(type) {
+  const map = {
     SEAT: { assignable: true, walkable: false, capacity: 1, backgroundColor: '#ffffff' },
     AISLE: { assignable: false, walkable: true, capacity: 0, backgroundColor: '#eff6ff' },
     WALL: { assignable: false, walkable: false, capacity: 0, backgroundColor: '#8ca7ce' },
@@ -248,12 +191,10 @@ function defaults(type: ElementType) {
   }
   return map[type]
 }
-
-function typeLabel(type: ElementType) {
+function typeLabel(type) {
   return editableOptions.find((option) => option.type === type)?.label || '元素'
 }
-
-function occupiedAt(row: number, column: number, excludeId?: string) {
+function occupiedAt(row, column, excludeId) {
   return elements.value.find(
     (element) =>
       element.localId !== excludeId &&
@@ -263,8 +204,7 @@ function occupiedAt(row: number, column: number, excludeId?: string) {
       column < element.column + element.columnSpan,
   )
 }
-
-function rectCollides(rect: GridRect, excludeId?: string) {
+function rectCollides(rect, excludeId) {
   for (let row = rect.row; row < rect.row + rect.rowSpan; row++) {
     for (let column = rect.column; column < rect.column + rect.columnSpan; column++) {
       if (occupiedAt(row, column, excludeId)) return true
@@ -272,17 +212,15 @@ function rectCollides(rect: GridRect, excludeId?: string) {
   }
   return false
 }
-
-function pointFromEvent(event: PointerEvent): GridPoint | undefined {
-  const grid = event.currentTarget as HTMLElement
+function pointFromEvent(event) {
+  const grid = event.currentTarget
   const rect = grid.getBoundingClientRect()
   const column = Math.floor((event.clientX - rect.left) / (unit * zoom.value)) + 1
   const row = Math.floor((event.clientY - rect.top) / (unit * zoom.value)) + 1
   if (row < 1 || row > config.gridRows || column < 1 || column > config.gridColumns) return
   return { row, column }
 }
-
-function normalizedRect(start: GridPoint, end: GridPoint): GridRect {
+function normalizedRect(start, end) {
   return {
     row: Math.min(start.row, end.row),
     column: Math.min(start.column, end.column),
@@ -290,32 +228,28 @@ function normalizedRect(start: GridPoint, end: GridPoint): GridRect {
     columnSpan: Math.abs(start.column - end.column) + 1,
   }
 }
-
-function onGridPointerDown(event: PointerEvent) {
+function onGridPointerDown(event) {
   if (event.button !== 0) return
-  if ((event.target as HTMLElement).closest('.draft-element')) return
+  if (event.target.closest('.draft-element')) return
   closeEditor()
   const point = pointFromEvent(event)
   if (!point) return
   drawing.value = { start: point, current: point, pointerId: event.pointerId }
-  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  event.currentTarget.setPointerCapture(event.pointerId)
   event.preventDefault()
 }
-
-function onGridPointerMove(event: PointerEvent) {
+function onGridPointerMove(event) {
   if (!drawing.value || drawing.value.pointerId !== event.pointerId) return
   const point = pointFromEvent(event)
   if (point) drawing.value.current = point
 }
-
-function onGridPointerUp(event: PointerEvent) {
+function onGridPointerUp(event) {
   if (!drawing.value || drawing.value.pointerId !== event.pointerId) return
   pendingRect.value = normalizedRect(drawing.value.start, drawing.value.current)
   drawing.value = undefined
   pickerVisible.value = true
 }
-
-function chooseElement(type: ElementChoice) {
+function chooseElement(type) {
   const rect = pendingRect.value
   if (!rect) return
   pickerVisible.value = false
@@ -332,7 +266,7 @@ function chooseElement(type: ElementChoice) {
     return
   }
   if (type === 'SEAT') {
-    const available: GridPoint[] = []
+    const available = []
     for (let row = rect.row; row < rect.row + rect.rowSpan; row++) {
       for (let column = rect.column; column < rect.column + rect.columnSpan; column++) {
         if (!occupiedAt(row, column)) available.push({ row, column })
@@ -357,8 +291,7 @@ function chooseElement(type: ElementChoice) {
   const element = createElement(type, rect.row, rect.column, rect.rowSpan, rect.columnSpan)
   openEditorById(element.localId)
 }
-
-function intersects(element: DraftElement, rect: GridRect) {
+function intersects(element, rect) {
   return !(
     element.row + element.rowSpan - 1 < rect.row ||
     element.row > rect.row + rect.rowSpan - 1 ||
@@ -366,16 +299,9 @@ function intersects(element: DraftElement, rect: GridRect) {
     element.column > rect.column + rect.columnSpan - 1
   )
 }
-
-function createElement(
-  type: ElementType,
-  row: number,
-  column: number,
-  rowSpan: number,
-  columnSpan: number,
-) {
+function createElement(type, row, column, rowSpan, columnSpan) {
   const preset = defaults(type)
-  const element: DraftElement = {
+  const element = {
     localId: crypto.randomUUID(),
     type,
     row,
@@ -397,12 +323,10 @@ function createElement(
   elements.value.push(element)
   return element
 }
-
-function renderElement(element: DraftElement) {
+function renderElement(element) {
   return selectedId.value === element.localId && editorDraft.value ? editorDraft.value : element
 }
-
-function elementStyle(element: DraftElement) {
+function elementStyle(element) {
   const visual = renderElement(element)
   return {
     top: `${(element.row - 1) * unit}px`,
@@ -413,8 +337,7 @@ function elementStyle(element: DraftElement) {
     borderColor: visual.borderColor,
   }
 }
-
-function openEditor(element: DraftElement, event?: MouseEvent) {
+function openEditor(element, event) {
   selectedId.value = element.localId
   editorDraft.value = { ...element }
   const area = canvasAreaRef.value?.getBoundingClientRect()
@@ -423,17 +346,14 @@ function openEditor(element: DraftElement, event?: MouseEvent) {
     editorPosition.top = Math.min(Math.max(64, event.clientY - area.top + 12), area.height - 510)
   }
 }
-
-function openEditorById(id: string) {
+function openEditorById(id) {
   const element = elements.value.find((item) => item.localId === id)
   if (element) openEditor(element)
 }
-
 function closeEditor() {
   selectedId.value = undefined
   editorDraft.value = undefined
 }
-
 function applyTypeDefaults() {
   if (!editorDraft.value) return
   const preset = defaults(editorDraft.value.type)
@@ -443,11 +363,10 @@ function applyTypeDefaults() {
   editorDraft.value.backgroundColor = preset.backgroundColor || editorDraft.value.backgroundColor
   if (!editorDraft.value.label) editorDraft.value.label = typeLabel(editorDraft.value.type)
 }
-
 function confirmEditor() {
   const draft = editorDraft.value
   if (!draft) return
-  const rect: GridRect = {
+  const rect = {
     row: draft.row,
     column: draft.column,
     rowSpan: draft.rowSpan,
@@ -473,18 +392,15 @@ function confirmEditor() {
   closeEditor()
   ElMessage.success('元素修改已确认')
 }
-
-function removeElement(element: DraftElement) {
+function removeElement(element) {
   recordHistory()
   elements.value = elements.value.filter((item) => item.localId !== element.localId)
   closeEditor()
   ElMessage.success('元素已删除')
 }
-
 function removeSelected() {
   if (selected.value) removeElement(selected.value)
 }
-
 function normalizeGridSize() {
   const requiredRows = Math.max(
     5,
@@ -500,7 +416,6 @@ function normalizeGridSize() {
     ElMessage.warning('画布不能缩小到已放置元素以内')
   }
 }
-
 function renumberSeats() {
   if (!elements.value.some((element) => element.type === 'SEAT')) {
     ElMessage.info('当前画布还没有座位')
@@ -526,14 +441,9 @@ function renumberSeats() {
   closeEditor()
   ElMessage.success('已按行重新编号座位')
 }
-
-function startPan(event: PointerEvent) {
+function startPan(event) {
   if (event.button !== 0 || !scrollRef.value) return
-  if (
-    (event.target as HTMLElement).closest(
-      '.designer-grid, .floating-settings, .element-editor, button, input',
-    )
-  ) {
+  if (event.target.closest('.designer-grid, .floating-settings, .element-editor, button, input')) {
     return
   }
   closeEditor()
@@ -546,20 +456,17 @@ function startPan(event: PointerEvent) {
   window.addEventListener('pointerup', endPan)
   event.preventDefault()
 }
-
-function movePan(event: PointerEvent) {
+function movePan(event) {
   if (!isPanning.value || !scrollRef.value) return
   scrollRef.value.scrollLeft = panScrollLeft - (event.clientX - panStartX)
   scrollRef.value.scrollTop = panScrollTop - (event.clientY - panStartY)
 }
-
 function endPan() {
   isPanning.value = false
   window.removeEventListener('pointermove', movePan)
   window.removeEventListener('pointerup', endPan)
 }
-
-function onWheel(event: WheelEvent) {
+function onWheel(event) {
   const container = scrollRef.value
   if (!container) return
   event.preventDefault()
@@ -575,22 +482,19 @@ function onWheel(event: WheelEvent) {
     container.scrollTop = (pointerY / oldZoom) * zoom.value - (event.clientY - rect.top)
   })
 }
-
-function changeZoom(delta: number) {
+function changeZoom(delta) {
   zoom.value = Math.min(2, Math.max(0.45, Number((zoom.value + delta).toFixed(2))))
 }
-
 function centerCanvas() {
   const container = scrollRef.value
   if (!container) return
   container.scrollLeft = Math.max(0, (container.scrollWidth - container.clientWidth) / 2)
   container.scrollTop = Math.max(0, (container.scrollHeight - container.clientHeight) / 2)
 }
-
-function startPanelDrag(event: PointerEvent) {
+function startPanelDrag(event) {
   const panel = panelRef.value
   const area = canvasAreaRef.value
-  if (!panel || !area || (event.target as HTMLElement).closest('button')) return
+  if (!panel || !area || event.target.closest('button')) return
   const panelRect = panel.getBoundingClientRect()
   const areaRect = area.getBoundingClientRect()
   panelFreePosition.value = {
@@ -604,8 +508,7 @@ function startPanelDrag(event: PointerEvent) {
   window.addEventListener('pointerup', endPanelDrag)
   event.preventDefault()
 }
-
-function movePanel(event: PointerEvent) {
+function movePanel(event) {
   const area = canvasAreaRef.value
   const panel = panelRef.value
   if (!isPanelDragging.value || !area || !panel) return
@@ -621,7 +524,6 @@ function movePanel(event: PointerEvent) {
     ),
   }
 }
-
 function endPanelDrag() {
   const area = canvasAreaRef.value
   const position = panelFreePosition.value
@@ -634,7 +536,6 @@ function endPanelDrag() {
   window.removeEventListener('pointermove', movePanel)
   window.removeEventListener('pointerup', endPanelDrag)
 }
-
 async function save() {
   const name = config.name.trim()
   if (!name || !elements.value.length) {
@@ -670,7 +571,6 @@ async function save() {
     saving.value = false
   }
 }
-
 onBeforeUnmount(() => {
   endPan()
   endPanelDrag()

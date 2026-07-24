@@ -1,56 +1,33 @@
-<script setup lang="ts">
+<script setup>
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
-import type { LayoutElement, Participant, PlanItem, Workspace } from '@/types/workspace'
-
-const props = withDefaults(
-  defineProps<{
-    workspace: Workspace
-    zoom: number
-    selectedParticipantId?: string
-    continuousParticipantId?: string
-    draggingParticipantId?: string
-    readonly?: boolean
-  }>(),
-  { readonly: false },
-)
-
-const emit = defineEmits<{
-  assign: [participantId: string, targetElementId: string]
-  select: [participant?: Participant]
-  seatClick: [element: LayoutElement]
-  dragState: [participantId?: string]
-  zoomChange: [delta: number, event: WheelEvent]
-}>()
-
-const scrollRef = ref<HTMLElement>()
-const dragTargetId = ref<string>()
+const props = withDefaults(defineProps(), { readonly: false })
+const emit = defineEmits()
+const scrollRef = ref()
+const dragTargetId = ref()
 const isPanning = ref(false)
 let panMoved = false
 let panStartX = 0
 let panStartY = 0
 let panScrollLeft = 0
 let panScrollTop = 0
-
 const participantById = computed(
   () => new Map(props.workspace.participants.map((person) => [person.id, person])),
 )
 const itemByTarget = computed(() => {
-  const result = new Map<string, PlanItem>()
+  const result = new Map()
   props.workspace.items.forEach((item) =>
     item.targetElementIds.forEach((elementId) => result.set(elementId, item)),
   )
   return result
 })
-
 const unit = computed(() => props.workspace.layout.cellSize * props.zoom)
 const canvasStyle = computed(() => ({
   width: `${props.workspace.layout.gridColumns * unit.value}px`,
   height: `${props.workspace.layout.gridRows * unit.value}px`,
   '--unit': `${unit.value}px`,
 }))
-
-function elementStyle(element: LayoutElement) {
+function elementStyle(element) {
   return {
     left: `${(element.column - 1) * unit.value}px`,
     top: `${(element.row - 1) * unit.value}px`,
@@ -62,17 +39,14 @@ function elementStyle(element: LayoutElement) {
     zIndex: element.assignable ? 5 : element.type === 'DOOR' ? 4 : 2,
   }
 }
-
-function itemFor(elementId: string) {
+function itemFor(elementId) {
   return itemByTarget.value.get(elementId)
 }
-
-function participantFor(elementId: string) {
+function participantFor(elementId) {
   const item = itemFor(elementId)
   return item?.participantId ? participantById.value.get(item.participantId) : undefined
 }
-
-function visualStyle(element: LayoutElement) {
+function visualStyle(element) {
   const item = itemFor(element.id)
   const person = participantFor(element.id)
   return {
@@ -83,8 +57,7 @@ function visualStyle(element: LayoutElement) {
     fontWeight: item?.bold ? '700' : undefined,
   }
 }
-
-function onDragStart(event: DragEvent, participant: Participant) {
+function onDragStart(event, participant) {
   if (props.readonly) {
     event.preventDefault()
     return
@@ -94,25 +67,21 @@ function onDragStart(event: DragEvent, participant: Participant) {
   emit('select', participant)
   emit('dragState', participant.id)
 }
-
-function startParticipantDrag(event: DragEvent, elementId: string) {
+function startParticipantDrag(event, elementId) {
   const participant = participantFor(elementId)
   if (participant) onDragStart(event, participant)
 }
-
-function onDragOver(event: DragEvent, element: LayoutElement) {
+function onDragOver(event, element) {
   if (props.readonly) return
   event.preventDefault()
   if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
   dragTargetId.value = element.id
 }
-
-function onDragLeave(event: DragEvent, element: LayoutElement) {
-  if ((event.currentTarget as HTMLElement).contains(event.relatedTarget as Node)) return
+function onDragLeave(event, element) {
+  if (event.currentTarget.contains(event.relatedTarget)) return
   if (dragTargetId.value === element.id) dragTargetId.value = undefined
 }
-
-function onDrop(event: DragEvent, element: LayoutElement) {
+function onDrop(event, element) {
   if (props.readonly) return
   event.preventDefault()
   const participantId = event.dataTransfer?.getData('text/participant-id')
@@ -120,15 +89,13 @@ function onDrop(event: DragEvent, element: LayoutElement) {
   dragTargetId.value = undefined
   emit('dragState', undefined)
 }
-
-function onSeatClick(element: LayoutElement) {
+function onSeatClick(element) {
   if (panMoved) return
   const person = participantFor(element.id)
   if (person) emit('select', person)
   else emit('seatClick', element)
 }
-
-function typeLabel(type: string) {
+function typeLabel(type) {
   return (
     {
       STAGE: '舞台',
@@ -142,10 +109,9 @@ function typeLabel(type: string) {
     }[type] || ''
   )
 }
-
-function startPan(event: MouseEvent) {
+function startPan(event) {
   if (event.button !== 0) return
-  const target = event.target as HTMLElement
+  const target = event.target
   if (target.closest('.seat-person, button, input')) return
   const container = scrollRef.value
   if (!container) return
@@ -159,8 +125,7 @@ function startPan(event: MouseEvent) {
   window.addEventListener('mouseup', endPan)
   event.preventDefault()
 }
-
-function movePan(event: MouseEvent) {
+function movePan(event) {
   if (!isPanning.value || !scrollRef.value) return
   if (Math.abs(event.clientX - panStartX) > 3 || Math.abs(event.clientY - panStartY) > 3) {
     panMoved = true
@@ -168,7 +133,6 @@ function movePan(event: MouseEvent) {
   scrollRef.value.scrollLeft = panScrollLeft - (event.clientX - panStartX)
   scrollRef.value.scrollTop = panScrollTop - (event.clientY - panStartY)
 }
-
 function endPan() {
   isPanning.value = false
   window.removeEventListener('mousemove', movePan)
@@ -177,8 +141,7 @@ function endPan() {
     panMoved = false
   }, 0)
 }
-
-function onWheel(event: WheelEvent) {
+function onWheel(event) {
   event.preventDefault()
   const container = scrollRef.value
   if (!container) return
@@ -193,7 +156,6 @@ function onWheel(event: WheelEvent) {
     scrollRef.value.scrollTop = (pointerY / oldZoom) * props.zoom - (event.clientY - rect.top)
   })
 }
-
 onBeforeUnmount(endPan)
 </script>
 

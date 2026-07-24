@@ -67,3 +67,7 @@
 - 会议与版本选择合并到同一顶部上下文；品牌区作为返回首页入口，导入能力并入人员添加入口。
 - 元素属性卡同时展示编号和名称，限制输入长度并提供蓝白色系常用色板；颜色在确认前仅作实时预览。
 - 前端单元测试环境由 `jsdom` 切换为公司仓库可用的 `happy-dom@20.9.0`，并清理 `whatwg-url` 依赖链。
+- 前端源码和构建配置由 TypeScript 全量迁移为 JavaScript，移除 `vue-tsc`、TypeScript、Pinia、Vitest、代码检查、自动导入和开发工具依赖。
+- Vue、Vue Router、Element Plus、Axios、Vite 等公共依赖精确固定为公司 `eval_system` 已验证的低版本基线。
+- 排座工作区状态改用 Vue 原生响应式单例管理，在移除 Pinia 后保持原有跨页面状态和交互方式。
+- 不再提交 `frontend/package-lock.json`，并通过精确依赖版本保证无锁文件安装时的版本稳定性。

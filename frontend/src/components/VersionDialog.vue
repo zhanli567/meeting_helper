@@ -1,23 +1,16 @@
-<script setup lang="ts">
+<script setup>
 import { reactive, ref } from 'vue'
 import { Clock, RefreshLeft } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
-import type { PlanVersion } from '@/types/workspace'
-
-const visible = defineModel<boolean>({ required: true })
-const props = defineProps<{
-  planId: string
-  versions: PlanVersion[]
-  currentVersionNo: number
-}>()
-const emit = defineEmits<{ done: [] }>()
+const visible = defineModel({ required: true })
+const props = defineProps()
+const emit = defineEmits()
 const submitting = ref(false)
 const restoringId = ref('')
 const activeTab = ref('history')
 const form = reactive({ versionName: '', changeNote: '' })
-
 async function submit() {
   if (!form.versionName.trim()) {
     ElMessage.warning('请填写版本名称')
@@ -40,8 +33,7 @@ async function submit() {
     submitting.value = false
   }
 }
-
-async function restore(version: PlanVersion) {
+async function restore(version) {
   try {
     await ElMessageBox.confirm(
       `恢复到 V${version.versionNo}「${version.versionName}」后，当前未保存的排座调整会被替换。`,
@@ -64,8 +56,7 @@ async function restore(version: PlanVersion) {
     restoringId.value = ''
   }
 }
-
-function formatTime(value: string) {
+function formatTime(value) {
   return new Intl.DateTimeFormat('zh-CN', {
     month: 'numeric',
     day: 'numeric',
@@ -89,18 +80,14 @@ function formatTime(value: string) {
             <div class="version-copy">
               <div>
                 <strong>{{ version.versionName }}</strong>
-                <el-tag
-                  v-if="version.versionNo === currentVersionNo"
-                  size="small"
-                  type="primary"
-                >
+                <el-tag v-if="version.versionNo === currentVersionNo" size="small" type="primary">
                   当前版本
                 </el-tag>
               </div>
               <p>{{ version.changeNote || '未填写变更说明' }}</p>
               <span>
-                {{ formatTime(version.createdAt) }} · {{ version.createdByName }} ·
-                已排 {{ version.assignedCount }} / 待排 {{ version.unassignedCount }}
+                {{ formatTime(version.createdAt) }} · {{ version.createdByName }} · 已排
+                {{ version.assignedCount }} / 待排 {{ version.unassignedCount }}
               </span>
             </div>
             <el-button
