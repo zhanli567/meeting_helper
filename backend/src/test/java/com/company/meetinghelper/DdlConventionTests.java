@@ -7,8 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -20,9 +22,14 @@ class DdlConventionTests {
             Pattern.compile(
                     "^create\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?([a-zA-Z0-9_]+)",
                     Pattern.CASE_INSENSITIVE);
+    private static final Pattern COMMENT_PATTERN =
+            Pattern.compile(
+                    "^comment\\s+on\\s+(table|column)\\s+([a-zA-Z0-9_]+)"
+                            + "(?:\\.([a-zA-Z0-9_]+))?\\s+is\\s+'(?:''|[^'])+'$",
+                    Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     @Test
-    void sqlFilesStayInRootDdlAndOnlyCreatePrefixedTables() throws IOException {
+    void sqlFilesStayInRootDdlAndOnlyCreatePrefixedTablesWithCompleteComments() throws IOException {
         Path repositoryRoot = findRepositoryRoot();
         Path ddlDirectory = repositoryRoot.resolve("DDL").normalize();
 
@@ -47,17 +54,65 @@ class DdlConventionTests {
 
         for (Path sqlFile : sqlFiles) {
             String sql = Files.readString(sqlFile);
+            Set<String> createdTables = new HashSet<>();
+            Set<String> expectedColumnComments = new HashSet<>();
+            Set<String> tableComments = new HashSet<>();
+            Set<String> columnComments = new HashSet<>();
             for (String rawStatement : sql.split(";")) {
                 String statement = rawStatement.trim();
                 if (statement.isEmpty()) {
                     continue;
                 }
-                Matcher matcher = CREATE_TABLE_PATTERN.matcher(statement);
-                assertTrue(matcher.find(), () -> sqlFile + " 只允许包含 CREATE TABLE 语句");
+                Matcher createMatcher = CREATE_TABLE_PATTERN.matcher(statement);
+                if (createMatcher.find()) {
+                    String tableName = createMatcher.group(1).toLowerCase(Locale.ROOT);
+                    assertTrue(
+                            tableName.startsWith("t_"),
+                            () -> sqlFile + " 中的表名必须以 t_ 开头");
+                    createdTables.add(tableName);
+                    collectExpectedColumnComments(statement, tableName, expectedColumnComments);
+                    continue;
+                }
+
+                Matcher commentMatcher = COMMENT_PATTERN.matcher(statement);
                 assertTrue(
-                        matcher.group(1).toLowerCase(Locale.ROOT).startsWith("t_"),
-                        () -> sqlFile + " 中的表名必须以 t_ 开头");
+                        commentMatcher.matches(),
+                        () -> sqlFile + " 只允许包含 CREATE TABLE、COMMENT ON TABLE 和 COMMENT ON COLUMN 语句");
+                String objectType = commentMatcher.group(1).toLowerCase(Locale.ROOT);
+                String tableName = commentMatcher.group(2).toLowerCase(Locale.ROOT);
+                String columnName = commentMatcher.group(3);
+                assertTrue(
+                        tableName.startsWith("t_"),
+                        () -> sqlFile + " 注释引用的表名必须以 t_ 开头");
+                if (objectType.equals("table")) {
+                    assertTrue(columnName == null, "表注释不能包含字段名");
+                    tableComments.add(tableName);
+                } else {
+                    assertTrue(columnName != null, "字段注释必须包含字段名");
+                    columnComments.add(tableName + "." + columnName.toLowerCase(Locale.ROOT));
+                }
             }
+            assertEquals(createdTables, tableComments, "每张表都必须包含 COMMENT ON TABLE");
+            assertEquals(expectedColumnComments, columnComments, "每个字段都必须包含 COMMENT ON COLUMN");
+        }
+    }
+
+    private void collectExpectedColumnComments(
+            String createStatement,
+            String tableName,
+            Set<String> expectedColumnComments
+    ) {
+        int openingParenthesis = createStatement.indexOf('(');
+        int closingParenthesis = createStatement.lastIndexOf(')');
+        assertTrue(openingParenthesis > 0 && closingParenthesis > openingParenthesis, "CREATE TABLE 结构不完整");
+        String columnBlock = createStatement.substring(openingParenthesis + 1, closingParenthesis);
+        for (String rawLine : columnBlock.split("\\R")) {
+            String line = rawLine.trim();
+            if (line.isEmpty() || line.toLowerCase(Locale.ROOT).startsWith("constraint ")) {
+                continue;
+            }
+            String columnName = line.split("\\s+", 2)[0].replace(",", "");
+            expectedColumnComments.add(tableName + "." + columnName.toLowerCase(Locale.ROOT));
         }
     }
 
