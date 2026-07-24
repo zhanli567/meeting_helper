@@ -6,6 +6,7 @@ import {
   Check,
   Download,
   Document,
+  House,
   Plus,
   RefreshRight,
   Upload,
@@ -47,7 +48,10 @@ const fab = reactive({
 })
 let fabOffsetX = 0
 let fabOffsetY = 0
+let fabPointerStartX = 0
+let fabPointerStartY = 0
 let fabMoved = false
+let suppressFabClick = false
 let hideTimer
 const workspace = computed(() => publishedWorkspace.value || store.workspace)
 const readonlyMode = computed(() => activeVersionKey.value !== 'draft')
@@ -242,24 +246,36 @@ function startFabDrag(event) {
   fab.hidden = false
   fab.dragging = true
   fabMoved = false
+  suppressFabClick = false
+  fabPointerStartX = event.clientX
+  fabPointerStartY = event.clientY
   fabOffsetX = event.clientX - fab.x
   fabOffsetY = event.clientY - fab.y
   window.addEventListener('pointermove', moveFab)
   window.addEventListener('pointerup', stopFabDrag)
-  event.preventDefault()
 }
 function moveFab(event) {
   if (!fab.dragging) return
+  if (
+    !fabMoved &&
+    Math.hypot(event.clientX - fabPointerStartX, event.clientY - fabPointerStartY) < 5
+  ) {
+    return
+  }
   fabMoved = true
   fab.x = Math.min(Math.max(2, event.clientX - fabOffsetX), window.innerWidth - 50)
   fab.y = Math.min(Math.max(64, event.clientY - fabOffsetY), window.innerHeight - 50)
 }
-function stopFabDrag(event) {
+function stopFabDrag() {
   if (!fab.dragging) return
   const wasMoved = fabMoved
   fab.dragging = false
   window.removeEventListener('pointermove', moveFab)
   window.removeEventListener('pointerup', stopFabDrag)
+  if (!wasMoved) {
+    scheduleFabHide()
+    return
+  }
   const distances = {
     left: fab.x,
     right: window.innerWidth - fab.x - 48,
@@ -271,18 +287,18 @@ function stopFabDrag(event) {
   if (fab.edge === 'right') fab.x = window.innerWidth - 52
   if (fab.edge === 'top') fab.y = 66
   if (fab.edge === 'bottom') fab.y = window.innerHeight - 52
-  if (!wasMoved && event) {
-    fabMoved = false
-    toggleAddMenu()
-    return
-  }
+  suppressFabClick = true
   window.setTimeout(() => {
     fabMoved = false
+    suppressFabClick = false
   }, 0)
   scheduleFabHide()
 }
+function handleFabClick() {
+  if (suppressFabClick) return
+  toggleAddMenu()
+}
 function toggleAddMenu() {
-  if (fabMoved) return
   fab.hidden = false
   addMenuVisible.value = !addMenuVisible.value
   if (addMenuVisible.value && hideTimer) window.clearTimeout(hideTimer)
@@ -379,6 +395,9 @@ function downloadTemplate() {
       </div>
 
       <span class="header-spacer" />
+      <el-button class="header-home" text :icon="House" @click="router.push('/')">
+        首页
+      </el-button>
       <span class="save-state">
         <i :class="{ active: store.saving }" />
         <template v-if="readonlyMode">正在查看已发布版本</template>
@@ -527,6 +546,7 @@ function downloadTemplate() {
         aria-label="添加参会人员"
         title="拖动可调整位置"
         @pointerdown="startFabDrag"
+        @click="handleFabClick"
         @mouseenter="revealFab"
         @mouseleave="scheduleFabHide"
       >
@@ -622,6 +642,15 @@ function downloadTemplate() {
   gap: 7px;
   color: rgba(255, 255, 255, 0.72);
   font-size: 11px;
+}
+
+.header-home {
+  color: rgba(255, 255, 255, 0.86) !important;
+}
+
+.header-home:hover {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.12) !important;
 }
 
 .save-state i {

@@ -29,7 +29,7 @@
 
 ```powershell
 cd backend
-.\mvnw.cmd spring-boot:run
+mvn spring-boot:run
 ```
 
 再启动前端：
@@ -54,7 +54,7 @@ npm run build
 
 ```powershell
 cd backend
-.\mvnw.cmd test
+mvn test
 ```
 
 后端本地配置位于 `backend/src/main/resources/application.yml`，默认连接
