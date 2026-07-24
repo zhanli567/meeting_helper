@@ -71,3 +71,5 @@
 - Vue、Vue Router、Element Plus、Axios、Vite 等公共依赖精确固定为公司 `eval_system` 已验证的低版本基线。
 - 排座工作区状态改用 Vue 原生响应式单例管理，在移除 Pinia 后保持原有跨页面状态和交互方式。
 - 不再提交 `frontend/package-lock.json`，并通过精确依赖版本保证无锁文件安装时的版本稳定性。
+- 后端目录对齐公司 `eval_system` 的领域分层规范，按业务模块拆分 `api/dto`、`entity`、`repository`、`service`，并将公共实体与异常分别归入 `common/entity` 和 `common/exception`。
+- 将会议、人员、场馆、排座版本及导入接口的请求/响应 DTO 从 Service 内部类型拆为独立文件，解除接口契约与业务实现的嵌套耦合。

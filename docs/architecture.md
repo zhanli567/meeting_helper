@@ -44,6 +44,33 @@ erDiagram
 - PostgreSQL 保存正式运行数据，Spring Boot SQL 初始化器负责执行统一建表脚本；人员扩展属性、布局样式和版本快照使用 JSON 文本保存，以兼顾结构稳定性和场景扩展性。
 - 内存 H2 仅用于自动化测试，不再作为开发或生产运行数据库。
 
+## 后端包结构约定
+
+后端目录对齐公司 `eval_system` 工程，采用“业务模块优先、模块内技术分层”的方式。根包
+`com.company.meetinghelper` 下的 `meeting`、`venue`、`participant`、`seating`、
+`importing`、`export`、`workspace` 和 `award` 分别代表独立业务边界。
+
+每个模块按实际职责使用以下子包，不为暂时不存在的职责创建空目录：
+
+```text
+业务模块
+├─ api                         Web 接口
+│  └─ dto
+│     ├─ request               接口入参
+│     └─ response              接口出参
+├─ entity                      JPA 实体及与实体紧密相关的枚举
+├─ repository                  数据访问接口
+└─ service                     业务服务
+   ├─ model                    仅在服务内部流转的模型
+   └─ strategy                 可替换的场景策略
+```
+
+- `common/entity` 保存跨模块实体基类，`common/exception` 保存统一业务异常与异常处理。
+- `config` 保存 Spring 配置，`bootstrap` 保存演示数据初始化等应用启动任务。
+- 控制器不直接依赖 JPA 实体，接口入参和出参使用 `api/dto` 中的独立类型。
+- Service 不再声明供接口使用的嵌套 DTO，避免接口契约与业务实现类耦合。
+- `MeetingHelperApplication` 保持在根包，Spring 组件、JPA 实体和 Repository 的默认扫描范围覆盖全部模块。
+
 ## DDL 管理约定
 
 - 数据库 SQL 源文件固定为仓库根目录 `DDL/meeting_helper.sql`，构建时由 Maven 复制到应用类路径。

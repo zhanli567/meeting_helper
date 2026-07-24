@@ -1,13 +1,18 @@
 package com.company.meetinghelper;
 
-import com.company.meetinghelper.export.ExportService;
-import com.company.meetinghelper.importing.ImportService;
-import com.company.meetinghelper.meeting.MeetingRepository;
-import com.company.meetinghelper.meeting.MeetingService;
-import com.company.meetinghelper.seating.PlanVersionService;
-import com.company.meetinghelper.seating.SeatingService;
-import com.company.meetinghelper.venue.VenueService;
-import com.company.meetinghelper.workspace.WorkspaceService;
+import com.company.meetinghelper.export.service.ExportService;
+import com.company.meetinghelper.importing.service.ImportService;
+import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
+import com.company.meetinghelper.meeting.repository.MeetingRepository;
+import com.company.meetinghelper.meeting.service.MeetingService;
+import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
+import com.company.meetinghelper.seating.api.dto.request.CreateVersionRequest;
+import com.company.meetinghelper.seating.service.PlanVersionService;
+import com.company.meetinghelper.seating.service.SeatingService;
+import com.company.meetinghelper.venue.api.dto.ElementInput;
+import com.company.meetinghelper.venue.api.dto.request.CreateVenueRequest;
+import com.company.meetinghelper.venue.service.VenueService;
+import com.company.meetinghelper.workspace.service.WorkspaceService;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,7 +79,7 @@ class MeetingHelperIntegrationTests {
                 .filter(value -> value.assignable() && !occupied.contains(value.id()))
                 .findFirst().orElseThrow();
 
-        seatingService.assign(before.plan().id(), new SeatingService.AssignmentRequest(participant.id(), seat.id()));
+        seatingService.assign(before.plan().id(), new AssignmentRequest(participant.id(), seat.id()));
 
         var after = workspaceService.getWorkspace(meeting.getId());
         assertThat(after.participants().stream()
@@ -87,7 +92,7 @@ class MeetingHelperIntegrationTests {
         var meeting = meetingRepository.findAllByDeletedFalseOrderByUpdatedAtDesc().getFirst();
         var before = workspaceService.getWorkspace(meeting.getId());
         var saved = planVersionService.create(before.plan().id(),
-                new PlanVersionService.CreateVersionRequest("恢复测试版本", "保存当前排座", false));
+                new CreateVersionRequest("恢复测试版本", "保存当前排座", false));
         var immutableSnapshot = planVersionService.getSnapshot(before.plan().id(), saved.id());
         assertThat(immutableSnapshot.participants().stream()
                 .filter(value -> value.assignedElementId() != null)
@@ -103,7 +108,7 @@ class MeetingHelperIntegrationTests {
                 .findFirst().orElseThrow();
 
         seatingService.assign(before.plan().id(),
-                new SeatingService.AssignmentRequest(participant.id(), seat.id()));
+                new AssignmentRequest(participant.id(), seat.id()));
         assertThat(workspaceService.getWorkspace(meeting.getId()).participants().stream()
                 .filter(value -> value.assignedElementId() != null)
                 .count()).isEqualTo(13);
@@ -137,14 +142,14 @@ class MeetingHelperIntegrationTests {
     @Test
     void customVenueSupportsDuplicateCheckUpdateAndSoftDelete() {
         var name = "测试场馆-" + java.util.UUID.randomUUID();
-        var request = new VenueService.CreateVenueRequest(
+        var request = new CreateVenueRequest(
                 name,
                 "用于验证场馆管理",
                 5,
                 5,
                 34,
                 "TOP",
-                java.util.List.of(new VenueService.ElementInput(
+                java.util.List.of(new ElementInput(
                         "SEAT", "1排01", "座位", 1, 1, 1, 1, 0, 1,
                         true, false, null, null, 1, "#ffffff", "#93b4df")));
 
@@ -152,7 +157,7 @@ class MeetingHelperIntegrationTests {
         assertThatThrownBy(() -> venueService.create(request))
                 .hasMessage("场馆名称已存在");
 
-        var renamed = new VenueService.CreateVenueRequest(
+        var renamed = new CreateVenueRequest(
                 name + "-修改",
                 request.description(),
                 request.gridRows(),
@@ -173,7 +178,7 @@ class MeetingHelperIntegrationTests {
     void meetingNameIsCheckedOnBothCreateAttempts() {
         var venue = venueService.list().getFirst();
         var name = "测试会议-" + java.util.UUID.randomUUID();
-        var request = new MeetingService.CreateMeetingRequest(name, venue.id());
+        var request = new CreateMeetingRequest(name, venue.id());
 
         meetingService.create(request);
 

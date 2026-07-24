@@ -5,7 +5,7 @@
 ## 工程结构
 
 - `frontend`：Vue 3 + JavaScript 前端。
-- `backend`：Spring Boot 后端。
+- `backend`：Spring Boot 后端，采用业务模块优先、模块内 `api/dto`、`entity`、`repository`、`service` 分层的包结构。
 - `DDL`：数据库初始化建表脚本的唯一存放目录。
 - `docs/architecture.md`：领域边界、数据关系和扩展点说明。
 - `CHANGELOG.md`：持续变更记录。
