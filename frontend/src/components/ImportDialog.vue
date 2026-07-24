@@ -5,8 +5,10 @@ import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 const visible = defineModel({ required: true })
-const props = defineProps()
-const emit = defineEmits()
+const props = defineProps({
+  meetingId: { type: String, required: true },
+})
+const emit = defineEmits(['done'])
 const templates = ref([])
 const templateCode = ref('AWARD_CEREMONY_V1')
 const file = ref()

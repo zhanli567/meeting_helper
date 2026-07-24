@@ -4,8 +4,10 @@ import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 const visible = defineModel({ required: true })
-const props = defineProps()
-const emit = defineEmits()
+const props = defineProps({
+  meetingId: { type: String, required: true },
+})
+const emit = defineEmits(['done'])
 const formRef = ref()
 const submitting = ref(false)
 const form = reactive({

@@ -1,7 +1,11 @@
 <script setup>
 import { Delete, Lock, Unlock } from '@element-plus/icons-vue'
-withDefaults(defineProps(), { readonly: false })
-const emit = defineEmits()
+defineProps({
+  participant: { type: Object, default: undefined },
+  seat: { type: Object, default: undefined },
+  readonly: { type: Boolean, default: false },
+})
+const emit = defineEmits(['lock', 'unassign', 'remove'])
 </script>
 
 <template>

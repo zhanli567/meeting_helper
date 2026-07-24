@@ -5,8 +5,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 const visible = defineModel({ required: true })
-const props = defineProps()
-const emit = defineEmits()
+const props = defineProps({
+  planId: { type: String, required: true },
+  versions: { type: Array, required: true },
+  currentVersionNo: { type: Number, required: true },
+})
+const emit = defineEmits(['done'])
 const submitting = ref(false)
 const restoringId = ref('')
 const activeTab = ref('history')

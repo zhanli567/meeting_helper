@@ -1,8 +1,15 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
-const props = withDefaults(defineProps(), { readonly: false })
-const emit = defineEmits()
+const props = defineProps({
+  workspace: { type: Object, required: true },
+  zoom: { type: Number, required: true },
+  selectedParticipantId: { type: String, default: undefined },
+  continuousParticipantId: { type: String, default: undefined },
+  draggingParticipantId: { type: String, default: undefined },
+  readonly: { type: Boolean, default: false },
+})
+const emit = defineEmits(['assign', 'select', 'seatClick', 'dragState', 'zoomChange'])
 const scrollRef = ref()
 const dragTargetId = ref()
 const isPanning = ref(false)

@@ -1,8 +1,14 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { Search, UploadFilled } from '@element-plus/icons-vue'
-const props = withDefaults(defineProps(), { readonly: false })
-const emit = defineEmits()
+const props = defineProps({
+  participants: { type: Array, required: true },
+  fieldDefinitions: { type: Array, required: true },
+  selectedId: { type: String, default: undefined },
+  saving: { type: Boolean, required: true },
+  readonly: { type: Boolean, default: false },
+})
+const emit = defineEmits(['select', 'unassign', 'dragState'])
 const tab = ref('pending')
 const search = ref('')
 const groupField = ref('')
