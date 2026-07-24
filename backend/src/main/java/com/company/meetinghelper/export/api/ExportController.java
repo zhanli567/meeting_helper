@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.nio.charset.StandardCharsets;
 
 @RestController
-@RequestMapping("/api/meetings/{meetingId}/exports")
+@RequestMapping("/meetings/{meetingId}/exports")
 public class ExportController {
     private final ExportService exportService;
 

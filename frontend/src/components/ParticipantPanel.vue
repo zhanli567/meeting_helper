@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { Search, UploadFilled } from '@element-plus/icons-vue'
+import { CircleCheckFilled, CircleCloseFilled, Delete, Search, UploadFilled } from '@element-plus/icons-vue'
+import { attendingPendingCount, isTemporarilyAbsent } from '@/utils/participantRules'
 const props = defineProps({
   participants: { type: Array, required: true },
   fieldDefinitions: { type: Array, required: true },
@@ -8,7 +9,7 @@ const props = defineProps({
   saving: { type: Boolean, required: true },
   readonly: { type: Boolean, default: false },
 })
-const emit = defineEmits(['select', 'unassign', 'dragState'])
+const emit = defineEmits(['select', 'unassign', 'dragState', 'attendance', 'remove'])
 const tab = ref(props.readonly ? 'all' : 'pending')
 const search = ref('')
 const groupField = ref('')
@@ -30,8 +31,9 @@ const groupFields = computed(() =>
     (field) => field.filterable && !['name', 'employeeNo'].includes(field.code),
   ),
 )
-const pendingCount = computed(
-  () => props.participants.filter((person) => !person.assignedElementId).length,
+const pendingCount = computed(() => attendingPendingCount(props.participants))
+const absentCount = computed(
+  () => props.participants.filter((person) => isTemporarilyAbsent(person)).length,
 )
 const filtered = computed(() => {
   const keyword = search.value.trim().toLocaleLowerCase()
@@ -75,7 +77,7 @@ watch(
   },
 )
 function dragStart(event, participant) {
-  if (props.readonly || participant.locked) {
+  if (props.readonly || participant.locked || isTemporarilyAbsent(participant)) {
     event.preventDefault()
     return
   }
@@ -121,6 +123,7 @@ function leavePanel(event) {
     <div class="panel-tabs" :class="{ single: readonly }">
       <button v-if="!readonly" :class="{ active: tab === 'pending' }" @click="tab = 'pending'">
         待排 <b>{{ pendingCount }}</b>
+        <small v-if="absentCount">临时不来 {{ absentCount }}</small>
       </button>
       <button :class="{ active: tab === 'all' || readonly }" @click="tab = 'all'">
         全部 <b>{{ participants.length }}</b>
@@ -130,7 +133,7 @@ function leavePanel(event) {
     <el-input
       v-model="search"
       clearable
-      placeholder="姓名模糊搜索 / 9位工号精确搜索"
+      placeholder="姓名模糊搜索 / 8或9位工号精确搜索"
       aria-label="搜索参会人员"
     >
       <template #prefix>
@@ -167,9 +170,10 @@ function leavePanel(event) {
             :class="{
               selected: selectedId === person.id,
               assigned: person.assignedElementId,
+              absent: isTemporarilyAbsent(person),
               readonly,
             }"
-            :draggable="!readonly && !person.locked"
+            :draggable="!readonly && !person.locked && !isTemporarilyAbsent(person)"
             @dragstart="dragStart($event, person)"
             @dragend="emit('dragState', undefined)"
             @click="emit('select', person)"
@@ -187,12 +191,39 @@ function leavePanel(event) {
               </div>
               <span>{{ person.employeeNo }} · {{ person.department || '未填写部门' }}</span>
               <small>
+                <el-tag v-if="isTemporarilyAbsent(person)" size="small" type="info">临时不出席</el-tag>
                 {{ person.participantType || '参会人员' }}
                 <template v-if="person.level"> · 职级{{ person.level }}</template>
                 <template v-if="person.repeatedBatches.length">
                   · 复{{ person.repeatedBatches.join('、') }}
                 </template>
               </small>
+            </div>
+            <div v-if="!readonly" class="person-actions" @click.stop>
+              <el-button
+                link
+                size="small"
+                :type="isTemporarilyAbsent(person) ? 'success' : 'warning'"
+                :icon="isTemporarilyAbsent(person) ? CircleCheckFilled : CircleCloseFilled"
+                @click="
+                  emit(
+                    'attendance',
+                    person,
+                    isTemporarilyAbsent(person) ? 'PRESENT' : 'TEMPORARILY_ABSENT',
+                  )
+                "
+              >
+                {{ isTemporarilyAbsent(person) ? '恢复出席' : '临时不来' }}
+              </el-button>
+              <el-button
+                link
+                size="small"
+                type="danger"
+                :icon="Delete"
+                @click="emit('remove', person)"
+              >
+                移出会议
+              </el-button>
             </div>
             <span v-if="person.assignedElementId" class="assigned-dot" title="已排座" />
           </article>
@@ -286,6 +317,12 @@ function leavePanel(event) {
   font-size: 11px;
 }
 
+.panel-tabs small {
+  margin-left: 6px;
+  color: #8794a7;
+  font-size: 9px;
+}
+
 .group-select {
   flex: none;
   width: 100%;
@@ -346,6 +383,17 @@ function leavePanel(event) {
   background: #fbfcfe;
 }
 
+.person-card.absent {
+  background: #f4f6f8;
+  border-color: #d9dee6;
+  cursor: default;
+  filter: grayscale(0.35);
+}
+
+.person-card.absent .person-main {
+  opacity: 0.72;
+}
+
 .person-card.readonly {
   cursor: pointer;
 }
@@ -362,6 +410,24 @@ function leavePanel(event) {
   align-content: center;
   gap: 3px;
   padding: 7px 9px;
+}
+
+.person-actions {
+  width: 78px;
+  flex: none;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 2px;
+  padding: 5px 6px 5px 0;
+  border-left: 1px solid #edf0f4;
+}
+
+.person-actions .el-button {
+  height: 23px;
+  margin: 0;
+  padding: 0 3px;
+  font-size: 10px;
 }
 
 .person-main > div {

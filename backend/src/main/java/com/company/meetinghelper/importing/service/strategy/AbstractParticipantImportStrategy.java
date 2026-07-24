@@ -19,7 +19,7 @@ public abstract class AbstractParticipantImportStrategy implements WorkbookImpor
     protected static final List<String> PARTICIPANT_HEADERS = List.of(
             "工号", "姓名", "职级", "部门", "人员类型", "标签"
     );
-    private static final Pattern EMPLOYEE_NO_PATTERN = Pattern.compile("^[A-Za-z][0-9]{8}$");
+    private static final Pattern EMPLOYEE_NO_PATTERN = Pattern.compile("^(?:[0-9]{8}|[a-z][0-9]{8})$");
     private static final Set<String> STANDARD_HEADERS = Set.copyOf(PARTICIPANT_HEADERS);
 
     protected final DataFormatter formatter = new DataFormatter();
@@ -58,7 +58,7 @@ public abstract class AbstractParticipantImportStrategy implements WorkbookImpor
             if (row == null || isBlank(row)) {
                 continue;
             }
-            var employeeNo = text(row, headers.get("工号")).toUpperCase();
+            var employeeNo = text(row, headers.get("工号"));
             var name = text(row, headers.get("姓名"));
             if (!EMPLOYEE_NO_PATTERN.matcher(employeeNo).matches()) {
                 errors.add("参会人员第" + (index + 1) + "行工号格式不正确");

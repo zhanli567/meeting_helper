@@ -11,6 +11,8 @@ import com.company.meetinghelper.venue.entity.VenueElementEntity;
 import com.company.meetinghelper.venue.entity.VenueTemplateEntity;
 import com.company.meetinghelper.venue.repository.VenueElementRepository;
 import com.company.meetinghelper.venue.repository.VenueTemplateRepository;
+import com.company.meetinghelper.venue.preset.PresetVenueDefinition;
+import com.company.meetinghelper.venue.preset.PresetVenueStore;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,16 +23,23 @@ import java.util.List;
 public class VenueService {
     private final VenueTemplateRepository templateRepository;
     private final VenueElementRepository elementRepository;
+    private final PresetVenueStore presetVenueStore;
 
     /**
      * 创建场馆模板服务。
      *
      * @param templateRepository 场馆模板仓储
      * @param elementRepository 场馆元素仓储
+     * @param presetVenueStore 代码预置场馆存储
      */
-    public VenueService(VenueTemplateRepository templateRepository, VenueElementRepository elementRepository) {
+    public VenueService(
+            VenueTemplateRepository templateRepository,
+            VenueElementRepository elementRepository,
+            PresetVenueStore presetVenueStore
+    ) {
         this.templateRepository = templateRepository;
         this.elementRepository = elementRepository;
+        this.presetVenueStore = presetVenueStore;
     }
 
     /**
@@ -40,14 +49,21 @@ public class VenueService {
      */
     @Transactional(readOnly = true)
     public List<VenueSummary> list() {
-        return templateRepository.findAllByDeletedFalseOrderByPresetDescNameAsc().stream()
+        var presets = presetVenueStore.findAll().stream()
+                .map(definition -> new VenueSummary(
+                        definition.id(), definition.name(), definition.description(), definition.gridRows(),
+                        definition.gridColumns(), definition.versionNo(), true,
+                        definition.elements().stream().filter(ElementInput::assignable).count()
+                ));
+        var customVenues = templateRepository.findAllByDeletedFalseOrderByPresetDescNameAsc().stream()
+                .filter(template -> !template.isPreset())
                 .map(template -> new VenueSummary(
                         template.getId(), template.getName(), template.getDescription(), template.getGridRows(),
                         template.getGridColumns(), template.getVersionNo(), template.isPreset(),
                         elementRepository
                                 .findAllByVenueTemplateIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(template.getId())
-                                .stream().filter(VenueElementEntity::isAssignable).count()))
-                .toList();
+                                .stream().filter(VenueElementEntity::isAssignable).count()));
+        return java.util.stream.Stream.concat(presets, customVenues).toList();
     }
 
     /**
@@ -58,8 +74,12 @@ public class VenueService {
      */
     @Transactional(readOnly = true)
     public VenueDetail get(String id) {
+        var preset = presetVenueStore.findById(id);
+        if (preset.isPresent()) {
+            return toDetail(preset.get());
+        }
         var template = templateRepository.findById(id)
-                .filter(value -> !value.isDeleted())
+                .filter(value -> !value.isDeleted() && !value.isPreset())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "场馆模板不存在"));
         return new VenueDetail(
                 template.getId(), template.getName(), template.getDescription(), template.getGridRows(),
@@ -78,7 +98,8 @@ public class VenueService {
     @Transactional
     public VenueDetail create(CreateVenueRequest request) {
         var normalizedName = request.name().trim();
-        if (templateRepository.existsByNameIgnoreCaseAndDeletedFalse(normalizedName)) {
+        if (presetVenueStore.existsByNameIgnoreCase(normalizedName)
+                || templateRepository.existsByNameIgnoreCaseAndDeletedFalse(normalizedName)) {
             throw new ApiException(HttpStatus.CONFLICT, "场馆名称已存在");
         }
         var template = new VenueTemplateEntity();
@@ -110,6 +131,9 @@ public class VenueService {
      */
     @Transactional
     public VenueDetail update(String id, CreateVenueRequest request) {
+        if (presetVenueStore.findById(id).isPresent()) {
+            throw new ApiException(HttpStatus.CONFLICT, "系统预置场馆不允许修改");
+        }
         var template = templateRepository.findById(id)
                 .filter(value -> !value.isDeleted())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "场馆模板不存在"));
@@ -117,7 +141,8 @@ public class VenueService {
             throw new ApiException(HttpStatus.CONFLICT, "系统预置场馆不允许修改");
         }
         var normalizedName = request.name().trim();
-        if (templateRepository.existsByNameIgnoreCaseAndDeletedFalseAndIdNot(normalizedName, id)) {
+        if (presetVenueStore.existsByNameIgnoreCase(normalizedName)
+                || templateRepository.existsByNameIgnoreCaseAndDeletedFalseAndIdNot(normalizedName, id)) {
             throw new ApiException(HttpStatus.CONFLICT, "场馆名称已存在");
         }
         template.setName(normalizedName);
@@ -150,6 +175,9 @@ public class VenueService {
      */
     @Transactional
     public void delete(String id) {
+        if (presetVenueStore.findById(id).isPresent()) {
+            throw new ApiException(HttpStatus.CONFLICT, "系统预置场馆不允许删除");
+        }
         var template = templateRepository.findById(id)
                 .filter(value -> !value.isDeleted())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "场馆模板不存在"));
@@ -189,6 +217,21 @@ public class VenueService {
                 source.getGridColumn(), source.getRowSpan(), source.getColumnSpan(), source.getRotation(),
                 source.getCapacity(), source.isAssignable(), source.isWalkable(), source.getGroupCode(),
                 source.getGroupLabel(), source.getSequenceNo(), source.getBackgroundColor(), source.getBorderColor());
+    }
+
+    private VenueDetail toDetail(PresetVenueDefinition definition) {
+        return new VenueDetail(
+                definition.id(),
+                definition.name(),
+                definition.description(),
+                definition.gridRows(),
+                definition.gridColumns(),
+                definition.cellSize(),
+                definition.versionNo(),
+                true,
+                definition.frontDirection(),
+                definition.elements()
+        );
     }
 
 }

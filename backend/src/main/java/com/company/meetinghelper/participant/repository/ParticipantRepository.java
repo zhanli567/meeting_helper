@@ -22,7 +22,10 @@ public interface ParticipantRepository extends JpaRepository<ParticipantEntity, 
      * @param employeeNo 工号
      * @return 参会人员，不存在时返回空
      */
-    Optional<ParticipantEntity> findByMeetingIdAndEmployeeNoAndDeletedFalse(String meetingId, String employeeNo);
+    Optional<ParticipantEntity> findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(
+            String meetingId,
+            String employeeNo
+    );
 
     /**
      * 统计会议有效人员数量。

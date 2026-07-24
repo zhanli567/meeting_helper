@@ -26,6 +26,11 @@ export const meetingApi = {
   async deleteParticipant(meetingId, participantId) {
     await http.delete(`/meetings/${meetingId}/participants/${participantId}`)
   },
+  async updateAttendance(meetingId, participantId, attendanceStatus) {
+    await http.put(`/meetings/${meetingId}/participants/${participantId}/attendance`, {
+      attendanceStatus,
+    })
+  },
   async createVersion(planId, data) {
     return (await http.post(`/plans/${planId}/versions`, data)).data
   },

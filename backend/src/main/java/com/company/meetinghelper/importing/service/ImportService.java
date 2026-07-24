@@ -180,7 +180,7 @@ public class ImportService {
         var savedByEmployee = new LinkedHashMap<String, ParticipantEntity>();
         for (var row : chosen) {
             var existing = participantRepository
-                    .findByMeetingIdAndEmployeeNoAndDeletedFalse(meetingId, row.employeeNo())
+                    .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, row.employeeNo())
                     .orElse(null);
             var participant = existing == null ? new ParticipantEntity() : existing;
             if (existing == null) {

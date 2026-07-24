@@ -15,6 +15,7 @@ import {
 import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
+import { moveRect, resizeRect } from '@/utils/designerGeometry'
 const router = useRouter()
 const route = useRoute()
 const venueId = computed(() =>
@@ -35,8 +36,10 @@ const loading = ref(false)
 const drawing = ref()
 const pendingRect = ref()
 const pickerVisible = ref(false)
+const pickerPosition = reactive({ left: 420, top: 150 })
 const selectedId = ref()
 const editorDraft = ref()
+const manipulation = ref()
 const editorPosition = reactive({ left: 360, top: 110 })
 const undoStack = ref([])
 const redoStack = ref([])
@@ -50,6 +53,7 @@ const panelCollapsed = ref(false)
 const panelFreePosition = ref()
 const isPanelDragging = ref(false)
 const unit = 32
+const resizeHandles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 let panStartX = 0
 let panStartY = 0
 let panScrollLeft = 0
@@ -119,6 +123,10 @@ const panelStyle = computed(() =>
       }
     : undefined,
 )
+const pickerStyle = computed(() => ({
+  left: `${pickerPosition.left}px`,
+  top: `${pickerPosition.top}px`,
+}))
 onMounted(async () => {
   loading.value = true
   try {
@@ -232,6 +240,8 @@ function onGridPointerDown(event) {
   if (event.button !== 0) return
   if (event.target.closest('.draft-element')) return
   closeEditor()
+  pickerVisible.value = false
+  pendingRect.value = undefined
   const point = pointFromEvent(event)
   if (!point) return
   drawing.value = { start: point, current: point, pointerId: event.pointerId }
@@ -247,12 +257,27 @@ function onGridPointerUp(event) {
   if (!drawing.value || drawing.value.pointerId !== event.pointerId) return
   pendingRect.value = normalizedRect(drawing.value.start, drawing.value.current)
   drawing.value = undefined
+  const area = canvasAreaRef.value?.getBoundingClientRect()
+  if (area) {
+    pickerPosition.left = Math.min(
+      Math.max(12, event.clientX - area.left + 12),
+      Math.max(12, area.width - 430),
+    )
+    pickerPosition.top = Math.min(
+      Math.max(70, event.clientY - area.top + 12),
+      Math.max(70, area.height - 250),
+    )
+  }
   pickerVisible.value = true
+}
+function closePicker() {
+  pickerVisible.value = false
+  pendingRect.value = undefined
 }
 function chooseElement(type) {
   const rect = pendingRect.value
   if (!rect) return
-  pickerVisible.value = false
+  closePicker()
   if (type === 'ERASER') {
     const removable = elements.value.filter((element) => intersects(element, rect))
     if (!removable.length) {
@@ -329,10 +354,10 @@ function renderElement(element) {
 function elementStyle(element) {
   const visual = renderElement(element)
   return {
-    top: `${(element.row - 1) * unit}px`,
-    left: `${(element.column - 1) * unit}px`,
-    width: `${element.columnSpan * unit}px`,
-    height: `${element.rowSpan * unit}px`,
+    top: `${(visual.row - 1) * unit}px`,
+    left: `${(visual.column - 1) * unit}px`,
+    width: `${visual.columnSpan * unit}px`,
+    height: `${visual.rowSpan * unit}px`,
     backgroundColor: visual.backgroundColor,
     borderColor: visual.borderColor,
   }
@@ -342,13 +367,81 @@ function openEditor(element, event) {
   editorDraft.value = { ...element }
   const area = canvasAreaRef.value?.getBoundingClientRect()
   if (event && area) {
-    editorPosition.left = Math.min(Math.max(12, event.clientX - area.left + 16), area.width - 344)
-    editorPosition.top = Math.min(Math.max(64, event.clientY - area.top + 12), area.height - 510)
+    editorPosition.left = Math.min(
+      Math.max(12, event.clientX - area.left + 16),
+      Math.max(12, area.width - 344),
+    )
+    editorPosition.top = Math.min(
+      Math.max(64, event.clientY - area.top + 12),
+      Math.max(64, area.height - 430),
+    )
   }
 }
 function openEditorById(id) {
   const element = elements.value.find((item) => item.localId === id)
   if (element) openEditor(element)
+}
+function startElementMove(event, element) {
+  startElementManipulation(event, element, 'move')
+}
+function startElementResize(event, element, handle) {
+  startElementManipulation(event, element, 'resize', handle)
+}
+function startElementManipulation(event, element, mode, handle) {
+  if (event.button !== 0) return
+  openEditor(element, event)
+  manipulation.value = {
+    mode,
+    handle,
+    startX: event.clientX,
+    startY: event.clientY,
+    origin: {
+      row: element.row,
+      column: element.column,
+      rowSpan: element.rowSpan,
+      columnSpan: element.columnSpan,
+    },
+    before: cloneElements(),
+  }
+  window.addEventListener('pointermove', moveElement)
+  window.addEventListener('pointerup', endElementManipulation)
+  event.preventDefault()
+  event.stopPropagation()
+}
+function moveElement(event) {
+  const action = manipulation.value
+  if (!action || !editorDraft.value) return
+  const deltaColumns = Math.round((event.clientX - action.startX) / (unit * zoom.value))
+  const deltaRows = Math.round((event.clientY - action.startY) / (unit * zoom.value))
+  const bounds = { rows: config.gridRows, columns: config.gridColumns }
+  const geometry =
+    action.mode === 'move'
+      ? moveRect(action.origin, deltaRows, deltaColumns, bounds)
+      : resizeRect(action.origin, action.handle, deltaRows, deltaColumns, bounds)
+  Object.assign(editorDraft.value, geometry)
+}
+function endElementManipulation() {
+  const action = manipulation.value
+  manipulation.value = undefined
+  window.removeEventListener('pointermove', moveElement)
+  window.removeEventListener('pointerup', endElementManipulation)
+  if (!action || !editorDraft.value) return
+  const draft = editorDraft.value
+  const changed = ['row', 'column', 'rowSpan', 'columnSpan'].some(
+    (field) => draft[field] !== action.origin[field],
+  )
+  if (!changed) return
+  if (rectCollides(draft, draft.localId)) {
+    Object.assign(editorDraft.value, action.origin)
+    ElMessage.warning('目标区域与已有元素重叠，本次拖动已取消')
+    return
+  }
+  const index = elements.value.findIndex((element) => element.localId === draft.localId)
+  if (index < 0) return
+  undoStack.value.push(action.before)
+  if (undoStack.value.length > 60) undoStack.value.shift()
+  redoStack.value = []
+  elements.value[index] = { ...draft }
 }
 function closeEditor() {
   selectedId.value = undefined
@@ -574,6 +667,7 @@ async function save() {
 onBeforeUnmount(() => {
   endPan()
   endPanelDrag()
+  endElementManipulation()
 })
 </script>
 
@@ -646,6 +740,7 @@ onBeforeUnmount(() => {
               }"
               :style="elementStyle(element)"
               :title="`${element.code || ''}${element.code && element.label ? ' · ' : ''}${element.label || typeLabel(element.type)}`"
+              @pointerdown="startElementMove($event, element)"
               @click.stop="openEditor(element, $event)"
               @dblclick.stop="removeElement(element)"
             >
@@ -655,6 +750,17 @@ onBeforeUnmount(() => {
               <strong class="element-name">
                 {{ renderElement(element).label || typeLabel(renderElement(element).type) }}
               </strong>
+              <template v-if="element.localId === selectedId">
+                <button
+                  v-for="handle in resizeHandles"
+                  :key="handle"
+                  type="button"
+                  class="resize-handle"
+                  :class="`handle-${handle}`"
+                  :aria-label="`向 ${handle} 方向调整元素大小`"
+                  @pointerdown.stop="startElementResize($event, element, handle)"
+                />
+              </template>
             </div>
 
             <div v-if="previewRect" class="draw-preview" :style="previewStyle">松开后选择元素</div>
@@ -754,42 +860,10 @@ onBeforeUnmount(() => {
               />
             </el-select>
           </label>
-          <label>
-            起始行
-            <el-input-number
-              v-model="editorDraft.row"
-              :min="1"
-              :max="config.gridRows"
-              size="small"
-            />
-          </label>
-          <label>
-            起始列
-            <el-input-number
-              v-model="editorDraft.column"
-              :min="1"
-              :max="config.gridColumns"
-              size="small"
-            />
-          </label>
-          <label>
-            高度（格）
-            <el-input-number
-              v-model="editorDraft.rowSpan"
-              :min="1"
-              :max="config.gridRows"
-              size="small"
-            />
-          </label>
-          <label>
-            宽度（格）
-            <el-input-number
-              v-model="editorDraft.columnSpan"
-              :min="1"
-              :max="config.gridColumns"
-              size="small"
-            />
-          </label>
+          <p class="geometry-tip full">
+            位置：第 {{ editorDraft.row }} 行、第 {{ editorDraft.column }} 列；尺寸：
+            {{ editorDraft.rowSpan }} × {{ editorDraft.columnSpan }} 格。按住元素拖动位置，拖动边缘或角点调整大小。
+          </p>
           <label class="full">
             元素编号
             <el-input
@@ -848,34 +922,37 @@ onBeforeUnmount(() => {
           <el-button type="primary" @click="confirmEditor">确认修改</el-button>
         </footer>
       </section>
-    </main>
 
-    <el-dialog
-      v-model="pickerVisible"
-      title="选择框选区域的元素"
-      width="600px"
-      append-to-body
-      destroy-on-close
-    >
-      <p class="picker-tip">
-        已选择 {{ pendingRect?.rowSpan }} 行 × {{ pendingRect?.columnSpan }} 列；座位会逐格生成，
-        其他元素会作为一个整体覆盖所选区域。
-      </p>
-      <div class="element-picker">
+      <section
+        v-if="pickerVisible && pendingRect"
+        class="element-picker-popover"
+        :style="pickerStyle"
+        @pointerdown.stop
+      >
+        <header>
+          <div>
+            <strong>选择元素</strong>
+            <small>{{ pendingRect.rowSpan }} 行 × {{ pendingRect.columnSpan }} 列</small>
+          </div>
+          <el-button text circle :icon="Close" aria-label="关闭元素选择" @click="closePicker" />
+        </header>
+        <p class="picker-tip">座位会逐格生成，其他元素会整体覆盖所选区域。</p>
+        <div class="element-picker">
         <button
           v-for="option in elementOptions"
           :key="option.type"
           :class="{ danger: option.type === 'ERASER' }"
+          :title="option.description"
           @click="chooseElement(option.type)"
         >
           <i :style="{ backgroundColor: option.color }" />
           <span>
             <strong>{{ option.label }}</strong>
-            <small>{{ option.description }}</small>
           </span>
         </button>
-      </div>
-    </el-dialog>
+        </div>
+      </section>
+    </main>
   </div>
 </template>
 
@@ -985,7 +1062,7 @@ onBeforeUnmount(() => {
   padding: 2px;
   color: #17365f;
   border: 1px solid;
-  cursor: pointer;
+  cursor: move;
   user-select: none;
 }
 
@@ -996,9 +1073,69 @@ onBeforeUnmount(() => {
 
 .draft-element.selected {
   z-index: 6;
+  overflow: visible;
   box-shadow:
     0 0 0 3px #2563eb,
     0 6px 16px rgba(37, 99, 235, 0.22);
+}
+
+.resize-handle {
+  width: 10px;
+  height: 10px;
+  position: absolute;
+  z-index: 10;
+  padding: 0;
+  background: #fff;
+  border: 2px solid #2563eb;
+  border-radius: 50%;
+}
+
+.handle-nw {
+  top: -6px;
+  left: -6px;
+  cursor: nwse-resize;
+}
+
+.handle-n {
+  top: -6px;
+  left: calc(50% - 5px);
+  cursor: ns-resize;
+}
+
+.handle-ne {
+  top: -6px;
+  right: -6px;
+  cursor: nesw-resize;
+}
+
+.handle-e {
+  top: calc(50% - 5px);
+  right: -6px;
+  cursor: ew-resize;
+}
+
+.handle-se {
+  right: -6px;
+  bottom: -6px;
+  cursor: nwse-resize;
+}
+
+.handle-s {
+  bottom: -6px;
+  left: calc(50% - 5px);
+  cursor: ns-resize;
+}
+
+.handle-sw {
+  bottom: -6px;
+  left: -6px;
+  cursor: nesw-resize;
+}
+
+.handle-w {
+  top: calc(50% - 5px);
+  left: -6px;
+  cursor: ew-resize;
 }
 
 .element-code,
@@ -1211,6 +1348,16 @@ onBeforeUnmount(() => {
   grid-column: 1 / -1;
 }
 
+.geometry-tip {
+  margin: 0;
+  padding: 8px 10px;
+  color: #56708f;
+  background: #eef5ff;
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
 .editor-grid :deep(.el-input-number),
 .editor-grid :deep(.el-select) {
   width: 100%;
@@ -1257,23 +1404,58 @@ onBeforeUnmount(() => {
 }
 
 .picker-tip {
-  margin: -4px 0 14px;
+  margin: 0 0 8px;
   color: #667085;
-  font-size: 12px;
+  font-size: 10px;
+}
+
+.element-picker-popover {
+  width: 410px;
+  max-width: calc(100% - 24px);
+  position: absolute;
+  z-index: 70;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid #8fb3e5;
+  border-radius: 12px;
+  box-shadow: 0 18px 42px rgba(29, 78, 216, 0.22);
+}
+
+.element-picker-popover > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.element-picker-popover > header > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.element-picker-popover > header strong {
+  color: #17365f;
+  font-size: 13px;
+}
+
+.element-picker-popover > header small {
+  color: #7890ad;
+  font-size: 10px;
 }
 
 .element-picker {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .element-picker button {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 6px;
+  padding: 7px;
   color: #334155;
   background: #fff;
   border: 1px solid #d8e4f3;
@@ -1295,8 +1477,8 @@ onBeforeUnmount(() => {
 }
 
 .element-picker i {
-  width: 28px;
-  height: 28px;
+  width: 18px;
+  height: 18px;
   flex: none;
   border: 1px solid #a9bdd5;
   border-radius: 7px;
@@ -1308,15 +1490,10 @@ onBeforeUnmount(() => {
   gap: 3px;
 }
 
-.element-picker strong,
-.element-picker small {
+.element-picker strong {
   overflow: hidden;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.element-picker small {
-  color: #7b8ba0;
-  font-size: 10px;
 }
 </style>

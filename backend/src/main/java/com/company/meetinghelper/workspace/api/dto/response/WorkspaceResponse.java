@@ -61,6 +61,7 @@ public record WorkspaceResponse(
             String participantType,
             List<String> tags,
             Map<String, String> attributes,
+            String attendanceStatus,
             boolean locked,
             String assignedElementId,
             Integer primaryBatchOrder,
@@ -122,4 +123,3 @@ public record WorkspaceResponse(
     public record StyleRuleView(String fieldCode, String value, String backgroundColor, String textColor) {
     }
 }
-

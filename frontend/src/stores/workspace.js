@@ -3,6 +3,11 @@ import { ElMessage } from 'element-plus'
 import { apiErrorMessage, downloadBlob } from '@/api/http'
 import { meetingApi } from '@/api/meeting'
 import { currentUser } from '@/auth/session'
+import {
+  attendingPendingCount,
+  participantCanBeSeated,
+  TEMPORARILY_ABSENT,
+} from '@/utils/participantRules'
 const recentMeetingStorageKey = `meeting-helper:recent-meeting:${currentUser.tenantId}:${currentUser.id}`
 function readRecentMeetingId() {
   if (typeof window === 'undefined') return ''
@@ -27,7 +32,7 @@ function createWorkspaceStore() {
     () => workspace.value?.participants.filter((person) => person.assignedElementId).length ?? 0,
   )
   const pendingCount = computed(
-    () => workspace.value?.participants.filter((person) => !person.assignedElementId).length ?? 0,
+    () => attendingPendingCount(workspace.value?.participants),
   )
   async function initialize() {
     loading.value = true
@@ -66,7 +71,7 @@ function createWorkspaceStore() {
     if (!workspace.value) return false
     const person = workspace.value.participants.find((value) => value.id === participantId)
     const target = workspace.value.layout.elements.find((value) => value.id === targetElementId)
-    if (!person || !target?.assignable || target.capacity !== 1) return false
+    if (!participantCanBeSeated(person) || !target?.assignable || target.capacity !== 1) return false
     if (person.locked) {
       ElMessage.warning('该人员已锁定，无法移动')
       return false
@@ -164,6 +169,31 @@ function createWorkspaceStore() {
       ElMessage.error(apiErrorMessage(error))
     }
   }
+  async function updateAttendance(participantId, attendanceStatus) {
+    if (!workspace.value) return false
+    try {
+      if (dirty.value) {
+        const saved = await saveAssignments({ silent: true })
+        if (!saved) return false
+      }
+      await meetingApi.updateAttendance(
+        workspace.value.meeting.id,
+        participantId,
+        attendanceStatus,
+      )
+      if (attendanceStatus === TEMPORARILY_ABSENT && selectedParticipantId.value === participantId) {
+        selectedParticipantId.value = undefined
+      }
+      await loadWorkspace()
+      ElMessage.success(
+        attendanceStatus === TEMPORARILY_ABSENT ? '已标记为临时不出席' : '已恢复出席',
+      )
+      return true
+    } catch (error) {
+      ElMessage.error(apiErrorMessage(error))
+      return false
+    }
+  }
   async function exportPlan(type, versionId) {
     if (!workspace.value) return
     try {
@@ -235,6 +265,7 @@ function createWorkspaceStore() {
     saveAssignments,
     setLock,
     removeParticipant,
+    updateAttendance,
     exportPlan,
     selectParticipant,
     rememberMeeting,

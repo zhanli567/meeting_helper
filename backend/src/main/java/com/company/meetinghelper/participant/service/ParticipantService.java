@@ -3,7 +3,9 @@ package com.company.meetinghelper.participant.service;
 import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.meeting.repository.MeetingRepository;
 import com.company.meetinghelper.participant.api.dto.request.CreateParticipantRequest;
+import com.company.meetinghelper.participant.api.dto.request.UpdateAttendanceRequest;
 import com.company.meetinghelper.participant.api.dto.response.ParticipantResult;
+import com.company.meetinghelper.participant.entity.AttendanceStatus;
 import com.company.meetinghelper.participant.entity.ParticipantEntity;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
 import com.company.meetinghelper.seating.repository.PlanItemRepository;
@@ -64,12 +66,15 @@ public class ParticipantService {
         meetingRepository.findById(meetingId)
                 .filter(value -> !value.isDeleted())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议不存在"));
-        if (participantRepository.findByMeetingIdAndEmployeeNoAndDeletedFalse(meetingId, request.employeeNo()).isPresent()) {
+        var employeeNo = request.employeeNo().trim();
+        if (participantRepository
+                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, employeeNo)
+                .isPresent()) {
             throw new ApiException(HttpStatus.CONFLICT, "该工号已在会议名单中");
         }
         var participant = new ParticipantEntity();
         participant.setMeetingId(meetingId);
-        participant.setEmployeeNo(request.employeeNo().toUpperCase());
+        participant.setEmployeeNo(employeeNo);
         participant.setName(request.name());
         participant.setLevelValue(request.level());
         participant.setDepartment(request.department());
@@ -86,6 +91,30 @@ public class ParticipantService {
     }
 
     /**
+     * 更新参会人员的出席状态；标记为临时不出席时同步释放其座位。
+     *
+     * @param meetingId 会议ID
+     * @param participantId 参会人员ID
+     * @param request 出席状态请求
+     */
+    @Transactional
+    public void updateAttendance(
+            String meetingId,
+            String participantId,
+            UpdateAttendanceRequest request
+    ) {
+        var participant = participantRepository.findById(participantId)
+                .filter(value -> !value.isDeleted() && value.getMeetingId().equals(meetingId))
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "人员不存在"));
+        participant.setAttendanceStatus(request.attendanceStatus());
+        if (request.attendanceStatus() == AttendanceStatus.TEMPORARILY_ABSENT) {
+            removeAssignment(meetingId, participantId);
+            participant.setLocked(false);
+        }
+        participantRepository.save(participant);
+    }
+
+    /**
      * 从会议名单中删除人员及其排座关系。
      *
      * @param meetingId 会议ID
@@ -96,16 +125,21 @@ public class ParticipantService {
         var participant = participantRepository.findById(participantId)
                 .filter(value -> !value.isDeleted() && value.getMeetingId().equals(meetingId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "人员不存在"));
-        var plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId).orElse(null);
-        if (plan != null) {
-            itemRepository.findByPlanIdAndParticipantIdAndItemTypeAndDeletedFalse(
-                    plan.getId(), participantId, PlanItemType.PERSON).ifPresent(item -> {
-                targetRepository.deleteAllByPlanItemId(item.getId());
-                itemRepository.delete(item);
-            });
-        }
+        removeAssignment(meetingId, participantId);
         participant.setDeleted(true);
         participantRepository.save(participant);
+    }
+
+    private void removeAssignment(String meetingId, String participantId) {
+        var plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId).orElse(null);
+        if (plan == null) {
+            return;
+        }
+        itemRepository.findByPlanIdAndParticipantIdAndItemTypeAndDeletedFalse(
+                plan.getId(), participantId, PlanItemType.PERSON).ifPresent(item -> {
+            targetRepository.deleteAllByPlanItemId(item.getId());
+            itemRepository.delete(item);
+        });
     }
 
 }

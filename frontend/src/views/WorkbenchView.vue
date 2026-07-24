@@ -21,6 +21,7 @@ import VenueCanvas from '@/components/VenueCanvas.vue'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { attendingPendingCount } from '@/utils/participantRules'
 const router = useRouter()
 const route = useRoute()
 const store = useWorkspaceStore()
@@ -58,7 +59,7 @@ const assignedCount = computed(
   () => workspace.value?.participants.filter((person) => person.assignedElementId).length || 0,
 )
 const pendingCount = computed(
-  () => workspace.value?.participants.filter((person) => !person.assignedElementId).length || 0,
+  () => attendingPendingCount(workspace.value?.participants),
 )
 const activePublishedVersion = computed(() =>
   store.workspace?.versions.find((version) => version.id === activeVersionKey.value),
@@ -165,6 +166,32 @@ async function publishDraft() {
     publishing.value = false
   }
 }
+async function overwriteDraftFromVersion() {
+  if (!store.workspace || !activePublishedVersion.value) return
+  const versionNo = activePublishedVersion.value.versionNo
+  try {
+    await ElMessageBox.confirm(
+      `将用 V${activePublishedVersion.value.versionNo} 的排座、设备占位、锁定、样式和出席状态覆盖当前草稿。当前名单保持不变，后来新增的人员会保留在待排列表中。`,
+      '覆盖当前草稿',
+      {
+        type: 'warning',
+        confirmButtonText: '确认覆盖',
+        cancelButtonText: '取消',
+      },
+    )
+    await meetingApi.restoreVersion(store.workspace.plan.id, activePublishedVersion.value.id)
+    await store.loadWorkspace()
+    activeVersionKey.value = 'draft'
+    publishedWorkspace.value = undefined
+    store.selectParticipant(undefined)
+    undoStack.value = []
+    redoStack.value = []
+    ElMessage.success(`已使用 V${versionNo} 覆盖草稿`)
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(apiErrorMessage(error))
+  }
+}
 async function saveDraft(silent = false) {
   if (readonlyMode.value || !store.dirty) return true
   return store.saveAssignments({ silent })
@@ -256,6 +283,49 @@ function onSeatClick() {
 }
 function selectParticipant(person) {
   store.selectParticipant(person)
+}
+async function updateParticipantAttendance(person, attendanceStatus) {
+  if (readonlyMode.value) return
+  if (attendanceStatus === 'TEMPORARILY_ABSENT' && person.assignedElementId) {
+    try {
+      await ElMessageBox.confirm(
+        `${person.name} 已安排座位，标记为临时不出席后会释放该座位。`,
+        '确认临时不出席',
+        {
+          type: 'warning',
+          confirmButtonText: '确认',
+          cancelButtonText: '取消',
+        },
+      )
+    } catch {
+      return
+    }
+  }
+  const success = await store.updateAttendance(person.id, attendanceStatus)
+  if (success) {
+    undoStack.value = []
+    redoStack.value = []
+  }
+}
+async function removeParticipant(person) {
+  if (readonlyMode.value) return
+  try {
+    await ElMessageBox.confirm(
+      `确认将 ${person.name} 从本次会议名单中移出吗？该人员的座位也会被释放。`,
+      '移出会议',
+      {
+        type: 'warning',
+        confirmButtonText: '确认移出',
+        cancelButtonText: '取消',
+      },
+    )
+  } catch {
+    return
+  }
+  if (!(await saveDraft(true))) return
+  await store.removeParticipant(person.id)
+  undoStack.value = []
+  redoStack.value = []
 }
 function changeZoom(delta) {
   zoom.value = Math.min(2.5, Math.max(0.4, Number((zoom.value + delta).toFixed(2))))
@@ -423,6 +493,15 @@ async function openBatchImport() {
         </el-select>
       </div>
       <el-button
+        v-if="readonlyMode"
+        type="primary"
+        plain
+        :icon="RefreshRight"
+        @click="overwriteDraftFromVersion"
+      >
+        覆盖当前草稿
+      </el-button>
+      <el-button
         v-if="!readonlyMode"
         type="primary"
         plain
@@ -526,6 +605,8 @@ async function openBatchImport() {
         :readonly="readonlyMode"
         @select="selectParticipant"
         @unassign="performUnassign"
+        @attendance="updateParticipantAttendance"
+        @remove="removeParticipant"
         @drag-state="draggingParticipantId = $event"
       />
     </main>

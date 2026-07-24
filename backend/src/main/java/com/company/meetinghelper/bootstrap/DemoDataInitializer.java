@@ -2,40 +2,33 @@ package com.company.meetinghelper.bootstrap;
 
 import com.company.meetinghelper.award.entity.AwardRecordEntity;
 import com.company.meetinghelper.award.repository.AwardRecordRepository;
+import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
 import com.company.meetinghelper.meeting.entity.MeetingElementEntity;
 import com.company.meetinghelper.meeting.repository.MeetingElementRepository;
-import com.company.meetinghelper.meeting.entity.MeetingEntity;
 import com.company.meetinghelper.meeting.repository.MeetingRepository;
+import com.company.meetinghelper.meeting.service.MeetingService;
 import com.company.meetinghelper.participant.entity.ParticipantEntity;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
 import com.company.meetinghelper.seating.entity.PlanItemEntity;
-import com.company.meetinghelper.seating.repository.PlanItemRepository;
 import com.company.meetinghelper.seating.entity.PlanItemTargetEntity;
-import com.company.meetinghelper.seating.repository.PlanItemTargetRepository;
 import com.company.meetinghelper.seating.entity.PlanItemType;
 import com.company.meetinghelper.seating.entity.SeatingPlanEntity;
+import com.company.meetinghelper.seating.repository.PlanItemRepository;
+import com.company.meetinghelper.seating.repository.PlanItemTargetRepository;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
 import com.company.meetinghelper.venue.entity.ElementType;
-import com.company.meetinghelper.venue.entity.FrontDirection;
-import com.company.meetinghelper.venue.entity.VenueElementEntity;
-import com.company.meetinghelper.venue.repository.VenueElementRepository;
-import com.company.meetinghelper.venue.entity.VenueTemplateEntity;
-import com.company.meetinghelper.venue.repository.VenueTemplateRepository;
+import com.company.meetinghelper.venue.preset.PresetVenueStore;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
 public class DemoDataInitializer implements ApplicationRunner {
-    private final VenueTemplateRepository venueRepository;
-    private final VenueElementRepository venueElementRepository;
     private final MeetingRepository meetingRepository;
     private final MeetingElementRepository meetingElementRepository;
     private final ParticipantRepository participantRepository;
@@ -43,20 +36,20 @@ public class DemoDataInitializer implements ApplicationRunner {
     private final SeatingPlanRepository planRepository;
     private final PlanItemRepository itemRepository;
     private final PlanItemTargetRepository targetRepository;
+    private final MeetingService meetingService;
+    private final PresetVenueStore presetVenueStore;
 
     public DemoDataInitializer(
-            VenueTemplateRepository venueRepository,
-            VenueElementRepository venueElementRepository,
             MeetingRepository meetingRepository,
             MeetingElementRepository meetingElementRepository,
             ParticipantRepository participantRepository,
             AwardRecordRepository awardRepository,
             SeatingPlanRepository planRepository,
             PlanItemRepository itemRepository,
-            PlanItemTargetRepository targetRepository
+            PlanItemTargetRepository targetRepository,
+            MeetingService meetingService,
+            PresetVenueStore presetVenueStore
     ) {
-        this.venueRepository = venueRepository;
-        this.venueElementRepository = venueElementRepository;
         this.meetingRepository = meetingRepository;
         this.meetingElementRepository = meetingElementRepository;
         this.participantRepository = participantRepository;
@@ -64,6 +57,8 @@ public class DemoDataInitializer implements ApplicationRunner {
         this.planRepository = planRepository;
         this.itemRepository = itemRepository;
         this.targetRepository = targetRepository;
+        this.meetingService = meetingService;
+        this.presetVenueStore = presetVenueStore;
     }
 
     @Override
@@ -72,164 +67,19 @@ public class DemoDataInitializer implements ApplicationRunner {
         if (meetingRepository.count() > 0) {
             return;
         }
-        var venue = createVenue();
-        var venueElements = createVenueElements(venue.getId());
-        venueElementRepository.saveAll(venueElements);
-        var meeting = createMeeting(venue);
-        var meetingElements = venueElements.stream().map(source -> copyToMeeting(meeting.getId(), source)).toList();
-        meetingElementRepository.saveAll(meetingElements);
+        var presetVenue = presetVenueStore.findAll().getFirst();
+        var createdMeeting = meetingService.create(
+                new CreateMeetingRequest("2026年度荣誉表彰大会", presetVenue.id())
+        );
+        var meeting = meetingRepository.findById(createdMeeting.id()).orElseThrow();
+        var meetingElements = meetingElementRepository
+                .findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(meeting.getId());
         var participants = createParticipants(meeting.getId());
         participantRepository.saveAll(participants);
         createAwards(participants);
-        var plan = createPlan(meeting.getId());
+        var plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meeting.getId())
+                .orElseThrow();
         createInitialPlacements(plan, participants, meetingElements);
-    }
-
-    private VenueTemplateEntity createVenue() {
-        var venue = new VenueTemplateEntity();
-        venue.setName("颁奖典礼礼堂");
-        venue.setDescription("舞台位于上方，包含左右门、四条纵向通道和九排座位的预置演示场馆。");
-        venue.setGridRows(18);
-        venue.setGridColumns(43);
-        venue.setCellSize(34);
-        venue.setVersionNo(1);
-        venue.setPreset(true);
-        venue.setFrontDirection(FrontDirection.TOP);
-        return venueRepository.save(venue);
-    }
-
-    private List<VenueElementEntity> createVenueElements(String venueId) {
-        var elements = new ArrayList<VenueElementEntity>();
-        elements.add(element(venueId, ElementType.STAGE, "STAGE", "舞台", 1, 5, 2, 35,
-                false, true, 0, "#DBEAFE", "#93C5FD"));
-        elements.add(element(venueId, ElementType.WALL, null, null, 1, 1, 4, 1,
-                false, false, 0, "#64748B", "#475569"));
-        elements.add(element(venueId, ElementType.WALL, null, null, 6, 1, 13, 1,
-                false, false, 0, "#64748B", "#475569"));
-        elements.add(element(venueId, ElementType.WALL, null, null, 1, 43, 4, 1,
-                false, false, 0, "#64748B", "#475569"));
-        elements.add(element(venueId, ElementType.WALL, null, null, 6, 43, 13, 1,
-                false, false, 0, "#64748B", "#475569"));
-        elements.add(element(venueId, ElementType.DOOR, "LEFT_DOOR", "左前门", 5, 1, 1, 2,
-                false, true, 0, "#FED7AA", "#EA580C"));
-        elements.add(element(venueId, ElementType.DOOR, "RIGHT_DOOR", "右前门", 5, 42, 1, 2,
-                false, true, 0, "#FED7AA", "#EA580C"));
-        elements.add(element(venueId, ElementType.AISLE, "FRONT_AISLE", "舞台前通行区", 3, 3, 3, 39,
-                false, true, 0, "#F8FAFC", "#E2E8F0"));
-        elements.add(element(venueId, ElementType.AISLE, "LEFT_OUTER_AISLE", "左侧走廊", 6, 2, 9, 2,
-                false, true, 0, "#F8FAFC", "#E2E8F0"));
-        elements.add(element(venueId, ElementType.AISLE, "LEFT_INNER_AISLE", "左中走廊", 6, 11, 9, 2,
-                false, true, 0, "#F8FAFC", "#E2E8F0"));
-        elements.add(element(venueId, ElementType.AISLE, "RIGHT_INNER_AISLE", "中右走廊", 6, 32, 9, 2,
-                false, true, 0, "#F8FAFC", "#E2E8F0"));
-        elements.add(element(venueId, ElementType.AISLE, "RIGHT_OUTER_AISLE", "右侧走廊", 6, 41, 9, 2,
-                false, true, 0, "#F8FAFC", "#E2E8F0"));
-
-        for (int row = 1; row <= 9; row++) {
-            var gridRow = row + 5;
-            for (int index = 1; index <= 7; index++) {
-                elements.add(seat(venueId, row, index, gridRow, 3 + index, 1));
-            }
-            int centerColumn = 13;
-            for (int index = 8; index <= 25; index++) {
-                int span = row == 5 && index == 15 ? 2 : 1;
-                elements.add(seat(venueId, row, index, gridRow, centerColumn, span));
-                centerColumn += span;
-            }
-            for (int index = 26; index <= 32; index++) {
-                elements.add(seat(venueId, row, index, gridRow, 34 + index - 26, 1));
-            }
-        }
-        elements.add(element(venueId, ElementType.LABEL, "EXIT", "后方出口", 16, 18, 1, 9,
-                false, true, 0, "#F1F5F9", "#CBD5E1"));
-        return elements;
-    }
-
-    private VenueElementEntity seat(
-            String venueId,
-            int row,
-            int index,
-            int gridRow,
-            int gridColumn,
-            int columnSpan
-    ) {
-        var seat = element(
-                venueId, ElementType.SEAT, row + "排" + String.format("%02d", index),
-                null, gridRow, gridColumn, 1, columnSpan, true, false, 1,
-                "#FFFFFF", "#CBD5E1");
-        seat.setGroupCode("ROW_" + row);
-        seat.setGroupLabel(row + "排");
-        seat.setSequenceNo(index);
-        return seat;
-    }
-
-    private VenueElementEntity element(
-            String venueId,
-            ElementType type,
-            String code,
-            String label,
-            int row,
-            int column,
-            int rowSpan,
-            int columnSpan,
-            boolean assignable,
-            boolean walkable,
-            int capacity,
-            String background,
-            String border
-    ) {
-        var element = new VenueElementEntity();
-        element.setVenueTemplateId(venueId);
-        element.setElementType(type);
-        element.setCode(code);
-        element.setLabel(label);
-        element.setGridRow(row);
-        element.setGridColumn(column);
-        element.setRowSpan(rowSpan);
-        element.setColumnSpan(columnSpan);
-        element.setRotation(0);
-        element.setAssignable(assignable);
-        element.setWalkable(walkable);
-        element.setCapacity(capacity);
-        element.setBackgroundColor(background);
-        element.setBorderColor(border);
-        return element;
-    }
-
-    private MeetingEntity createMeeting(VenueTemplateEntity venue) {
-        var meeting = new MeetingEntity();
-        meeting.setName("2026年度荣誉表彰大会");
-        meeting.setStatus("DRAFT");
-        meeting.setVenueTemplateId(venue.getId());
-        meeting.setLayoutName(venue.getName());
-        meeting.setGridRows(venue.getGridRows());
-        meeting.setGridColumns(venue.getGridColumns());
-        meeting.setCellSize(venue.getCellSize());
-        meeting.setLayoutVersion(1);
-        return meetingRepository.save(meeting);
-    }
-
-    private MeetingElementEntity copyToMeeting(String meetingId, VenueElementEntity source) {
-        var target = new MeetingElementEntity();
-        target.setMeetingId(meetingId);
-        target.setSourceElementId(source.getId());
-        target.setElementType(source.getElementType());
-        target.setCode(source.getCode());
-        target.setLabel(source.getLabel());
-        target.setGridRow(source.getGridRow());
-        target.setGridColumn(source.getGridColumn());
-        target.setRowSpan(source.getRowSpan());
-        target.setColumnSpan(source.getColumnSpan());
-        target.setRotation(source.getRotation());
-        target.setCapacity(source.getCapacity());
-        target.setAssignable(source.isAssignable());
-        target.setWalkable(source.isWalkable());
-        target.setGroupCode(source.getGroupCode());
-        target.setGroupLabel(source.getGroupLabel());
-        target.setSequenceNo(source.getSequenceNo());
-        target.setBackgroundColor(source.getBackgroundColor());
-        target.setBorderColor(source.getBorderColor());
-        return target;
     }
 
     private List<ParticipantEntity> createParticipants(String meetingId) {
@@ -244,7 +94,7 @@ public class DemoDataInitializer implements ApplicationRunner {
         for (int index = 0; index < names.size(); index++) {
             var participant = new ParticipantEntity();
             participant.setMeetingId(meetingId);
-            participant.setEmployeeNo("A" + String.format("%08d", index + 1));
+            participant.setEmployeeNo("a" + String.format("%08d", index + 1));
             participant.setName(names.get(index));
             participant.setLevelValue(20 - index % 7);
             participant.setDepartment(departments.get(index % departments.size()));
@@ -289,15 +139,6 @@ public class DemoDataInitializer implements ApplicationRunner {
         record.setProjectName(project);
         record.setTeamSize(1);
         return record;
-    }
-
-    private SeatingPlanEntity createPlan(String meetingId) {
-        var plan = new SeatingPlanEntity();
-        plan.setMeetingId(meetingId);
-        plan.setName("秘书工作方案");
-        plan.setStatus("DRAFT");
-        plan.setCurrentVersionNo(0);
-        return planRepository.save(plan);
     }
 
     private void createInitialPlacements(

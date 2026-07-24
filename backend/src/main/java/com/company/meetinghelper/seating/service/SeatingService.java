@@ -2,6 +2,7 @@ package com.company.meetinghelper.seating.service;
 
 import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.meeting.repository.MeetingElementRepository;
+import com.company.meetinghelper.participant.entity.AttendanceStatus;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
 import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
 import com.company.meetinghelper.seating.api.dto.request.SaveAssignmentsRequest;
@@ -66,6 +67,9 @@ public class SeatingService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "人员不存在"));
         if (!participant.getMeetingId().equals(plan.getMeetingId())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "人员不属于当前会议");
+        }
+        if (participant.getAttendanceStatus() == AttendanceStatus.TEMPORARILY_ABSENT) {
+            throw new ApiException(HttpStatus.CONFLICT, "临时不出席人员不能安排座位");
         }
         if (participant.isLocked()) {
             throw new ApiException(HttpStatus.CONFLICT, "该人员已锁定，无法移动");
@@ -163,6 +167,9 @@ public class SeatingService {
             var participant = participants.get(assignment.participantId());
             if (participant == null) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "提交的人员不属于当前会议");
+            }
+            if (participant.getAttendanceStatus() == AttendanceStatus.TEMPORARILY_ABSENT) {
+                throw new ApiException(HttpStatus.CONFLICT, "临时不出席人员不能安排座位");
             }
             var element = elements.get(assignment.targetElementId());
             if (element == null || !element.isAssignable() || element.getCapacity() != 1) {

@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
+import { isValidEmployeeNo } from '@/utils/participantRules'
 const visible = defineModel({ required: true })
 const props = defineProps({
   meetingId: { type: String, required: true },
@@ -21,7 +22,13 @@ const form = reactive({
 const rules = {
   employeeNo: [
     { required: true, message: '请输入工号', trigger: 'blur' },
-    { pattern: /^[A-Za-z][0-9]{8}$/, message: '工号必须为一个字母加8位数字', trigger: 'blur' },
+    {
+      validator: (_rule, value, callback) =>
+        isValidEmployeeNo(value)
+          ? callback()
+          : callback(new Error('工号必须为8位数字或1个小写字母加8位数字')),
+      trigger: 'blur',
+    },
   ],
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
 }
@@ -55,7 +62,7 @@ async function submit() {
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
       <div class="form-grid">
         <el-form-item label="工号" prop="employeeNo">
-          <el-input v-model="form.employeeNo" placeholder="A12345678" maxlength="9" />
+          <el-input v-model="form.employeeNo" placeholder="12345678 或 a12345678" maxlength="9" />
         </el-form-item>
         <el-form-item label="姓名" prop="name">
           <el-input v-model="form.name" placeholder="请输入姓名" />

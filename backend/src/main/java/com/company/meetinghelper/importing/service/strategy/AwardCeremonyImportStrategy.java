@@ -72,7 +72,7 @@ public class AwardCeremonyImportStrategy extends AbstractParticipantImportStrate
             if (row == null || text(row, headers.get("工号")).isBlank()) {
                 continue;
             }
-            var employeeNo = text(row, headers.get("工号")).toUpperCase();
+            var employeeNo = text(row, headers.get("工号"));
             var batchOrder = integer(row, headers.get("批次顺序"));
             var batchName = text(row, headers.get("批次名称"));
             var awardName = text(row, headers.get("奖项名称"));

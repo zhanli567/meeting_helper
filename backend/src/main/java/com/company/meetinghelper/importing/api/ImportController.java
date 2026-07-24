@@ -23,7 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping
 public class ImportController {
     private final ImportService importService;
 

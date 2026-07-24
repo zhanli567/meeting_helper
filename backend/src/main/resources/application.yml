@@ -13,11 +13,6 @@ spring:
     properties:
       hibernate:
         format_sql: true
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:DDL/meeting_helper.sql
-      continue-on-error: false
   servlet:
     multipart:
       max-file-size: 20MB

@@ -5,6 +5,10 @@ import com.company.meetinghelper.importing.service.ImportService;
 import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
 import com.company.meetinghelper.meeting.repository.MeetingRepository;
 import com.company.meetinghelper.meeting.service.MeetingService;
+import com.company.meetinghelper.participant.api.dto.request.CreateParticipantRequest;
+import com.company.meetinghelper.participant.api.dto.request.UpdateAttendanceRequest;
+import com.company.meetinghelper.participant.entity.AttendanceStatus;
+import com.company.meetinghelper.participant.service.ParticipantService;
 import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
 import com.company.meetinghelper.seating.api.dto.request.AssignmentInput;
 import com.company.meetinghelper.seating.api.dto.request.CreateVersionRequest;
@@ -19,16 +23,26 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayInputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @Transactional
 class MeetingHelperIntegrationTests {
+    @Autowired
+    private MockMvc mockMvc;
+
     @Autowired
     private MeetingRepository meetingRepository;
 
@@ -52,6 +66,61 @@ class MeetingHelperIntegrationTests {
 
     @Autowired
     private MeetingService meetingService;
+
+    @Autowired
+    private ParticipantService participantService;
+
+    @Test
+    void controllerRoutesDoNotExposeApiPrefixAndAllowLocalNetworkOrigins() throws Exception {
+        mockMvc.perform(get("/meetings"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/meetings"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(options("/meetings")
+                        .header("Origin", "http://192.168.10.25:5173")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://192.168.10.25:5173"));
+    }
+
+    @Test
+    void temporarilyAbsentParticipantReleasesSeatAndDoesNotBlockPublishing() {
+        var venue = venueService.list().getFirst();
+        var meeting = meetingService.create(new CreateMeetingRequest(
+                "临时不出席测试-" + java.util.UUID.randomUUID(),
+                venue.id()
+        ));
+        var participant = participantService.create(
+                meeting.id(),
+                new CreateParticipantRequest(
+                        "12345678", "测试人员", 10, "测试部门", "参会人员", "", java.util.Map.of()
+                )
+        );
+        var workspace = workspaceService.getWorkspace(meeting.id());
+        var seat = workspace.layout().elements().stream()
+                .filter(value -> value.assignable() && value.capacity() == 1)
+                .findFirst()
+                .orElseThrow();
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(participant.id(), seat.id())
+        );
+
+        participantService.updateAttendance(
+                meeting.id(),
+                participant.id(),
+                new UpdateAttendanceRequest(AttendanceStatus.TEMPORARILY_ABSENT)
+        );
+
+        var absentWorkspace = workspaceService.getWorkspace(meeting.id());
+        var absentParticipant = absentWorkspace.participants().getFirst();
+        assertThat(absentParticipant.attendanceStatus()).isEqualTo("TEMPORARILY_ABSENT");
+        assertThat(absentParticipant.assignedElementId()).isNull();
+        assertThat(planVersionService.create(
+                absentWorkspace.plan().id(),
+                new CreateVersionRequest("临时不出席版本", "", false)
+        ).unassignedCount()).isZero();
+    }
 
     @Test
     void workspaceContainsRealisticDemoLayoutAndParticipants() {

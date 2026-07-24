@@ -1,6 +1,8 @@
 import axios from 'axios'
+import { apiBaseUrl } from '@/utils/apiPath'
+
 export const http = axios.create({
-  baseURL: '/api',
+  baseURL: apiBaseUrl(),
   timeout: 20_000,
 })
 export function apiErrorMessage(error) {

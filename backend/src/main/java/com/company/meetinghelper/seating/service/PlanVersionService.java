@@ -2,6 +2,7 @@ package com.company.meetinghelper.seating.service;
 
 import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.meeting.repository.MeetingElementRepository;
+import com.company.meetinghelper.participant.entity.AttendanceStatus;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
 import com.company.meetinghelper.seating.api.dto.request.CreateVersionRequest;
 import com.company.meetinghelper.seating.api.dto.response.RestoreVersionResult;
@@ -81,9 +82,12 @@ public class PlanVersionService {
                 .orElse(1);
         var workspace = workspaceService.getWorkspace(plan.getMeetingId());
         var assignedCount = (int) workspace.participants().stream()
-                .filter(participant -> participant.assignedElementId() != null)
+                .filter(participant -> participant.assignedElementId() != null
+                        && !"TEMPORARILY_ABSENT".equals(participant.attendanceStatus()))
                 .count();
-        var totalCount = (int) participantRepository.countByMeetingIdAndDeletedFalse(plan.getMeetingId());
+        var totalCount = (int) workspace.participants().stream()
+                .filter(participant -> !"TEMPORARILY_ABSENT".equals(participant.attendanceStatus()))
+                .count();
         var unassignedCount = totalCount - assignedCount;
         if (unassignedCount > 0) {
             throw new ApiException(
@@ -135,9 +139,9 @@ public class PlanVersionService {
             throw new ApiException(HttpStatus.CONFLICT, "方案版本不属于当前会议");
         }
 
-        var participantIds = participantRepository
-                .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(plan.getMeetingId())
-                .stream()
+        var currentParticipants = participantRepository
+                .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(plan.getMeetingId());
+        var participantIds = currentParticipants.stream()
                 .map(value -> value.getId())
                 .collect(java.util.stream.Collectors.toSet());
         var elementIds = elementRepository
@@ -151,6 +155,20 @@ public class PlanVersionService {
         targetRepository.flush();
         itemRepository.deleteAll(currentItems);
         itemRepository.flush();
+
+        var snapshotParticipants = snapshot.participants().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        WorkspaceResponse.ParticipantView::id,
+                        value -> value,
+                        (left, right) -> left
+                ));
+        currentParticipants.forEach(participant -> {
+            var source = snapshotParticipants.get(participant.getId());
+            if (source != null && source.attendanceStatus() != null) {
+                participant.setAttendanceStatus(AttendanceStatus.valueOf(source.attendanceStatus()));
+            }
+        });
+        participantRepository.saveAll(currentParticipants);
 
         var restoredItems = 0;
         for (var source : snapshot.items()) {
@@ -180,7 +198,6 @@ public class PlanVersionService {
             restoredItems++;
         }
 
-        plan.setCurrentVersionNo(version.getVersionNo());
         plan.setUpdatedById("demo-secretary");
         plan.setUpdatedByName("演示秘书");
         planRepository.save(plan);

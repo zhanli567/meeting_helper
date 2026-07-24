@@ -224,6 +224,7 @@ public class WorkspaceService {
                 participant.getParticipantType(),
                 splitTags(participant.getTags()),
                 readAttributes(participant.getCustomAttributesJson()),
+                participant.getAttendanceStatus() == null ? "PRESENT" : participant.getAttendanceStatus().name(),
                 locked,
                 assignedElementId,
                 primary == null ? null : primary.getBatchOrder(),

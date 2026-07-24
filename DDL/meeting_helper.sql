@@ -204,6 +204,7 @@ create table if not exists t_participants (
     department varchar(160),
     participant_type varchar(80),
     tags varchar(500),
+    attendance_status varchar(30) not null default 'PRESENT',
     custom_attributes_json text,
     locked boolean not null,
     created_by_id varchar(64) not null,
@@ -221,12 +222,13 @@ create table if not exists t_participants (
 comment on table t_participants is '会议参会人员';
 comment on column t_participants.id is '参会人员主键';
 comment on column t_participants.meeting_id is '所属会议标识';
-comment on column t_participants.employee_no is '公司九位工号';
+comment on column t_participants.employee_no is '公司工号，格式为8位数字或1个小写字母加8位数字';
 comment on column t_participants.name is '参会人员姓名';
 comment on column t_participants.level_value is '人员职级数值，数值越大职级越高';
 comment on column t_participants.department is '人员所属部门';
 comment on column t_participants.participant_type is '人员业务类型，如嘉宾或获奖人员';
 comment on column t_participants.tags is '人员标签集合';
+comment on column t_participants.attendance_status is '出席状态：PRESENT正常出席，TEMPORARILY_ABSENT临时不出席';
 comment on column t_participants.custom_attributes_json is '场景扩展属性 JSON';
 comment on column t_participants.locked is '人员是否锁定不可移动';
 comment on column t_participants.created_by_id is '创建人标识';

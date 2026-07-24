@@ -28,18 +28,19 @@ const itemByTarget = computed(() => {
   )
   return result
 })
-const unit = computed(() => props.workspace.layout.cellSize * props.zoom)
+const unit = computed(() => Math.max(props.workspace.layout.cellSize, 44) * props.zoom)
 const canvasStyle = computed(() => ({
   width: `${props.workspace.layout.gridColumns * unit.value}px`,
   height: `${props.workspace.layout.gridRows * unit.value}px`,
   '--unit': `${unit.value}px`,
 }))
 function elementStyle(element) {
+  const gap = element.assignable ? Math.max(1.5, unit.value * 0.04) : 0
   return {
-    left: `${(element.column - 1) * unit.value}px`,
-    top: `${(element.row - 1) * unit.value}px`,
-    width: `${element.columnSpan * unit.value}px`,
-    height: `${element.rowSpan * unit.value}px`,
+    left: `${(element.column - 1) * unit.value + gap}px`,
+    top: `${(element.row - 1) * unit.value + gap}px`,
+    width: `${Math.max(1, element.columnSpan * unit.value - gap * 2)}px`,
+    height: `${Math.max(1, element.rowSpan * unit.value - gap * 2)}px`,
     backgroundColor: element.backgroundColor || '#fff',
     borderColor: element.borderColor || '#d7dee9',
     transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
@@ -240,7 +241,9 @@ onBeforeUnmount(endPan)
             class="layout-element seat-element"
             :class="{
               occupied: participantFor(element.id),
-              selected: participantFor(element.id)?.id === selectedParticipantId,
+              selected:
+                Boolean(selectedParticipantId) &&
+                participantFor(element.id)?.id === selectedParticipantId,
               locked: itemFor(element.id)?.locked,
               device: itemFor(element.id) && itemFor(element.id)?.type !== 'PERSON',
               'continuous-target': continuousParticipantId && !itemFor(element.id),

@@ -4,6 +4,7 @@ import { Download, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
+import { apiDownloadUrl } from '@/utils/apiPath'
 const visible = defineModel({ required: true })
 const props = defineProps({
   meetingId: { type: String, required: true },
@@ -42,7 +43,7 @@ function onFileChange(uploadFile) {
   preview.value = undefined
 }
 function downloadTemplate() {
-  window.open(`/api/import-templates/${templateCode.value}/file`, '_blank')
+  window.open(apiDownloadUrl(`/import-templates/${templateCode.value}/file`), '_blank')
 }
 async function parseFile() {
   if (!file.value) {
