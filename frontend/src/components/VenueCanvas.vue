@@ -9,7 +9,7 @@ const props = defineProps({
   draggingParticipantId: { type: String, default: undefined },
   readonly: { type: Boolean, default: false },
 })
-const emit = defineEmits(['assign', 'select', 'seatClick', 'dragState', 'zoomChange'])
+const emit = defineEmits(['assign', 'unassign', 'select', 'seatClick', 'dragState', 'zoomChange'])
 const scrollRef = ref()
 const dragTargetId = ref()
 const isPanning = ref(false)
@@ -101,6 +101,12 @@ function onSeatClick(element) {
   const person = participantFor(element.id)
   if (person) emit('select', person)
   else emit('seatClick', element)
+}
+function onSeatDoubleClick(element) {
+  if (props.readonly) return
+  const item = itemFor(element.id)
+  const person = participantFor(element.id)
+  if (person && !item?.locked) emit('unassign', person.id)
 }
 function typeLabel(type) {
   return (
@@ -229,12 +235,14 @@ onBeforeUnmount(endPan)
             @dragleave="onDragLeave($event, element)"
             @drop="onDrop($event, element)"
             @click="onSeatClick(element)"
+            @dblclick.stop="onSeatDoubleClick(element)"
           >
             <span class="seat-code">{{ element.code }}</span>
             <template v-if="participantFor(element.id)">
               <span
                 class="seat-person"
                 :draggable="!readonly && !itemFor(element.id)?.locked"
+                :title="readonly ? '已发布版本仅供查看' : '双击移回待排列表'"
                 @dragstart="startParticipantDrag($event, element.id)"
                 @dragend="emit('dragState', undefined)"
               >

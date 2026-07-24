@@ -87,7 +87,7 @@ const addMenuStyle = computed(() => {
 })
 onMounted(async () => {
   const meetingId = typeof route.params.meetingId === 'string' ? route.params.meetingId : ''
-  if (meetingId) store.activeMeetingId = meetingId
+  if (meetingId) store.rememberMeeting(meetingId)
   await store.initialize()
   if (store.activeMeetingId && store.activeMeetingId !== meetingId) {
     await router.replace(`/workbench/${store.activeMeetingId}`)
@@ -129,6 +129,17 @@ async function switchVersion(versionKey) {
 }
 async function publishDraft() {
   if (!store.workspace || readonlyMode.value) return
+  if (pendingCount.value > 0) {
+    await ElMessageBox.alert(
+      `当前还有 ${pendingCount.value} 位参会人员尚未排座。请先完成全部人员排座，再发布只读版本。`,
+      '暂时无法发布',
+      {
+        type: 'warning',
+        confirmButtonText: '我知道了',
+      },
+    )
+    return
+  }
   try {
     const nextVersion = (store.workspace.versions[0]?.versionNo || 0) + 1
     const { value } = await ElMessageBox.prompt(
@@ -188,6 +199,7 @@ async function performUnassign(participantId) {
   if (!originalTarget) return
   const success = await store.unassign(participantId)
   if (!success) return
+  ElMessage.success('已移回待排列表')
   if (!applyingHistory.value) {
     undoStack.value.push({
       label: '移回待排',
@@ -489,6 +501,7 @@ function downloadTemplate() {
             :selected-participant-id="store.selectedParticipantId"
             :dragging-participant-id="draggingParticipantId"
             @assign="performAssign"
+            @unassign="performUnassign"
             @select="selectParticipant"
             @seat-click="onSeatClick"
             @drag-state="draggingParticipantId = $event"

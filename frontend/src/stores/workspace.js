@@ -2,9 +2,19 @@ import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { apiErrorMessage, downloadBlob } from '@/api/http'
 import { meetingApi } from '@/api/meeting'
+import { currentUser } from '@/auth/session'
+const recentMeetingStorageKey = `meeting-helper:recent-meeting:${currentUser.tenantId}:${currentUser.id}`
+function readRecentMeetingId() {
+  if (typeof window === 'undefined') return ''
+  try {
+    return window.localStorage.getItem(recentMeetingStorageKey) || ''
+  } catch {
+    return ''
+  }
+}
 function createWorkspaceStore() {
   const meetings = ref([])
-  const activeMeetingId = ref('')
+  const activeMeetingId = ref(readRecentMeetingId())
   const workspace = ref()
   const loading = ref(false)
   const saving = ref(false)
@@ -22,8 +32,8 @@ function createWorkspaceStore() {
     loading.value = true
     try {
       meetings.value = await meetingApi.meetings()
-      if (!activeMeetingId.value && meetings.value.length) {
-        activeMeetingId.value = meetings.value[0].id
+      if (!meetings.value.some((meeting) => meeting.id === activeMeetingId.value)) {
+        rememberMeeting(meetings.value[0]?.id || '')
       }
       if (activeMeetingId.value) {
         await loadWorkspace()
@@ -39,7 +49,7 @@ function createWorkspaceStore() {
     workspace.value = await meetingApi.workspace(activeMeetingId.value)
   }
   async function switchMeeting(meetingId) {
-    activeMeetingId.value = meetingId
+    rememberMeeting(meetingId)
     selectedParticipantId.value = undefined
     loading.value = true
     try {
@@ -119,6 +129,16 @@ function createWorkspaceStore() {
   function selectParticipant(participant) {
     selectedParticipantId.value = participant?.id
   }
+  function rememberMeeting(meetingId) {
+    activeMeetingId.value = meetingId
+    if (typeof window === 'undefined') return
+    try {
+      if (meetingId) window.localStorage.setItem(recentMeetingStorageKey, meetingId)
+      else window.localStorage.removeItem(recentMeetingStorageKey)
+    } catch {
+      // 浏览器禁用本地存储时仍保留当前会话内的最近会议。
+    }
+  }
   return {
     meetings,
     activeMeetingId,
@@ -138,6 +158,7 @@ function createWorkspaceStore() {
     removeParticipant,
     exportPlan,
     selectParticipant,
+    rememberMeeting,
   }
 }
 

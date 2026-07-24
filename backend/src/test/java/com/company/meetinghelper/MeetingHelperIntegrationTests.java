@@ -91,30 +91,40 @@ class MeetingHelperIntegrationTests {
     void savedVersionCanRestorePreviousSeatingState() {
         var meeting = meetingRepository.findAllByDeletedFalseOrderByUpdatedAtDesc().getFirst();
         var before = workspaceService.getWorkspace(meeting.getId());
-        var saved = planVersionService.create(before.plan().id(),
-                new CreateVersionRequest("恢复测试版本", "保存当前排座", false));
-        var immutableSnapshot = planVersionService.getSnapshot(before.plan().id(), saved.id());
-        assertThat(immutableSnapshot.participants().stream()
-                .filter(value -> value.assignedElementId() != null)
-                .count()).isEqualTo(12);
-        var participant = before.participants().stream()
-                .filter(value -> value.assignedElementId() == null)
-                .findFirst().orElseThrow();
+
+        assertThatThrownBy(() -> planVersionService.create(before.plan().id(),
+                new CreateVersionRequest("未完成版本", "仍有待排人员", false)))
+                .hasMessageContaining("全部完成排座后才能发布");
+
         var occupied = before.items().stream()
                 .flatMap(item -> item.targetElementIds().stream())
                 .collect(java.util.stream.Collectors.toSet());
-        var seat = before.layout().elements().stream()
+        var emptySeats = before.layout().elements().stream()
                 .filter(value -> value.assignable() && !occupied.contains(value.id()))
-                .findFirst().orElseThrow();
+                .iterator();
+        before.participants().stream()
+                .filter(value -> value.assignedElementId() == null)
+                .forEach(participant -> seatingService.assign(
+                        before.plan().id(),
+                        new AssignmentRequest(participant.id(), emptySeats.next().id())
+                ));
 
-        seatingService.assign(before.plan().id(),
-                new AssignmentRequest(participant.id(), seat.id()));
+        var readyToPublish = workspaceService.getWorkspace(meeting.getId());
+        var saved = planVersionService.create(before.plan().id(),
+                new CreateVersionRequest("恢复测试版本", "全部人员已完成排座", false));
+        var immutableSnapshot = planVersionService.getSnapshot(before.plan().id(), saved.id());
+        assertThat(immutableSnapshot.participants().stream()
+                .filter(value -> value.assignedElementId() != null)
+                .count()).isEqualTo(28);
+
+        var participant = readyToPublish.participants().getFirst();
+        seatingService.unassign(before.plan().id(), participant.id());
         assertThat(workspaceService.getWorkspace(meeting.getId()).participants().stream()
                 .filter(value -> value.assignedElementId() != null)
-                .count()).isEqualTo(13);
+                .count()).isEqualTo(27);
         assertThat(planVersionService.getSnapshot(before.plan().id(), saved.id()).participants().stream()
                 .filter(value -> value.assignedElementId() != null)
-                .count()).isEqualTo(12);
+                .count()).isEqualTo(28);
         assertThat(exportService.exportExcel(meeting.getId(), saved.id()).length).isGreaterThan(5_000);
 
         planVersionService.restore(before.plan().id(), saved.id());
@@ -123,7 +133,7 @@ class MeetingHelperIntegrationTests {
         assertThat(restored.plan().currentVersionNo()).isEqualTo(saved.versionNo());
         assertThat(restored.participants().stream()
                 .filter(value -> value.assignedElementId() != null)
-                .count()).isEqualTo(12);
+                .count()).isEqualTo(28);
     }
 
     @Test

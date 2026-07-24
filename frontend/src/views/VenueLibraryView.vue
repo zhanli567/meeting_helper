@@ -45,7 +45,7 @@ async function createMeeting() {
   submitting.value = true
   try {
     const meeting = await meetingApi.createMeeting(name, form.venueTemplateId)
-    store.activeMeetingId = meeting.id
+    store.rememberMeeting(meeting.id)
     await store.initialize()
     ElMessage.success('会议已创建，场馆布局已生成独立快照')
     router.push(`/workbench/${meeting.id}`)

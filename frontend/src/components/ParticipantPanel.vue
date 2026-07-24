@@ -9,11 +9,12 @@ const props = defineProps({
   readonly: { type: Boolean, default: false },
 })
 const emit = defineEmits(['select', 'unassign', 'dragState'])
-const tab = ref('pending')
+const tab = ref(props.readonly ? 'all' : 'pending')
 const search = ref('')
 const groupField = ref('')
 const currentPage = ref(1)
 const pageSize = ref(8)
+const dropActive = ref(false)
 function fieldValue(person, fieldCode) {
   if (fieldCode === 'name') return person.name
   if (fieldCode === 'employeeNo') return person.employeeNo
@@ -60,6 +61,13 @@ watch([tab, search, groupField], () => {
   currentPage.value = 1
 })
 watch(
+  () => props.readonly,
+  (readonly) => {
+    if (readonly) tab.value = 'all'
+  },
+  { immediate: true },
+)
+watch(
   () => filtered.value.length,
   (total) => {
     const lastPage = Math.max(1, Math.ceil(total / pageSize.value))
@@ -79,13 +87,29 @@ function dragStart(event, participant) {
 function dropToPending(event) {
   if (props.readonly) return
   event.preventDefault()
+  dropActive.value = false
   const participantId = event.dataTransfer?.getData('text/participant-id')
   if (participantId) emit('unassign', participantId)
+}
+function dragOverPanel(event) {
+  if (props.readonly) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  dropActive.value = true
+}
+function leavePanel(event) {
+  if (!event.currentTarget.contains(event.relatedTarget)) dropActive.value = false
 }
 </script>
 
 <template>
-  <aside class="participant-panel" @dragover.prevent @drop="dropToPending">
+  <aside
+    class="participant-panel"
+    :class="{ 'drop-active': dropActive }"
+    @dragover="dragOverPanel"
+    @dragleave="leavePanel"
+    @drop="dropToPending"
+  >
     <div class="panel-heading">
       <div>
         <span class="eyebrow">SEATING QUEUE</span>
@@ -94,11 +118,11 @@ function dropToPending(event) {
       <el-tag size="small" effect="plain">{{ filtered.length }} 人</el-tag>
     </div>
 
-    <div class="panel-tabs">
-      <button :class="{ active: tab === 'pending' }" @click="tab = 'pending'">
+    <div class="panel-tabs" :class="{ single: readonly }">
+      <button v-if="!readonly" :class="{ active: tab === 'pending' }" @click="tab = 'pending'">
         待排 <b>{{ pendingCount }}</b>
       </button>
-      <button :class="{ active: tab === 'all' }" @click="tab = 'all'">
+      <button :class="{ active: tab === 'all' || readonly }" @click="tab = 'all'">
         全部 <b>{{ participants.length }}</b>
       </button>
     </div>
@@ -193,7 +217,9 @@ function dropToPending(event) {
       <span>共 {{ filtered.length }} 人</span>
     </div>
 
-    <div v-if="!readonly" class="pending-drop">将已排人员拖到这里，可移回待排列表</div>
+    <div v-if="!readonly" class="pending-drop" :class="{ active: dropActive }">
+      {{ dropActive ? '松开鼠标，移回待排列表' : '将已排人员拖到右侧任意位置，可移回待排列表' }}
+    </div>
     <div v-else class="readonly-note">当前为已发布版本，仅供查看</div>
   </aside>
 </template>
@@ -210,6 +236,14 @@ function dropToPending(event) {
   overflow: hidden;
   background: #fff;
   border-left: 1px solid var(--line);
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.participant-panel.drop-active {
+  background: #f2f7ff;
+  box-shadow: inset 0 0 0 2px #5b91da;
 }
 
 .panel-heading {
@@ -226,6 +260,10 @@ function dropToPending(event) {
   padding: 3px;
   background: #eff3f8;
   border-radius: 9px;
+}
+
+.panel-tabs.single {
+  grid-template-columns: 1fr;
 }
 
 .panel-tabs button {
@@ -396,5 +434,12 @@ function dropToPending(event) {
   background: #eef5ff;
   border-style: solid;
   border-color: #c7daf4;
+}
+
+.pending-drop.active {
+  color: #174f99;
+  background: #dcecff;
+  border-color: #5b91da;
+  font-weight: 700;
 }
 </style>

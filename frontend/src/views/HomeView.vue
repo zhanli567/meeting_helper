@@ -6,10 +6,13 @@ import { currentUser } from '@/auth/session'
 import { useWorkspaceStore } from '@/stores/workspace'
 const router = useRouter()
 const store = useWorkspaceStore()
-const recentMeeting = computed(() => store.meetings[0])
+const recentMeeting = computed(
+  () =>
+    store.meetings.find((meeting) => meeting.id === store.activeMeetingId) || store.meetings[0],
+)
 onMounted(() => store.initialize())
 function openMeeting(meetingId) {
-  store.activeMeetingId = meetingId
+  store.rememberMeeting(meetingId)
   router.push(`/workbench/${meetingId}`)
 }
 function formatTime(value) {

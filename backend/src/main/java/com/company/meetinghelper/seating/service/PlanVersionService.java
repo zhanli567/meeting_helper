@@ -65,6 +65,13 @@ public class PlanVersionService {
                 .filter(participant -> participant.assignedElementId() != null)
                 .count();
         var totalCount = (int) participantRepository.countByMeetingIdAndDeletedFalse(plan.getMeetingId());
+        var unassignedCount = totalCount - assignedCount;
+        if (unassignedCount > 0) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "当前还有 " + unassignedCount + " 位参会人员尚未排座，全部完成排座后才能发布"
+            );
+        }
         var version = new PlanVersionEntity();
         version.setPlanId(planId);
         version.setVersionNo(nextVersion);
@@ -77,7 +84,7 @@ public class PlanVersionService {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "生成方案快照失败");
         }
         version.setAssignedCount(assignedCount);
-        version.setUnassignedCount(totalCount - assignedCount);
+        version.setUnassignedCount(unassignedCount);
         versionRepository.save(version);
         plan.setCurrentVersionNo(nextVersion);
         plan.setUpdatedById("demo-secretary");
