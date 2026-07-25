@@ -22,4 +22,13 @@ public interface PlanVersionRepository extends JpaRepository<PlanVersionEntity, 
      * @return 最新版本，不存在时返回空
      */
     Optional<PlanVersionEntity> findFirstByPlanIdAndDeletedFalseOrderByVersionNoDesc(String planId);
+
+    /**
+     * 判断排座方案内是否已存在同名有效版本。
+     *
+     * @param planId 排座方案ID
+     * @param versionName 版本名称
+     * @return 存在同名版本时返回true
+     */
+    boolean existsByPlanIdAndVersionNameIgnoreCaseAndDeletedFalse(String planId, String versionName);
 }

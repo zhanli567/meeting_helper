@@ -4,6 +4,7 @@ import { Refresh, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { apiErrorMessage } from '@/api/http'
 import { meetingApi } from '@/api/meeting'
+import { displayCellUnit, elementBox, previewFitZoom } from '@/utils/venueCanvasMetrics'
 
 const visible = defineModel({ required: true })
 const props = defineProps({
@@ -19,11 +20,11 @@ let panStartY = 0
 let panScrollLeft = 0
 let panScrollTop = 0
 
-const cellSize = computed(() => venue.value?.cellSize || 34)
+const unit = computed(() => displayCellUnit(venue.value?.cellSize, zoom.value))
 const canvasStyle = computed(() => ({
-  width: `${(venue.value?.gridColumns || 1) * cellSize.value * zoom.value}px`,
-  height: `${(venue.value?.gridRows || 1) * cellSize.value * zoom.value}px`,
-  '--preview-cell': `${cellSize.value * zoom.value}px`,
+  width: `${(venue.value?.gridColumns || 1) * unit.value}px`,
+  height: `${(venue.value?.gridRows || 1) * unit.value}px`,
+  '--preview-cell': `${unit.value}px`,
 }))
 
 watch(
@@ -45,12 +46,12 @@ watch(
 )
 
 function elementStyle(element) {
-  const unit = cellSize.value * zoom.value
+  const box = elementBox(element, unit.value)
   return {
-    top: `${(element.row - 1) * unit}px`,
-    left: `${(element.column - 1) * unit}px`,
-    width: `${element.columnSpan * unit}px`,
-    height: `${element.rowSpan * unit}px`,
+    top: `${box.top}px`,
+    left: `${box.left}px`,
+    width: `${box.width}px`,
+    height: `${box.height}px`,
     zIndex: element.type === 'SEAT' ? 3 : 1,
     color: readableTextColor(element.backgroundColor),
     backgroundColor: element.backgroundColor || defaultColor(element.type),
@@ -122,13 +123,13 @@ function onWheel(event) {
 function fitCanvas() {
   const viewport = viewportRef.value
   if (!viewport || !venue.value) return
-  const rawWidth = venue.value.gridColumns * cellSize.value
-  const rawHeight = venue.value.gridRows * cellSize.value
-  zoom.value = Math.min(
-    1.2,
-    Math.max(0.25, (viewport.clientWidth - 80) / rawWidth),
-    Math.max(0.25, (viewport.clientHeight - 80) / rawHeight),
-  )
+  zoom.value = previewFitZoom({
+    cellSize: venue.value.cellSize,
+    gridColumns: venue.value.gridColumns,
+    gridRows: venue.value.gridRows,
+    viewportWidth: viewport.clientWidth,
+    viewportHeight: viewport.clientHeight,
+  })
   nextTick(centerCanvas)
 }
 

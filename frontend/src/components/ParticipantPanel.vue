@@ -113,10 +113,7 @@ function leavePanel(event) {
     @drop="dropToPending"
   >
     <div class="panel-heading">
-      <div>
-        <span class="eyebrow">SEATING QUEUE</span>
-        <h2 class="panel-title">人员安排</h2>
-      </div>
+      <h2 class="panel-title">人员安排</h2>
       <el-tag size="small" effect="plain">{{ filtered.length }} 人</el-tag>
     </div>
 
@@ -247,8 +244,6 @@ function leavePanel(event) {
       />
       <span>共 {{ filtered.length }} 人</span>
     </div>
-
-    <div v-if="readonly" class="readonly-note">当前为已发布版本，仅供查看</div>
   </aside>
 </template>
 
@@ -478,24 +473,6 @@ function leavePanel(event) {
 .pagination-row :deep(.el-pagination) {
   --el-pagination-button-width: 24px;
   --el-pagination-button-height: 24px;
-}
-
-.readonly-note {
-  flex: none;
-  padding: 8px 10px;
-  color: #748094;
-  background: #f7f9fc;
-  border: 1px dashed #c9d2df;
-  border-radius: 8px;
-  font-size: 11px;
-  text-align: center;
-}
-
-.readonly-note {
-  color: #3565a6;
-  background: #eef5ff;
-  border-style: solid;
-  border-color: #c7daf4;
 }
 
 </style>

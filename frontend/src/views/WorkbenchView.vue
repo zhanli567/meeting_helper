@@ -17,6 +17,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import AddParticipantDialog from '@/components/AddParticipantDialog.vue'
 import ImportDialog from '@/components/ImportDialog.vue'
 import ParticipantPanel from '@/components/ParticipantPanel.vue'
+import PublishVersionDialog from '@/components/PublishVersionDialog.vue'
 import VenueCanvas from '@/components/VenueCanvas.vue'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
@@ -37,6 +38,7 @@ const activeVersionKey = ref('draft')
 const publishedWorkspace = ref()
 const loadingVersion = ref(false)
 const publishing = ref(false)
+const publishVisible = ref(false)
 const addMenuVisible = ref(false)
 const addTargetElementId = ref()
 const participantPanelCollapsed = ref(false)
@@ -144,31 +146,21 @@ async function publishDraft() {
     )
     return
   }
+  publishVisible.value = true
+}
+
+async function confirmPublish(payload) {
+  if (!store.workspace || readonlyMode.value) return
   try {
-    const nextVersion = (store.workspace.versions[0]?.versionNo || 0) + 1
-    const { value } = await ElMessageBox.prompt(
-      `本次发布后将生成只读版本 V${nextVersion}，草稿仍可继续修改。`,
-      `发布 V${nextVersion}`,
-      {
-        confirmButtonText: '确认发布',
-        cancelButtonText: '取消',
-        inputPlaceholder: '填写本次变更说明（可留空）',
-        inputType: 'textarea',
-      },
-    )
     if (!(await saveDraft(true))) return
     publishing.value = true
-    const version = await meetingApi.createVersion(store.workspace.plan.id, {
-      versionName: `V${nextVersion}`,
-      changeNote: value?.trim(),
-      automatic: false,
-    })
+    const version = await meetingApi.createVersion(store.workspace.plan.id, payload)
     await store.loadWorkspace()
+    publishVisible.value = false
     activeVersionKey.value = version.id
     await switchVersion(version.id)
-    ElMessage.success(`V${nextVersion} 已发布，当前进入只读查看`)
+    ElMessage.success(`“${version.versionName}”已发布，当前进入只读查看`)
   } catch (error) {
-    if (error === 'cancel' || error === 'close') return
     ElMessage.error(apiErrorMessage(error))
   } finally {
     publishing.value = false
@@ -176,10 +168,10 @@ async function publishDraft() {
 }
 async function overwriteDraftFromVersion() {
   if (!store.workspace || !activePublishedVersion.value) return
-  const versionNo = activePublishedVersion.value.versionNo
+  const versionName = activePublishedVersion.value.versionName
   try {
     await ElMessageBox.confirm(
-      `将用 V${activePublishedVersion.value.versionNo} 的排座、设备占位、锁定、样式和出席状态覆盖当前草稿。当前名单保持不变，后来新增的人员会保留在待排列表中。`,
+      `将用“${versionName}”的排座、设备占位、锁定、样式和出席状态覆盖当前草稿。当前名单保持不变，后来新增的人员会保留在待排列表中。`,
       '覆盖当前草稿',
       {
         type: 'warning',
@@ -194,7 +186,7 @@ async function overwriteDraftFromVersion() {
     store.selectParticipant(undefined)
     undoStack.value = []
     redoStack.value = []
-    ElMessage.success(`已使用 V${versionNo} 覆盖草稿`)
+    ElMessage.success(`已使用“${versionName}”覆盖草稿`)
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
     ElMessage.error(apiErrorMessage(error))
@@ -434,7 +426,6 @@ async function onParticipantAdded(participant) {
         <span class="brand-mark">席</span>
         <span class="brand-copy">
           <strong>会议排座助手</strong>
-          <small>Meeting Seating Workspace</small>
         </span>
       </button>
       <span class="header-divider" />
@@ -451,12 +442,7 @@ async function onParticipantAdded(participant) {
           :key="meeting.id"
           :label="meeting.name"
           :value="meeting.id"
-        >
-          <div class="meeting-option">
-            <span>{{ meeting.name }}</span>
-            <small>{{ meeting.layoutName }}</small>
-          </div>
-        </el-option>
+        />
       </el-select>
 
       <el-select
@@ -467,26 +453,14 @@ async function onParticipantAdded(participant) {
         aria-label="选择会议版本"
         @change="switchVersion"
       >
-        <el-option label="草稿（可编辑）" value="draft">
-          <span>草稿</span>
-          <small class="version-option-note">可编辑</small>
-        </el-option>
+        <el-option label="草稿" value="draft" />
         <el-option
           v-for="version in store.workspace.versions"
           :key="version.id"
-          :label="`V${version.versionNo} · ${version.versionName}`"
+          :label="version.versionName"
           :value="version.id"
-        >
-          <span>V{{ version.versionNo }} · {{ version.versionName }}</span>
-          <small class="version-option-note">只读</small>
-        </el-option>
+        />
       </el-select>
-
-      <div v-if="workspace" class="header-context">
-        <span>{{ workspace.meeting.layoutName }}</span>
-        <b v-if="readonlyMode">已发布 · 只读</b>
-        <b v-else>草稿</b>
-      </div>
 
       <span class="header-spacer" />
       <el-button class="header-home" text :icon="House" @click="goHome">
@@ -494,7 +468,7 @@ async function onParticipantAdded(participant) {
       </el-button>
       <span class="save-state">
         <i :class="{ active: store.saving, dirty: store.dirty }" />
-        <template v-if="readonlyMode">正在查看已发布版本</template>
+        <template v-if="readonlyMode">已发布版本</template>
         <template v-else>
           {{ store.saving ? '保存中' : store.dirty ? '有未保存改动' : '草稿已保存' }}
         </template>
@@ -542,7 +516,6 @@ async function onParticipantAdded(participant) {
       <section class="canvas-panel">
         <div class="canvas-toolbar">
           <div class="canvas-title">
-            <span class="eyebrow">VENUE LAYOUT · V{{ workspace.meeting.layoutVersion }}</span>
             <h1>{{ workspace.meeting.layoutName }}</h1>
           </div>
           <div class="canvas-stats">
@@ -560,7 +533,7 @@ async function onParticipantAdded(participant) {
             >
           </div>
           <el-tag v-if="readonlyMode" type="primary" effect="plain">
-            V{{ activePublishedVersion?.versionNo }} 只读版本
+            {{ activePublishedVersion?.versionName }}
           </el-tag>
           <span class="toolbar-spacer" />
           <el-button-group>
@@ -582,7 +555,7 @@ async function onParticipantAdded(participant) {
             <el-button class="zoom-value">{{ Math.round(zoom * 100) }}%</el-button>
             <el-button :icon="ZoomIn" :disabled="zoom >= 2.5" @click="changeZoom(0.1)" />
           </el-button-group>
-          <el-dropdown split-button @click="exportPlan('excel')">
+          <el-dropdown v-if="readonlyMode" split-button @click="exportPlan('excel')">
             <el-icon><Download /></el-icon>
             导出Excel
             <template #dropdown>
@@ -647,11 +620,11 @@ async function onParticipantAdded(participant) {
       >
         <button @click="openSingleAdd">
           <el-icon><User /></el-icon>
-          <span><strong>单个添加</strong><small>录入一位参会人员</small></span>
+          <span><strong>单个添加</strong></span>
         </button>
         <button @click="openBatchImport">
           <el-icon><Upload /></el-icon>
-          <span><strong>上传Excel批量添加</strong><small>解析后预览并确认导入</small></span>
+          <span><strong>上传Excel批量添加</strong></span>
         </button>
       </div>
       <button
@@ -683,6 +656,13 @@ async function onParticipantAdded(participant) {
       :meeting-id="store.workspace.meeting.id"
       @done="store.loadWorkspace"
     />
+    <PublishVersionDialog
+      v-if="store.workspace && !readonlyMode"
+      v-model="publishVisible"
+      :versions="store.workspace.versions"
+      :submitting="publishing"
+      @publish="confirmPublish"
+    />
   </div>
 </template>
 
@@ -707,12 +687,7 @@ async function onParticipantAdded(participant) {
 }
 
 .home-brand .brand-copy {
-  display: grid;
-}
-
-.home-brand .brand-copy small {
-  color: rgba(255, 255, 255, 0.66);
-  font-size: 10px;
+  display: block;
 }
 
 .meeting-selector {
@@ -733,24 +708,6 @@ async function onParticipantAdded(participant) {
 .header-selector :deep(.el-select__placeholder),
 .header-selector :deep(.el-select__caret) {
   color: #fff !important;
-}
-
-.version-option-note {
-  float: right;
-  margin-left: 14px;
-  color: #8794a7;
-}
-
-.header-context {
-  display: grid;
-  gap: 2px;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 10px;
-}
-
-.header-context b {
-  color: #fff;
-  font-weight: 650;
 }
 
 .save-state {
@@ -1009,8 +966,6 @@ async function onParticipantAdded(participant) {
     min-width: 132px;
   }
 
-  .home-brand .brand-copy small,
-  .header-context,
   .save-state {
     display: none;
   }
@@ -1036,13 +991,7 @@ async function onParticipantAdded(participant) {
 }
 
 .add-menu span {
-  display: grid;
-  gap: 2px;
-}
-
-.add-menu small {
-  color: #7c8ca2;
-  font-size: 10px;
+  display: block;
 }
 
 @keyframes blink {

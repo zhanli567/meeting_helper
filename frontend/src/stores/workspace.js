@@ -196,6 +196,10 @@ function createWorkspaceStore() {
   }
   async function exportPlan(type, versionId) {
     if (!workspace.value) return
+    if (!versionId) {
+      ElMessage.warning('草稿版本不支持导出，请先发布版本')
+      return
+    }
     try {
       const data = await meetingApi.exportFile(workspace.value.meeting.id, type, versionId)
       downloadBlob(

@@ -92,7 +92,6 @@ async function deleteVenue(venue) {
       <span class="header-divider" />
       <div class="brand-copy">
         <strong>场馆模板库</strong>
-        <span>选择预置场馆，或创建可复用的自定义布局</span>
       </div>
       <span class="header-spacer" />
       <el-button type="primary" :icon="Plus" @click="router.push('/venues/new')">
@@ -103,7 +102,6 @@ async function deleteVenue(venue) {
     <main v-loading="loading" class="venue-content">
       <section class="venue-intro">
         <div>
-          <span class="eyebrow">REUSABLE VENUE TEMPLATES</span>
           <h1>从真实空间开始安排会议</h1>
           <p>模板保存物理布局；创建会议后会复制为独立快照，临时设备和禁用座位不会修改原场馆。</p>
         </div>
@@ -171,7 +169,6 @@ async function deleteVenue(venue) {
           <button class="create-card" @click="router.push('/venues/new')">
             <span><Plus /></span>
             <strong>设计新的场馆模板</strong>
-            <small>设置网格大小，绘制舞台、座位、走廊、墙和桌子</small>
           </button>
         </section>
       </div>
@@ -420,9 +417,4 @@ async function deleteVenue(venue) {
   width: 24px;
 }
 
-.create-card small {
-  max-width: 250px;
-  line-height: 1.6;
-  text-align: center;
-}
 </style>

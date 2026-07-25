@@ -77,6 +77,10 @@ public class PlanVersionService {
         var plan = planRepository.findById(planId)
                 .filter(value -> !value.isDeleted())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
+        var versionName = request.versionName().trim();
+        if (versionRepository.existsByPlanIdAndVersionNameIgnoreCaseAndDeletedFalse(planId, versionName)) {
+            throw new ApiException(HttpStatus.CONFLICT, "版本名称已存在，请使用其他名称");
+        }
         var nextVersion = versionRepository.findFirstByPlanIdAndDeletedFalseOrderByVersionNoDesc(planId)
                 .map(value -> value.getVersionNo() + 1)
                 .orElse(1);
@@ -98,7 +102,7 @@ public class PlanVersionService {
         var version = new PlanVersionEntity();
         version.setPlanId(planId);
         version.setVersionNo(nextVersion);
-        version.setVersionName(request.versionName());
+        version.setVersionName(versionName);
         version.setChangeNote(request.changeNote());
         version.setAutomatic(request.automatic());
         try {

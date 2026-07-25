@@ -62,7 +62,7 @@ export const meetingApi = {
     return (
       await http.get(`/meetings/${meetingId}/exports/${type}`, {
         responseType: 'arraybuffer',
-        params: versionId ? { versionId } : undefined,
+        params: { versionId },
       })
     ).data
   },

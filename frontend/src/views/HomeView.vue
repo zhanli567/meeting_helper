@@ -31,7 +31,6 @@ function formatTime(value) {
       <div class="brand-mark">席</div>
       <div class="brand-copy">
         <strong>会议排座助手</strong>
-        <span>Meeting Seating Workspace</span>
       </div>
       <span class="header-spacer" />
       <div class="user-context">
@@ -47,7 +46,6 @@ function formatTime(value) {
       <div class="home-content">
         <section class="home-hero">
           <div>
-            <span class="eyebrow">MEETING WORKSPACE</span>
             <h1>今天要安排哪场会议？</h1>
             <p>
               每场会议拥有独立的人员名单、场馆快照和排座版本，后续接入统一认证后按用户与团队隔离。
@@ -72,7 +70,6 @@ function formatTime(value) {
         <section class="home-section">
           <div class="section-heading">
             <div>
-              <span class="eyebrow">MY MEETINGS</span>
               <h2>我的会议</h2>
             </div>
             <el-button type="primary" plain :icon="Plus" @click="router.push('/venues')">

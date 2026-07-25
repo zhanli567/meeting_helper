@@ -309,6 +309,42 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
+    void publishedVersionNamesAreUniqueWithinASeatingPlan() {
+        var venue = venueService.list().getFirst();
+        var meeting = meetingService.create(new CreateMeetingRequest(
+                "版本名称判重测试-" + java.util.UUID.randomUUID(),
+                venue.id()
+        ));
+        var workspace = workspaceService.getWorkspace(meeting.id());
+
+        var published = planVersionService.create(
+                workspace.plan().id(),
+                new CreateVersionRequest("  Final  ", "", false)
+        );
+
+        assertThat(published.versionName()).isEqualTo("Final");
+        assertThatThrownBy(() -> planVersionService.create(
+                workspace.plan().id(),
+                new CreateVersionRequest("final", "", false)
+        ))
+                .hasMessageContaining("版本名称已存在");
+    }
+
+    @Test
+    void draftWorkspaceCannotBeExported() throws Exception {
+        var venue = venueService.list().getFirst();
+        var meeting = meetingService.create(new CreateMeetingRequest(
+                "草稿导出限制测试-" + java.util.UUID.randomUUID(),
+                venue.id()
+        ));
+
+        assertThatThrownBy(() -> exportService.exportExcel(meeting.id(), null))
+                .hasMessageContaining("草稿版本不支持导出");
+        mockMvc.perform(get("/meetings/{meetingId}/exports/excel", meeting.id()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void awardTemplateAndExportsAreGenerated() throws Exception {
         var template = importService.templateFile("AWARD_CEREMONY_V1");
         try (var workbook = new XSSFWorkbook(new ByteArrayInputStream(template))) {
@@ -316,9 +352,18 @@ class MeetingHelperIntegrationTests {
             assertThat(workbook.getSheet("获奖记录")).isNotNull();
         }
 
-        var meeting = meetingRepository.findAllByDeletedFalseOrderByUpdatedAtDesc().getFirst();
-        assertThat(exportService.exportExcel(meeting.getId()).length).isGreaterThan(5_000);
-        assertThat(exportService.exportPdf(meeting.getId()).length).isGreaterThan(5_000);
+        var venue = venueService.list().getFirst();
+        var meeting = meetingService.create(new CreateMeetingRequest(
+                "发布版本导出测试-" + java.util.UUID.randomUUID(),
+                venue.id()
+        ));
+        var workspace = workspaceService.getWorkspace(meeting.id());
+        var version = planVersionService.create(
+                workspace.plan().id(),
+                new CreateVersionRequest("导出确认版", "", false)
+        );
+        assertThat(exportService.exportExcel(meeting.id(), version.id()).length).isGreaterThan(5_000);
+        assertThat(exportService.exportPdf(meeting.id(), version.id()).length).isGreaterThan(5_000);
     }
 
     @Test

@@ -84,13 +84,6 @@ select {
   letter-spacing: 0.03em;
 }
 
-.brand-copy span {
-  display: block;
-  margin-top: 2px;
-  color: rgba(255, 255, 255, 0.64);
-  font-size: 11px;
-}
-
 .header-divider {
   width: 1px;
   height: 30px;
@@ -103,14 +96,6 @@ select {
 
 .muted {
   color: var(--muted);
-}
-
-.eyebrow {
-  color: #718096;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 .panel-title {

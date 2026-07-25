@@ -21,6 +21,7 @@ import {
   resizeRect,
   shouldDismissDesignerOverlays,
 } from '@/utils/designerGeometry'
+import { elementBox, MIN_DISPLAY_CELL_SIZE } from '@/utils/venueCanvasMetrics'
 const router = useRouter()
 const route = useRoute()
 const venueId = computed(() =>
@@ -31,7 +32,7 @@ const config = reactive({
   description: '',
   gridRows: 16,
   gridColumns: 30,
-  cellSize: 34,
+  cellSize: MIN_DISPLAY_CELL_SIZE,
   frontDirection: 'TOP',
 })
 const elements = ref([])
@@ -45,7 +46,6 @@ const pickerPosition = reactive({ left: 420, top: 150 })
 const selectedId = ref()
 const editorDraft = ref()
 const manipulation = ref()
-const editorPosition = reactive({ left: 360, top: 110 })
 const undoStack = ref([])
 const redoStack = ref([])
 const zoom = ref(0.9)
@@ -57,7 +57,7 @@ const panelDock = ref('left')
 const panelCollapsed = ref(false)
 const panelFreePosition = ref()
 const isPanelDragging = ref(false)
-const unit = 32
+const unit = MIN_DISPLAY_CELL_SIZE
 const resizeHandles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 let panStartX = 0
 let panStartY = 0
@@ -149,7 +149,7 @@ onMounted(async () => {
         description: venue.description || '',
         gridRows: venue.gridRows,
         gridColumns: venue.gridColumns,
-        cellSize: venue.cellSize,
+        cellSize: Math.max(venue.cellSize || 0, MIN_DISPLAY_CELL_SIZE),
         frontDirection: venue.frontDirection,
       })
       elements.value = venue.elements.map((element) => ({
@@ -294,7 +294,7 @@ function closePicker() {
 function onCanvasAreaPointerDown(event) {
   const insideOverlay = Boolean(
     event.target.closest(
-      '.element-editor, .element-picker-popover, .floating-settings, .designer-help',
+      '.element-picker-popover, .floating-settings, .designer-help',
     ),
   )
   if (
@@ -386,29 +386,20 @@ function renderElement(element) {
 }
 function elementStyle(element) {
   const visual = renderElement(element)
+  const box = elementBox(visual, unit)
   return {
-    top: `${(visual.row - 1) * unit}px`,
-    left: `${(visual.column - 1) * unit}px`,
-    width: `${visual.columnSpan * unit}px`,
-    height: `${visual.rowSpan * unit}px`,
+    top: `${box.top}px`,
+    left: `${box.left}px`,
+    width: `${box.width}px`,
+    height: `${box.height}px`,
     backgroundColor: visual.backgroundColor,
     borderColor: visual.borderColor,
   }
 }
-function openEditor(element, event) {
+function openEditor(element) {
   selectedId.value = element.localId
   editorDraft.value = { ...element }
-  const area = canvasAreaRef.value?.getBoundingClientRect()
-  if (event && area) {
-    editorPosition.left = Math.min(
-      Math.max(12, event.clientX - area.left + 16),
-      Math.max(12, area.width - 344),
-    )
-    editorPosition.top = Math.min(
-      Math.max(64, event.clientY - area.top + 12),
-      Math.max(64, area.height - 430),
-    )
-  }
+  panelCollapsed.value = false
 }
 function openEditorById(id) {
   const element = elements.value.find((item) => item.localId === id)
@@ -422,7 +413,7 @@ function startElementResize(event, element, handle) {
 }
 function startElementManipulation(event, element, mode, handle) {
   if (event.button !== 0) return
-  openEditor(element, event)
+  openEditor(element)
   manipulation.value = {
     mode,
     handle,
@@ -569,7 +560,7 @@ function renumberSeats() {
 }
 function startPan(event) {
   if (event.button !== 2 || !scrollRef.value) return
-  if (event.target.closest('.floating-settings, .element-editor, button, input')) {
+  if (event.target.closest('.floating-settings, button, input')) {
     return
   }
   closeEditor()
@@ -713,7 +704,6 @@ onBeforeUnmount(() => {
       <span class="header-divider" />
       <div class="brand-copy">
         <strong>{{ venueId ? '编辑场馆布局' : '自定义场馆设计器' }}</strong>
-        <span>框选网格后选择元素；按住鼠标右键拖动画布平移，滚轮缩放</span>
       </div>
       <span class="header-spacer" />
       <el-button type="primary" :loading="saving" @click="save">
@@ -727,10 +717,6 @@ onBeforeUnmount(() => {
       @pointerdown="onCanvasAreaPointerDown"
     >
       <div class="designer-help">
-        <div>
-          <strong>点击或框选网格开始绘制</strong>
-          <span>座位会逐格生成；双击已有元素可快捷删除。</span>
-        </div>
         <div class="canvas-actions">
           <el-button-group>
             <el-button :icon="RefreshLeft" :disabled="!undoStack.length" @click="undo">
@@ -778,7 +764,7 @@ onBeforeUnmount(() => {
               :style="elementStyle(element)"
               :title="`${element.code || ''}${element.code && element.label ? ' · ' : ''}${element.label || typeLabel(element.type)}`"
               @pointerdown="startElementMove($event, element)"
-              @click.stop="openEditor(element, $event)"
+              @click.stop="openEditor(element)"
               @dblclick.stop="removeElement(element)"
             >
               <span v-if="renderElement(element).code" class="element-code">
@@ -874,98 +860,89 @@ onBeforeUnmount(() => {
             </div>
           </el-form>
           <el-button :icon="MagicStick" @click="renumberSeats">按行批量编号座位</el-button>
-          <p>拖动本窗口可吸附到画布左侧、右侧或下方。</p>
+          <template v-if="editorDraft">
+            <el-divider content-position="left">元素属性</el-divider>
+            <div class="editor-heading">
+              <strong>{{ editorDraft.label || typeLabel(editorDraft.type) }}</strong>
+              <el-button text circle :icon="Close" aria-label="关闭元素属性" @click="closeEditor" />
+            </div>
+
+            <div class="editor-grid">
+              <label class="full">
+                元素类型
+                <el-select v-model="editorDraft.type" size="small" @change="applyTypeDefaults">
+                  <el-option
+                    v-for="option in editableOptions"
+                    :key="option.type"
+                    :label="option.label"
+                    :value="option.type"
+                  />
+                </el-select>
+              </label>
+              <p class="geometry-tip full">
+                位置：第 {{ editorDraft.row }} 行、第 {{ editorDraft.column }} 列；尺寸：
+                {{ editorDraft.rowSpan }} × {{ editorDraft.columnSpan }} 格。按住元素拖动位置，拖动边缘或角点调整大小。
+              </p>
+              <label class="full">
+                元素编号
+                <el-input
+                  v-model="editorDraft.code"
+                  size="small"
+                  maxlength="30"
+                  show-word-limit
+                  placeholder="用于座位编号、区域编号，可不填"
+                />
+              </label>
+              <label class="full">
+                元素名称
+                <el-input
+                  v-model="editorDraft.label"
+                  size="small"
+                  maxlength="30"
+                  show-word-limit
+                  placeholder="画布主显示名称"
+                />
+              </label>
+              <div class="color-field full">
+                <span>填充颜色（选择后实时预览）</span>
+                <div class="color-row">
+                  <button
+                    v-for="color in colorSwatches"
+                    :key="color"
+                    type="button"
+                    :class="{ active: editorDraft.backgroundColor === color }"
+                    :style="{ backgroundColor: color }"
+                    :aria-label="`使用颜色 ${color}`"
+                    @click="editorDraft.backgroundColor = color"
+                  />
+                  <el-color-picker v-model="editorDraft.backgroundColor" />
+                </div>
+              </div>
+              <div class="color-field full">
+                <span>边框颜色</span>
+                <div class="color-row">
+                  <button
+                    v-for="color in colorSwatches.slice(0, 9)"
+                    :key="color"
+                    type="button"
+                    :class="{ active: editorDraft.borderColor === color }"
+                    :style="{ backgroundColor: color }"
+                    :aria-label="`使用边框颜色 ${color}`"
+                    @click="editorDraft.borderColor = color"
+                  />
+                  <el-color-picker v-model="editorDraft.borderColor" />
+                </div>
+              </div>
+            </div>
+            <footer class="integrated-editor-actions">
+              <el-button type="danger" plain :icon="Delete" @click="removeSelected">删除</el-button>
+              <span />
+              <el-button @click="closeEditor">取消</el-button>
+              <el-button type="primary" @click="confirmEditor">确认修改</el-button>
+            </footer>
+          </template>
         </div>
       </aside>
-
-      <section
-        v-if="editorDraft"
-        class="element-editor"
-        :style="{ left: `${editorPosition.left}px`, top: `${editorPosition.top}px` }"
-        @pointerdown.stop
-      >
-        <div class="editor-heading">
-          <div>
-            <span>元素属性</span>
-            <strong>{{ editorDraft.label || typeLabel(editorDraft.type) }}</strong>
-          </div>
-          <el-button text circle :icon="Close" aria-label="关闭属性卡" @click="closeEditor" />
-        </div>
-
-        <div class="editor-grid">
-          <label class="full">
-            元素类型
-            <el-select v-model="editorDraft.type" size="small" @change="applyTypeDefaults">
-              <el-option
-                v-for="option in editableOptions"
-                :key="option.type"
-                :label="option.label"
-                :value="option.type"
-              />
-            </el-select>
-          </label>
-          <p class="geometry-tip full">
-            位置：第 {{ editorDraft.row }} 行、第 {{ editorDraft.column }} 列；尺寸：
-            {{ editorDraft.rowSpan }} × {{ editorDraft.columnSpan }} 格。按住元素拖动位置，拖动边缘或角点调整大小。
-          </p>
-          <label class="full">
-            元素编号
-            <el-input
-              v-model="editorDraft.code"
-              size="small"
-              maxlength="30"
-              show-word-limit
-              placeholder="用于座位编号、区域编号，可不填"
-            />
-          </label>
-          <label class="full">
-            元素名称
-            <el-input
-              v-model="editorDraft.label"
-              size="small"
-              maxlength="30"
-              show-word-limit
-              placeholder="画布主显示名称"
-            />
-          </label>
-          <div class="color-field full">
-            <span>填充颜色（选择后实时预览）</span>
-            <div class="color-row">
-              <button
-                v-for="color in colorSwatches"
-                :key="color"
-                type="button"
-                :class="{ active: editorDraft.backgroundColor === color }"
-                :style="{ backgroundColor: color }"
-                :aria-label="`使用颜色 ${color}`"
-                @click="editorDraft.backgroundColor = color"
-              />
-              <el-color-picker v-model="editorDraft.backgroundColor" />
-            </div>
-          </div>
-          <div class="color-field full">
-            <span>边框颜色</span>
-            <div class="color-row">
-              <button
-                v-for="color in colorSwatches.slice(0, 9)"
-                :key="color"
-                type="button"
-                :class="{ active: editorDraft.borderColor === color }"
-                :style="{ backgroundColor: color }"
-                :aria-label="`使用边框颜色 ${color}`"
-                @click="editorDraft.borderColor = color"
-              />
-              <el-color-picker v-model="editorDraft.borderColor" />
-            </div>
-          </div>
-        </div>
-        <footer>
-          <el-button type="danger" plain :icon="Delete" @click="removeSelected">删除</el-button>
-          <span />
-          <el-button @click="closeEditor">取消</el-button>
-          <el-button type="primary" @click="confirmEditor">确认修改</el-button>
-        </footer>
-      </section>
 
       <section
         v-if="pickerVisible && pendingRect"
@@ -976,7 +953,9 @@ onBeforeUnmount(() => {
         <header>
           <div>
             <strong>选择元素</strong>
-            <small>{{ pendingRect.rowSpan }} 行 × {{ pendingRect.columnSpan }} 列</small>
+            <el-tag size="small" effect="plain">
+              {{ pendingRect.rowSpan }} 行 × {{ pendingRect.columnSpan }} 列
+            </el-tag>
           </div>
           <el-button text circle :icon="Close" aria-label="关闭元素选择" @click="closePicker" />
         </header>
@@ -1025,27 +1004,12 @@ onBeforeUnmount(() => {
   min-height: 58px;
   z-index: 40;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: 15px;
   padding: 0 20px;
   background: #fff;
   border-bottom: 1px solid var(--line);
-}
-
-.designer-help > div:first-child {
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
-}
-
-.designer-help strong {
-  font-size: 13px;
-}
-
-.designer-help span {
-  color: #718096;
-  font-size: 11px;
 }
 
 .canvas-actions {
@@ -1238,7 +1202,7 @@ onBeforeUnmount(() => {
 }
 
 .floating-settings {
-  width: 300px;
+  width: 340px;
   max-height: calc(100% - 92px);
   position: absolute;
   z-index: 45;
@@ -1348,19 +1312,6 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-.element-editor {
-  width: 332px;
-  max-height: calc(100% - 84px);
-  position: absolute;
-  z-index: 60;
-  overflow: auto;
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.99);
-  border: 1px solid #8fb3e5;
-  border-radius: 14px;
-  box-shadow: 0 20px 48px rgba(29, 78, 216, 0.22);
-}
-
 .editor-heading {
   display: flex;
   justify-content: space-between;
@@ -1368,17 +1319,6 @@ onBeforeUnmount(() => {
   padding-bottom: 10px;
   margin-bottom: 10px;
   border-bottom: 1px solid #e1eaf5;
-}
-
-.editor-heading > div {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.editor-heading span {
-  color: #75869c;
-  font-size: 10px;
 }
 
 .editor-heading strong {
@@ -1450,7 +1390,7 @@ onBeforeUnmount(() => {
     0 0 0 4px #2563eb;
 }
 
-.element-editor footer {
+.integrated-editor-actions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1459,7 +1399,7 @@ onBeforeUnmount(() => {
   border-top: 1px solid #e5ebf3;
 }
 
-.element-editor footer > span {
+.integrated-editor-actions > span {
   flex: 1;
 }
 

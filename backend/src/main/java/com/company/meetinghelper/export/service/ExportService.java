@@ -2,7 +2,6 @@ package com.company.meetinghelper.export.service;
 
 import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse;
-import com.company.meetinghelper.workspace.service.WorkspaceService;
 import com.company.meetinghelper.seating.service.PlanVersionService;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -33,25 +32,22 @@ import java.util.stream.Collectors;
 
 @Service
 public class ExportService {
-    private final WorkspaceService workspaceService;
     private final PlanVersionService versionService;
 
     /**
      * 创建导出服务。
      *
-     * @param workspaceService 工作区服务
      * @param versionService 版本服务
      */
-    public ExportService(WorkspaceService workspaceService, PlanVersionService versionService) {
-        this.workspaceService = workspaceService;
+    public ExportService(PlanVersionService versionService) {
         this.versionService = versionService;
     }
 
     /**
-     * 将会议当前草稿或发布版本导出为Excel。
+     * 将会议发布版本导出为Excel。
      *
      * @param meetingId 会议ID
-     * @param versionId 可选的发布版本ID
+     * @param versionId 发布版本ID
      * @return Excel文件字节
      */
     public byte[] exportExcel(String meetingId, String versionId) {
@@ -69,20 +65,10 @@ public class ExportService {
     }
 
     /**
-     * 将会议当前草稿导出为Excel。
+     * 将会议发布版本导出为PDF。
      *
      * @param meetingId 会议ID
-     * @return Excel文件字节
-     */
-    public byte[] exportExcel(String meetingId) {
-        return exportExcel(meetingId, null);
-    }
-
-    /**
-     * 将会议当前草稿或发布版本导出为PDF。
-     *
-     * @param meetingId 会议ID
-     * @param versionId 可选的发布版本ID
+     * @param versionId 发布版本ID
      * @return PDF文件字节
      */
     public byte[] exportPdf(String meetingId, String versionId) {
@@ -101,20 +87,11 @@ public class ExportService {
         }
     }
 
-    /**
-     * 将会议当前草稿导出为PDF。
-     *
-     * @param meetingId 会议ID
-     * @return PDF文件字节
-     */
-    public byte[] exportPdf(String meetingId) {
-        return exportPdf(meetingId, null);
-    }
-
     private WorkspaceResponse resolveWorkspace(String meetingId, String versionId) {
-        return versionId == null || versionId.isBlank()
-                ? workspaceService.getWorkspace(meetingId)
-                : versionService.getSnapshotForMeeting(meetingId, versionId);
+        if (versionId == null || versionId.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "草稿版本不支持导出，请先发布版本");
+        }
+        return versionService.getSnapshotForMeeting(meetingId, versionId);
     }
 
     private void writeLayoutSheet(XSSFWorkbook workbook, WorkspaceResponse workspace) {

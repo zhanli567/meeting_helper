@@ -31,13 +31,13 @@ public class ExportController {
      * 导出会议排座Excel文件。
      *
      * @param meetingId 会议ID
-     * @param versionId 可选的发布版本ID
+     * @param versionId 发布版本ID
      * @return Excel文件响应
      */
     @GetMapping("/excel")
     public ResponseEntity<byte[]> excel(
             @PathVariable String meetingId,
-            @RequestParam(required = false) String versionId
+            @RequestParam String versionId
     ) {
         return download(
                 exportService.exportExcel(meetingId, versionId),
@@ -49,13 +49,13 @@ public class ExportController {
      * 导出会议排座PDF文件。
      *
      * @param meetingId 会议ID
-     * @param versionId 可选的发布版本ID
+     * @param versionId 发布版本ID
      * @return PDF文件响应
      */
     @GetMapping("/pdf")
     public ResponseEntity<byte[]> pdf(
             @PathVariable String meetingId,
-            @RequestParam(required = false) String versionId
+            @RequestParam String versionId
     ) {
         return download(exportService.exportPdf(meetingId, versionId), "meeting-seating.pdf", "application/pdf");
     }
