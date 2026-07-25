@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import {
-  attendingPendingCount,
-  isValidEmployeeNo,
-  participantCanBeSeated,
-} from '../src/utils/participantRules.js'
+import * as participantRules from '../src/utils/participantRules.js'
+
+const { attendingPendingCount, isValidEmployeeNo, participantCanBeSeated } = participantRules
 
 test('工号只接受 8 位数字或小写字母加 8 位数字', () => {
   assert.equal(isValidEmployeeNo('12345678'), true)
@@ -22,4 +20,12 @@ test('临时不出席人员不参与待排校验且不能排座', () => {
   ]
   assert.equal(attendingPendingCount(participants), 1)
   assert.equal(participantCanBeSeated(participants[1]), false)
+})
+
+test('新增人员时按工号忽略大小写识别会议内重复人员', () => {
+  assert.equal(typeof participantRules.hasDuplicateEmployeeNo, 'function')
+  const participants = [{ employeeNo: 'a12345678' }, { employeeNo: '87654321' }]
+
+  assert.equal(participantRules.hasDuplicateEmployeeNo('A12345678', participants), true)
+  assert.equal(participantRules.hasDuplicateEmployeeNo('12345678', participants), false)
 })

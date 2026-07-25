@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -93,7 +95,7 @@ class MeetingHelperIntegrationTests {
         var participant = participantService.create(
                 meeting.id(),
                 new CreateParticipantRequest(
-                        "12345678", "测试人员", 10, "测试部门", "参会人员", "", java.util.Map.of()
+                        "12345678", "测试人员", 10, "测试部门", "参会人员", "", java.util.Map.of(), null
                 )
         );
         var workspace = workspaceService.getWorkspace(meeting.id());
@@ -120,6 +122,43 @@ class MeetingHelperIntegrationTests {
                 absentWorkspace.plan().id(),
                 new CreateVersionRequest("临时不出席版本", "", false)
         ).unassignedCount()).isZero();
+    }
+
+    @Test
+    void creatingParticipantFromEmptySeatAssignsTheNewParticipantAtomically() throws Exception {
+        var venue = venueService.list().getFirst();
+        var meeting = meetingService.create(new CreateMeetingRequest(
+                "空座新增人员测试-" + java.util.UUID.randomUUID(),
+                venue.id()
+        ));
+        var before = workspaceService.getWorkspace(meeting.id());
+        var seat = before.layout().elements().stream()
+                .filter(value -> value.assignable() && value.capacity() == 1)
+                .findFirst()
+                .orElseThrow();
+
+        mockMvc.perform(post("/meetings/{meetingId}/participants", meeting.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "employeeNo": "87654321",
+                                  "name": "直接落座人员",
+                                  "level": 12,
+                                  "department": "测试部门",
+                                  "participantType": "参会人员",
+                                  "tags": "",
+                                  "attributes": {},
+                                  "targetElementId": "%s"
+                                }
+                                """.formatted(seat.id())))
+                .andExpect(status().isOk());
+
+        var after = workspaceService.getWorkspace(meeting.id());
+        var participant = after.participants().stream()
+                .filter(value -> value.employeeNo().equals("87654321"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(participant.assignedElementId()).isEqualTo(seat.id());
     }
 
     @Test

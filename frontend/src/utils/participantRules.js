@@ -5,6 +5,14 @@ export function isValidEmployeeNo(value) {
   return /^(?:\d{8}|[a-z]\d{8})$/.test(value?.trim() || '')
 }
 
+export function hasDuplicateEmployeeNo(value, participants = []) {
+  const normalized = value?.trim().toLocaleLowerCase()
+  if (!normalized) return false
+  return participants.some(
+    (participant) => participant.employeeNo?.trim().toLocaleLowerCase() === normalized,
+  )
+}
+
 export function isTemporarilyAbsent(participant) {
   return participant?.attendanceStatus === TEMPORARILY_ABSENT
 }

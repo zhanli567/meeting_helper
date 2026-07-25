@@ -8,10 +8,13 @@ import com.company.meetinghelper.participant.api.dto.response.ParticipantResult;
 import com.company.meetinghelper.participant.entity.AttendanceStatus;
 import com.company.meetinghelper.participant.entity.ParticipantEntity;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
+import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
 import com.company.meetinghelper.seating.repository.PlanItemRepository;
 import com.company.meetinghelper.seating.repository.PlanItemTargetRepository;
 import com.company.meetinghelper.seating.entity.PlanItemType;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
+import com.company.meetinghelper.seating.service.SeatingService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +29,7 @@ public class ParticipantService {
     private final SeatingPlanRepository planRepository;
     private final PlanItemRepository itemRepository;
     private final PlanItemTargetRepository targetRepository;
+    private final SeatingService seatingService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -36,6 +40,7 @@ public class ParticipantService {
      * @param planRepository 排座方案仓储
      * @param itemRepository 排座明细仓储
      * @param targetRepository 排座目标仓储
+     * @param seatingService 排座服务
      * @param objectMapper JSON序列化器
      */
     public ParticipantService(
@@ -44,6 +49,7 @@ public class ParticipantService {
             SeatingPlanRepository planRepository,
             PlanItemRepository itemRepository,
             PlanItemTargetRepository targetRepository,
+            SeatingService seatingService,
             ObjectMapper objectMapper
     ) {
         this.meetingRepository = meetingRepository;
@@ -51,6 +57,7 @@ public class ParticipantService {
         this.planRepository = planRepository;
         this.itemRepository = itemRepository;
         this.targetRepository = targetRepository;
+        this.seatingService = seatingService;
         this.objectMapper = objectMapper;
     }
 
@@ -86,7 +93,19 @@ public class ParticipantService {
         } catch (Exception exception) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "扩展属性格式不正确");
         }
-        participantRepository.save(participant);
+        try {
+            participantRepository.saveAndFlush(participant);
+        } catch (DataIntegrityViolationException exception) {
+            throw new ApiException(HttpStatus.CONFLICT, "该工号已在会议名单中");
+        }
+        if (request.targetElementId() != null && !request.targetElementId().isBlank()) {
+            var plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
+            seatingService.assign(
+                    plan.getId(),
+                    new AssignmentRequest(participant.getId(), request.targetElementId())
+            );
+        }
         return new ParticipantResult(participant.getId(), participant.getEmployeeNo(), participant.getName());
     }
 

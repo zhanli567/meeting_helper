@@ -99,9 +99,10 @@ function onDrop(event, element) {
 }
 function onSeatClick(element) {
   if (panMoved) return
+  const item = itemFor(element.id)
   const person = participantFor(element.id)
   if (person) emit('select', person)
-  else emit('seatClick', element)
+  else if (!item) emit('seatClick', element)
 }
 function onSeatDoubleClick(element) {
   if (props.readonly) return

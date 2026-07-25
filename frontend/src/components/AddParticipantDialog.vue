@@ -3,10 +3,12 @@ import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
-import { isValidEmployeeNo } from '@/utils/participantRules'
+import { hasDuplicateEmployeeNo, isValidEmployeeNo } from '@/utils/participantRules'
 const visible = defineModel({ required: true })
 const props = defineProps({
   meetingId: { type: String, required: true },
+  targetElementId: { type: String, default: undefined },
+  participants: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['done'])
 const formRef = ref()
@@ -24,10 +26,12 @@ const rules = {
     { required: true, message: '请输入工号', trigger: 'blur' },
     {
       validator: (_rule, value, callback) =>
-        isValidEmployeeNo(value)
-          ? callback()
-          : callback(new Error('工号必须为8位数字或1个小写字母加8位数字')),
-      trigger: 'blur',
+        !isValidEmployeeNo(value)
+          ? callback(new Error('工号必须为8位数字或1个小写字母加8位数字'))
+          : hasDuplicateEmployeeNo(value, props.participants)
+            ? callback(new Error('该工号已在当前会议名单中'))
+            : callback(),
+      trigger: ['blur', 'change'],
     },
   ],
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
@@ -37,8 +41,14 @@ async function submit() {
   if (!valid) return
   submitting.value = true
   try {
-    await meetingApi.addParticipant(props.meetingId, { ...form, attributes: {} })
-    ElMessage.success('人员已加入待排列表')
+    const participant = await meetingApi.addParticipant(props.meetingId, {
+      ...form,
+      attributes: {},
+      targetElementId: props.targetElementId,
+    })
+    ElMessage.success(
+      props.targetElementId ? '人员已添加并安排到所选座位' : '人员已加入待排列表',
+    )
     visible.value = false
     Object.assign(form, {
       employeeNo: '',
@@ -48,7 +58,7 @@ async function submit() {
       participantType: '获奖人员',
       tags: '',
     })
-    emit('done')
+    emit('done', participant)
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
   } finally {
@@ -58,7 +68,11 @@ async function submit() {
 </script>
 
 <template>
-  <el-dialog v-model="visible" title="新增参会人员" width="520px">
+  <el-dialog
+    v-model="visible"
+    :title="targetElementId ? '在所选空座新增人员' : '新增参会人员'"
+    width="520px"
+  >
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
       <div class="form-grid">
         <el-form-item label="工号" prop="employeeNo">
@@ -88,7 +102,9 @@ async function submit() {
     </el-form>
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="submitting" @click="submit">加入待排列表</el-button>
+      <el-button type="primary" :loading="submitting" @click="submit">
+        {{ targetElementId ? '添加并安排到该座位' : '加入待排列表' }}
+      </el-button>
     </template>
   </el-dialog>
 </template>

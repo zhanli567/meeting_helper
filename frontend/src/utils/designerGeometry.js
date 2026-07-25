@@ -28,3 +28,11 @@ export function resizeRect(rect, handle, deltaRows, deltaColumns, bounds) {
     columnSpan: right - left + 1,
   }
 }
+
+export function activeSelectionRect(drawingRect, pendingRect) {
+  return drawingRect || pendingRect
+}
+
+export function shouldDismissDesignerOverlays({ hasOverlay, insideOverlay }) {
+  return Boolean(hasOverlay) && !insideOverlay
+}

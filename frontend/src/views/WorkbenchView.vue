@@ -22,6 +22,7 @@ import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { attendingPendingCount } from '@/utils/participantRules'
+import { placeFloatingMenu } from '@/utils/workbenchLayout'
 const router = useRouter()
 const route = useRoute()
 const store = useWorkspaceStore()
@@ -37,6 +38,8 @@ const publishedWorkspace = ref()
 const loadingVersion = ref(false)
 const publishing = ref(false)
 const addMenuVisible = ref(false)
+const addTargetElementId = ref()
+const participantPanelCollapsed = ref(false)
 const autoSaveSeconds = ref(0)
 const fabReady = ref(false)
 const fab = reactive({
@@ -69,11 +72,16 @@ const fabStyle = computed(() => ({
   top: `${fab.y}px`,
 }))
 const addMenuStyle = computed(() => {
-  const width = 220
-  const height = 108
+  const position = placeFloatingMenu({
+    anchor: { x: fab.x, y: fab.y, width: 48, height: 48 },
+    menu: { width: 220, height: 132 },
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    gap: 10,
+    margin: 10,
+  })
   return {
-    left: `${Math.min(Math.max(10, fab.x - width + 48), window.innerWidth - width - 10)}px`,
-    top: `${Math.min(Math.max(70, fab.y - height - 10), window.innerHeight - height - 10)}px`,
+    left: `${position.left}px`,
+    top: `${position.top}px`,
   }
 })
 onMounted(async () => {
@@ -278,8 +286,12 @@ async function redo() {
   applyingHistory.value = false
   undoStack.value.push(action)
 }
-function onSeatClick() {
-  if (!readonlyMode.value) openSingleAdd()
+async function onSeatClick(element) {
+  if (readonlyMode.value || !element?.id) return
+  if (!(await saveDraft(true))) return
+  addTargetElementId.value = element.id
+  addMenuVisible.value = false
+  addVisible.value = true
 }
 function selectParticipant(person) {
   store.selectParticipant(person)
@@ -396,6 +408,7 @@ function scheduleAddMenuHide() {
 }
 async function openSingleAdd() {
   if (!(await saveDraft(true))) return
+  addTargetElementId.value = undefined
   addMenuVisible.value = false
   addVisible.value = true
 }
@@ -403,6 +416,14 @@ async function openBatchImport() {
   if (!(await saveDraft(true))) return
   addMenuVisible.value = false
   importVisible.value = true
+}
+async function onParticipantAdded(participant) {
+  addTargetElementId.value = undefined
+  await store.loadWorkspace()
+  if (participant) {
+    const added = store.workspace?.participants.find((person) => person.id === participant.id)
+    if (added) store.selectParticipant(added)
+  }
 }
 </script>
 
@@ -513,7 +534,11 @@ async function openBatchImport() {
       </el-button>
     </header>
 
-    <main v-if="workspace" class="workspace-layout">
+    <main
+      v-if="workspace"
+      class="workspace-layout"
+      :class="{ 'participant-collapsed': participantPanelCollapsed }"
+    >
       <section class="canvas-panel">
         <div class="canvas-toolbar">
           <div class="canvas-title">
@@ -569,16 +594,6 @@ async function openBatchImport() {
           </el-dropdown>
         </div>
 
-        <div class="legend-bar">
-          <span><i class="legend-seat" /> 空座位</span>
-          <span v-for="rule in workspace.styleRules" :key="rule.value">
-            <i :style="{ backgroundColor: rule.backgroundColor }" />
-            {{ rule.value }}
-          </span>
-          <span><i class="legend-guest" /> 嘉宾（无批次底色）</span>
-          <span><i class="legend-device" /> 设备/禁用</span>
-        </div>
-
         <div class="canvas-body">
           <VenueCanvas
             :workspace="workspace"
@@ -597,18 +612,29 @@ async function openBatchImport() {
 
       </section>
 
-      <ParticipantPanel
-        :participants="workspace.participants"
-        :field-definitions="workspace.fieldDefinitions"
-        :selected-id="store.selectedParticipantId"
-        :saving="store.saving"
-        :readonly="readonlyMode"
-        @select="selectParticipant"
-        @unassign="performUnassign"
-        @attendance="updateParticipantAttendance"
-        @remove="removeParticipant"
-        @drag-state="draggingParticipantId = $event"
-      />
+      <div class="participant-side">
+        <button
+          class="participant-panel-toggle"
+          :title="participantPanelCollapsed ? '展开人员安排' : '收起人员安排'"
+          :aria-label="participantPanelCollapsed ? '展开人员安排' : '收起人员安排'"
+          @click="participantPanelCollapsed = !participantPanelCollapsed"
+        >
+          {{ participantPanelCollapsed ? '‹' : '›' }}
+        </button>
+        <ParticipantPanel
+          v-show="!participantPanelCollapsed"
+          :participants="workspace.participants"
+          :field-definitions="workspace.fieldDefinitions"
+          :selected-id="store.selectedParticipantId"
+          :saving="store.saving"
+          :readonly="readonlyMode"
+          @select="selectParticipant"
+          @unassign="performUnassign"
+          @attendance="updateParticipantAttendance"
+          @remove="removeParticipant"
+          @drag-state="draggingParticipantId = $event"
+        />
+      </div>
     </main>
 
     <template v-if="workspace && !readonlyMode && fabReady">
@@ -647,7 +673,9 @@ async function openBatchImport() {
       v-if="store.workspace && !readonlyMode"
       v-model="addVisible"
       :meeting-id="store.workspace.meeting.id"
-      @done="store.loadWorkspace"
+      :target-element-id="addTargetElementId"
+      :participants="store.workspace.participants"
+      @done="onParticipantAdded"
     />
     <ImportDialog
       v-if="store.workspace && !readonlyMode"
@@ -788,6 +816,46 @@ async function openBatchImport() {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 390px;
   overflow: hidden;
+  transition: grid-template-columns 0.18s ease;
+}
+
+.workspace-layout.participant-collapsed {
+  grid-template-columns: minmax(0, 1fr) 36px;
+}
+
+.participant-side {
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  background: #fff;
+}
+
+.participant-panel-toggle {
+  width: 27px;
+  height: 52px;
+  position: absolute;
+  top: calc(50% - 26px);
+  left: -13px;
+  z-index: 25;
+  padding: 0;
+  color: #3565a6;
+  background: #fff;
+  border: 1px solid #b9cce6;
+  border-radius: 14px 0 0 14px;
+  box-shadow: -5px 4px 12px rgba(37, 85, 151, 0.12);
+  cursor: pointer;
+  font-size: 23px;
+  line-height: 1;
+}
+
+.participant-panel-toggle:hover {
+  color: #174f99;
+  background: #edf5ff;
+}
+
+.participant-collapsed .participant-panel-toggle {
+  left: 4px;
+  border-radius: 14px;
 }
 
 .canvas-panel {
@@ -864,45 +932,6 @@ async function openBatchImport() {
   padding: 0;
   color: #64748b;
   pointer-events: none;
-}
-
-.legend-bar {
-  min-height: 34px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 0 18px;
-  overflow-x: auto;
-  color: #718096;
-  background: #fafbfc;
-  border-bottom: 1px solid #e5e9ef;
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.legend-bar span {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.legend-bar i {
-  width: 10px;
-  height: 10px;
-  display: inline-block;
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  border-radius: 2px;
-}
-
-.legend-bar .legend-guest {
-  background: #fff;
-  border: 2px solid #718096;
-}
-
-.legend-bar .legend-device {
-  background: repeating-linear-gradient(-45deg, #f8d978 0, #f8d978 3px, #fff0b8 3px, #fff0b8 6px);
 }
 
 .canvas-body {

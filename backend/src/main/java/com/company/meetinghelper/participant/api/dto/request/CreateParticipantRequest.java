@@ -17,6 +17,7 @@ public record CreateParticipantRequest(
         String department,
         String participantType,
         String tags,
-        Map<String, String> attributes
+        Map<String, String> attributes,
+        String targetElementId
 ) {
 }

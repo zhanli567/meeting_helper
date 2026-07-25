@@ -15,7 +15,12 @@ import {
 import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
-import { moveRect, resizeRect } from '@/utils/designerGeometry'
+import {
+  activeSelectionRect,
+  moveRect,
+  resizeRect,
+  shouldDismissDesignerOverlays,
+} from '@/utils/designerGeometry'
 const router = useRouter()
 const route = useRoute()
 const venueId = computed(() =>
@@ -104,13 +109,14 @@ const stageStyle = computed(() => ({
 const previewRect = computed(() =>
   drawing.value ? normalizedRect(drawing.value.start, drawing.value.current) : undefined,
 )
-const previewStyle = computed(() => {
-  if (!previewRect.value) return {}
+const selectionRect = computed(() => activeSelectionRect(previewRect.value, pendingRect.value))
+const selectionStyle = computed(() => {
+  if (!selectionRect.value) return {}
   return {
-    top: `${(previewRect.value.row - 1) * unit}px`,
-    left: `${(previewRect.value.column - 1) * unit}px`,
-    width: `${previewRect.value.columnSpan * unit}px`,
-    height: `${previewRect.value.rowSpan * unit}px`,
+    top: `${(selectionRect.value.row - 1) * unit}px`,
+    left: `${(selectionRect.value.column - 1) * unit}px`,
+    width: `${selectionRect.value.columnSpan * unit}px`,
+    height: `${selectionRect.value.rowSpan * unit}px`,
   }
 })
 const panelStyle = computed(() =>
@@ -239,6 +245,17 @@ function normalizedRect(start, end) {
 function onGridPointerDown(event) {
   if (event.button !== 0) return
   if (event.target.closest('.draft-element')) return
+  if (
+    shouldDismissDesignerOverlays({
+      hasOverlay: Boolean(editorDraft.value || pickerVisible.value),
+      insideOverlay: false,
+    })
+  ) {
+    closeEditor()
+    closePicker()
+    event.preventDefault()
+    return
+  }
   closeEditor()
   pickerVisible.value = false
   pendingRect.value = undefined
@@ -273,6 +290,22 @@ function onGridPointerUp(event) {
 function closePicker() {
   pickerVisible.value = false
   pendingRect.value = undefined
+}
+function onCanvasAreaPointerDown(event) {
+  const insideOverlay = Boolean(
+    event.target.closest(
+      '.element-editor, .element-picker-popover, .floating-settings, .designer-help',
+    ),
+  )
+  if (
+    shouldDismissDesignerOverlays({
+      hasOverlay: Boolean(editorDraft.value || pickerVisible.value),
+      insideOverlay,
+    })
+  ) {
+    closeEditor()
+    closePicker()
+  }
 }
 function chooseElement(type) {
   const rect = pendingRect.value
@@ -688,7 +721,11 @@ onBeforeUnmount(() => {
       </el-button>
     </header>
 
-    <main ref="canvasAreaRef" class="designer-canvas-area">
+    <main
+      ref="canvasAreaRef"
+      class="designer-canvas-area"
+      @pointerdown="onCanvasAreaPointerDown"
+    >
       <div class="designer-help">
         <div>
           <strong>点击或框选网格开始绘制</strong>
@@ -763,7 +800,14 @@ onBeforeUnmount(() => {
               </template>
             </div>
 
-            <div v-if="previewRect" class="draw-preview" :style="previewStyle">松开后选择元素</div>
+            <div
+              v-if="selectionRect"
+              class="draw-preview"
+              :class="{ pending: !drawing }"
+              :style="selectionStyle"
+            >
+              {{ drawing ? '松开后选择元素' : '已选择该区域，请在卡片中选择元素' }}
+            </div>
           </div>
         </div>
       </div>
@@ -1175,6 +1219,22 @@ onBeforeUnmount(() => {
   font-size: 10px;
   font-weight: 700;
   pointer-events: none;
+}
+
+.draw-preview.pending {
+  color: #174f99;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(96, 165, 250, 0.3) 0,
+      rgba(96, 165, 250, 0.3) 8px,
+      rgba(219, 234, 254, 0.62) 8px,
+      rgba(219, 234, 254, 0.62) 16px
+    );
+  border-width: 3px;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.92) inset,
+    0 8px 22px rgba(37, 99, 235, 0.2);
 }
 
 .floating-settings {

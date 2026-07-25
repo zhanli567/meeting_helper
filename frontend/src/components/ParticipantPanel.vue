@@ -248,10 +248,7 @@ function leavePanel(event) {
       <span>共 {{ filtered.length }} 人</span>
     </div>
 
-    <div v-if="!readonly" class="pending-drop" :class="{ active: dropActive }">
-      {{ dropActive ? '松开鼠标，移回待排列表' : '将已排人员拖到右侧任意位置，可移回待排列表' }}
-    </div>
-    <div v-else class="readonly-note">当前为已发布版本，仅供查看</div>
+    <div v-if="readonly" class="readonly-note">当前为已发布版本，仅供查看</div>
   </aside>
 </template>
 
@@ -483,7 +480,6 @@ function leavePanel(event) {
   --el-pagination-button-height: 24px;
 }
 
-.pending-drop,
 .readonly-note {
   flex: none;
   padding: 8px 10px;
@@ -502,10 +498,4 @@ function leavePanel(event) {
   border-color: #c7daf4;
 }
 
-.pending-drop.active {
-  color: #174f99;
-  background: #dcecff;
-  border-color: #5b91da;
-  font-weight: 700;
-}
 </style>
