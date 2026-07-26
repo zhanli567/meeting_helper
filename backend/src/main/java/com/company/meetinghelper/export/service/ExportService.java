@@ -1,6 +1,7 @@
 package com.company.meetinghelper.export.service;
 
 import com.company.meetinghelper.common.exception.ApiException;
+import com.company.meetinghelper.meeting.service.MeetingAccessService;
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse;
 import com.company.meetinghelper.seating.service.PlanVersionService;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -26,6 +27,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -33,14 +35,20 @@ import java.util.stream.Collectors;
 @Service
 public class ExportService {
     private final PlanVersionService versionService;
+    private final MeetingAccessService meetingAccessService;
 
     /**
      * 创建导出服务。
      *
      * @param versionService 版本服务
+     * @param meetingAccessService 会议归属校验服务
      */
-    public ExportService(PlanVersionService versionService) {
+    public ExportService(
+            PlanVersionService versionService,
+            MeetingAccessService meetingAccessService
+    ) {
         this.versionService = versionService;
+        this.meetingAccessService = meetingAccessService;
     }
 
     /**
@@ -53,10 +61,9 @@ public class ExportService {
     public byte[] exportExcel(String meetingId, String versionId) {
         var workspace = resolveWorkspace(meetingId, versionId);
         try (var workbook = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
+            writeParticipantSheet(workbook, workspace);
             writeLayoutSheet(workbook, workspace);
             writeSeatDetailSheet(workbook, workspace);
-            writeParticipantSheet(workbook, workspace, false);
-            writeParticipantSheet(workbook, workspace, true);
             workbook.write(output);
             return output.toByteArray();
         } catch (IOException exception) {
@@ -88,6 +95,7 @@ public class ExportService {
     }
 
     private WorkspaceResponse resolveWorkspace(String meetingId, String versionId) {
+        meetingAccessService.requireOwnedMeeting(meetingId);
         if (versionId == null || versionId.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "草稿版本不支持导出，请先发布版本");
         }
@@ -125,7 +133,7 @@ public class ExportService {
             var participant = item == null || item.participantId() == null
                     ? null
                     : participantById.get(item.participantId());
-            cell.setCellValue(elementText(element, item, participant));
+            cell.setCellValue(elementText(element, item, participant, workspace));
             cell.setCellStyle(createElementStyle(workbook, element, item, participant));
         }
     }
@@ -133,15 +141,14 @@ public class ExportService {
     private String elementText(
             WorkspaceResponse.ElementView element,
             WorkspaceResponse.PlanItemView item,
-            WorkspaceResponse.ParticipantView participant
+            WorkspaceResponse.ParticipantView participant,
+            WorkspaceResponse workspace
     ) {
         if ("SEAT".equals(element.type())) {
             if (participant != null) {
-                var batch = participant.primaryBatchName() == null ? "" : "\n" + participant.primaryBatchName();
-                var repeats = participant.repeatedBatches().isEmpty()
-                        ? ""
-                        : "\n复：" + String.join("、", participant.repeatedBatches());
-                return nullToEmpty(element.code()) + "\n" + participant.name() + batch + repeats;
+                var summary = firstDynamicSummary(participant, workspace);
+                return nullToEmpty(element.code()) + "\n" + participant.name()
+                        + (summary.isBlank() ? "" : "\n" + summary);
             }
             if (item != null) {
                 return nullToEmpty(element.code()) + "\n" + nullToEmpty(item.label());
@@ -165,9 +172,7 @@ public class ExportService {
         style.setBorderTop(BorderStyle.THIN);
         style.setBorderLeft(BorderStyle.THIN);
         style.setBorderRight(BorderStyle.THIN);
-        var color = participant != null && participant.displayColor() != null
-                ? participant.displayColor()
-                : item != null && item.backgroundColor() != null
+        var color = item != null && item.backgroundColor() != null
                 ? item.backgroundColor()
                 : element.backgroundColor();
         if (color != null) {
@@ -184,8 +189,10 @@ public class ExportService {
 
     private void writeSeatDetailSheet(XSSFWorkbook workbook, WorkspaceResponse workspace) {
         var sheet = workbook.createSheet("座位明细");
-        var headers = new String[]{"座位编号", "元素类型", "人员工号", "姓名", "人员类型", "主批次", "重复批次"};
-        writeHeaderRow(sheet, headers);
+        var participantFields = dynamicFields(workspace);
+        var headers = new java.util.ArrayList<>(List.of("座位编号", "元素类型", "人员工号", "姓名"));
+        participantFields.forEach(field -> headers.add(field.label()));
+        writeHeaderRow(sheet, headers.toArray(String[]::new));
         var participantById = workspace.participants().stream()
                 .collect(Collectors.toMap(WorkspaceResponse.ParticipantView::id, Function.identity()));
         var itemByElement = new LinkedHashMap<String, WorkspaceResponse.PlanItemView>();
@@ -200,38 +207,65 @@ public class ExportService {
             row.createCell(1).setCellValue(item == null ? "座位" : item.type());
             row.createCell(2).setCellValue(participant == null ? "" : participant.employeeNo());
             row.createCell(3).setCellValue(participant == null ? "" : participant.name());
-            row.createCell(4).setCellValue(participant == null ? "" : nullToEmpty(participant.participantType()));
-            row.createCell(5).setCellValue(participant == null ? "" : nullToEmpty(participant.primaryBatchName()));
-            row.createCell(6).setCellValue(participant == null ? "" : String.join("、", participant.repeatedBatches()));
+            for (var fieldIndex = 0; fieldIndex < participantFields.size(); fieldIndex++) {
+                var value = participant == null
+                        ? ""
+                        : primaryAttributes(participant).getOrDefault(
+                                participantFields.get(fieldIndex).code(),
+                                ""
+                        );
+                row.createCell(4 + fieldIndex).setCellValue(value);
+            }
         }
-        autosize(sheet, headers.length);
+        autosize(sheet, headers.size());
     }
 
-    private void writeParticipantSheet(XSSFWorkbook workbook, WorkspaceResponse workspace, boolean onlyUnassigned) {
-        var sheet = workbook.createSheet(onlyUnassigned ? "待排人员" : "人员名单");
-        var headers = new String[]{"工号", "姓名", "职级", "部门", "人员类型", "主批次", "座位编号"};
-        writeHeaderRow(sheet, headers);
-        var elementById = workspace.layout().elements().stream()
-                .collect(Collectors.toMap(WorkspaceResponse.ElementView::id, Function.identity()));
+    private void writeParticipantSheet(XSSFWorkbook workbook, WorkspaceResponse workspace) {
+        var sheet = workbook.createSheet("人员名单");
+        var participantFields = dynamicFields(workspace);
+        var headers = new java.util.ArrayList<>(List.of("工号", "姓名"));
+        participantFields.forEach(field -> headers.add(field.label()));
+        writeHeaderRow(sheet, headers.toArray(String[]::new));
         int rowIndex = 1;
         for (var participant : workspace.participants()) {
-            if (onlyUnassigned && participant.assignedElementId() != null) {
+            var records = participant.records() == null
+                    ? List.<WorkspaceResponse.ParticipantRecordView>of()
+                    : participant.records();
+            if (records.isEmpty()) {
+                writeParticipantRow(
+                        sheet.createRow(rowIndex++),
+                        participant,
+                        participantFields,
+                        Map.of()
+                );
                 continue;
             }
-            var row = sheet.createRow(rowIndex++);
-            row.createCell(0).setCellValue(participant.employeeNo());
-            row.createCell(1).setCellValue(participant.name());
-            if (participant.level() != null) {
-                row.createCell(2).setCellValue(participant.level());
+            for (var record : records) {
+                writeParticipantRow(
+                        sheet.createRow(rowIndex++),
+                        participant,
+                        participantFields,
+                        record.attributes() == null ? Map.of() : record.attributes()
+                );
             }
-            row.createCell(3).setCellValue(nullToEmpty(participant.department()));
-            row.createCell(4).setCellValue(nullToEmpty(participant.participantType()));
-            row.createCell(5).setCellValue(nullToEmpty(participant.primaryBatchName()));
-            var element = participant.assignedElementId() == null
-                    ? null : elementById.get(participant.assignedElementId());
-            row.createCell(6).setCellValue(element == null ? "" : nullToEmpty(element.code()));
         }
-        autosize(sheet, headers.length);
+        autosize(sheet, headers.size());
+    }
+
+    private void writeParticipantRow(
+            org.apache.poi.ss.usermodel.Row row,
+            WorkspaceResponse.ParticipantView participant,
+            List<WorkspaceResponse.FieldDefinitionView> participantFields,
+            Map<String, String> attributes
+    ) {
+        row.createCell(0).setCellValue(participant.employeeNo());
+        row.createCell(1).setCellValue(participant.name());
+        for (var fieldIndex = 0; fieldIndex < participantFields.size(); fieldIndex++) {
+            row.createCell(2 + fieldIndex).setCellValue(attributes.getOrDefault(
+                    participantFields.get(fieldIndex).code(),
+                    ""
+            ));
+        }
     }
 
     private void writeHeaderRow(org.apache.poi.ss.usermodel.Sheet sheet, String[] headers) {
@@ -284,9 +318,7 @@ public class ExportService {
             var item = itemByElement.get(element.id());
             var participant = item == null || item.participantId() == null
                     ? null : participantById.get(item.participantId());
-            var color = participant != null && participant.displayColor() != null
-                    ? participant.displayColor()
-                    : item != null && item.backgroundColor() != null
+            var color = item != null && item.backgroundColor() != null
                     ? item.backgroundColor()
                     : element.backgroundColor();
             if (color != null) {
@@ -298,7 +330,7 @@ public class ExportService {
             content.setLineWidth(0.4f);
             content.addRect(x, y, width, height);
             content.stroke();
-            var text = compactText(element, item, participant);
+            var text = compactText(element, item, participant, workspace);
             if (!text.isBlank() && width > 10 && height > 7) {
                 content.beginText();
                 content.setNonStrokingColor(new Color(30, 41, 59));
@@ -313,11 +345,17 @@ public class ExportService {
     private String compactText(
             WorkspaceResponse.ElementView element,
             WorkspaceResponse.PlanItemView item,
-            WorkspaceResponse.ParticipantView participant
+            WorkspaceResponse.ParticipantView participant,
+            WorkspaceResponse workspace
     ) {
         if ("SEAT".equals(element.type())) {
             if (participant != null) {
-                return truncate(element.code() + " " + participant.name(), 18);
+                var summary = firstDynamicSummary(participant, workspace);
+                return truncate(
+                        element.code() + " " + participant.name()
+                                + (summary.isBlank() ? "" : " " + summary),
+                        18
+                );
             }
             if (item != null) {
                 return truncate(element.code() + " " + nullToEmpty(item.label()), 18);
@@ -325,6 +363,38 @@ public class ExportService {
             return truncate(nullToEmpty(element.code()), 12);
         }
         return truncate(nullToEmpty(element.label()), 18);
+    }
+
+    private String firstDynamicSummary(
+            WorkspaceResponse.ParticipantView participant,
+            WorkspaceResponse workspace
+    ) {
+        var primaryAttributes = primaryAttributes(participant);
+        return dynamicFields(workspace).stream()
+                .map(field -> primaryAttributes.get(field.code()))
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst()
+                .orElse("");
+    }
+
+    private List<WorkspaceResponse.FieldDefinitionView> dynamicFields(
+            WorkspaceResponse workspace
+    ) {
+        if (workspace.fieldDefinitions() == null) {
+            return List.of();
+        }
+        return workspace.fieldDefinitions().stream()
+                .filter(field -> !"name".equals(field.code())
+                        && !"employeeNo".equals(field.code()))
+                .toList();
+    }
+
+    private Map<String, String> primaryAttributes(
+            WorkspaceResponse.ParticipantView participant
+    ) {
+        return participant.primaryAttributes() == null
+                ? Map.of()
+                : participant.primaryAttributes();
     }
 
     private PDFont loadChineseFont(PDDocument document) throws IOException {

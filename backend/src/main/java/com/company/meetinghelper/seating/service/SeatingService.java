@@ -2,6 +2,7 @@ package com.company.meetinghelper.seating.service;
 
 import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.meeting.repository.MeetingElementRepository;
+import com.company.meetinghelper.meeting.service.MeetingAccessService;
 import com.company.meetinghelper.participant.entity.AttendanceStatus;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
 import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
@@ -29,6 +30,7 @@ public class SeatingService {
     private final PlanItemTargetRepository targetRepository;
     private final ParticipantRepository participantRepository;
     private final MeetingElementRepository elementRepository;
+    private final MeetingAccessService meetingAccessService;
 
     /**
      * 创建排座服务。
@@ -38,19 +40,22 @@ public class SeatingService {
      * @param targetRepository 排座目标仓储
      * @param participantRepository 参会人员仓储
      * @param elementRepository 会议元素仓储
+     * @param meetingAccessService 会议归属校验服务
      */
     public SeatingService(
             SeatingPlanRepository planRepository,
             PlanItemRepository itemRepository,
             PlanItemTargetRepository targetRepository,
             ParticipantRepository participantRepository,
-            MeetingElementRepository elementRepository
+            MeetingElementRepository elementRepository,
+            MeetingAccessService meetingAccessService
     ) {
         this.planRepository = planRepository;
         this.itemRepository = itemRepository;
         this.targetRepository = targetRepository;
         this.participantRepository = participantRepository;
         this.elementRepository = elementRepository;
+        this.meetingAccessService = meetingAccessService;
     }
 
     /**
@@ -62,23 +67,20 @@ public class SeatingService {
     @Transactional
     public void assign(String planId, AssignmentRequest request) {
         var plan = requirePlan(planId);
-        var participant = participantRepository.findById(request.participantId())
-                .filter(value -> !value.isDeleted())
+        var participant = participantRepository.findByIdAndMeetingIdAndDeletedFalse(
+                        request.participantId(),
+                        plan.getMeetingId()
+                )
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "人员不存在"));
-        if (!participant.getMeetingId().equals(plan.getMeetingId())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "人员不属于当前会议");
-        }
         if (participant.getAttendanceStatus() == AttendanceStatus.TEMPORARILY_ABSENT) {
             throw new ApiException(HttpStatus.CONFLICT, "临时不出席人员不能安排座位");
         }
-        if (participant.isLocked()) {
-            throw new ApiException(HttpStatus.CONFLICT, "该人员已锁定，无法移动");
-        }
-        var targetElement = elementRepository.findById(request.targetElementId())
-                .filter(value -> !value.isDeleted())
+        var targetElement = elementRepository.findByIdAndMeetingIdAndDeletedFalse(
+                        request.targetElementId(),
+                        plan.getMeetingId()
+                )
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "目标座位不存在"));
-        if (!targetElement.getMeetingId().equals(plan.getMeetingId())
-                || !targetElement.isAssignable()
+        if (!targetElement.isAssignable()
                 || targetElement.getCapacity() != 1) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "目标位置不是可用的单人座席");
         }
@@ -166,13 +168,16 @@ public class SeatingService {
             }
             var participant = participants.get(assignment.participantId());
             if (participant == null) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "提交的人员不属于当前会议");
+                throw new ApiException(HttpStatus.NOT_FOUND, "人员不存在");
             }
             if (participant.getAttendanceStatus() == AttendanceStatus.TEMPORARILY_ABSENT) {
                 throw new ApiException(HttpStatus.CONFLICT, "临时不出席人员不能安排座位");
             }
             var element = elements.get(assignment.targetElementId());
-            if (element == null || !element.isAssignable() || element.getCapacity() != 1) {
+            if (element == null) {
+                throw new ApiException(HttpStatus.NOT_FOUND, "目标座位不存在");
+            }
+            if (!element.isAssignable() || element.getCapacity() != 1) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "提交的目标位置不是可用的单人座席");
             }
         }
@@ -203,9 +208,7 @@ public class SeatingService {
                 }
                 continue;
             }
-            var participant = participants.get(item.getParticipantId());
-            var locked = item.isLocked() || (participant != null && participant.isLocked());
-            if (locked) {
+            if (item.isLocked()) {
                 var requestedTarget = requestedTargetByParticipant.get(item.getParticipantId());
                 if (target == null || !target.getMeetingElementId().equals(requestedTarget)) {
                     throw new ApiException(HttpStatus.CONFLICT, "已锁定人员的座位不能修改或移除");
@@ -214,13 +217,6 @@ public class SeatingService {
             } else {
                 editableItems.add(item);
             }
-        }
-        var newlyLockedParticipant = request.assignments().stream()
-                .map(value -> participants.get(value.participantId()))
-                .filter(value -> value.isLocked() && !lockedParticipantIds.contains(value.getId()))
-                .findFirst();
-        if (newlyLockedParticipant.isPresent()) {
-            throw new ApiException(HttpStatus.CONFLICT, "已锁定人员不能新增或修改座位");
         }
         if (targetElementIds.stream().anyMatch(reservedTargetIds::contains)) {
             throw new ApiException(HttpStatus.CONFLICT, "目标座位已被设备、预留或禁用状态占用");
@@ -303,9 +299,7 @@ public class SeatingService {
     }
 
     private SeatingPlanEntity requirePlan(String planId) {
-        return planRepository.findById(planId)
-                .filter(value -> !value.isDeleted())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
+        return meetingAccessService.requireOwnedPlan(planId);
     }
 
     private void touch(SeatingPlanEntity plan) {

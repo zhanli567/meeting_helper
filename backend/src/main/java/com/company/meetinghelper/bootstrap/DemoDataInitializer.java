@@ -1,13 +1,14 @@
 package com.company.meetinghelper.bootstrap;
 
-import com.company.meetinghelper.award.entity.AwardRecordEntity;
-import com.company.meetinghelper.award.repository.AwardRecordRepository;
-import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
 import com.company.meetinghelper.meeting.entity.MeetingElementEntity;
+import com.company.meetinghelper.meeting.entity.MeetingEntity;
 import com.company.meetinghelper.meeting.repository.MeetingElementRepository;
 import com.company.meetinghelper.meeting.repository.MeetingRepository;
-import com.company.meetinghelper.meeting.service.MeetingService;
+import com.company.meetinghelper.participant.entity.MeetingParticipantFieldEntity;
 import com.company.meetinghelper.participant.entity.ParticipantEntity;
+import com.company.meetinghelper.participant.entity.ParticipantRecordEntity;
+import com.company.meetinghelper.participant.repository.MeetingParticipantFieldRepository;
+import com.company.meetinghelper.participant.repository.ParticipantRecordRepository;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
 import com.company.meetinghelper.seating.entity.PlanItemEntity;
 import com.company.meetinghelper.seating.entity.PlanItemTargetEntity;
@@ -17,69 +18,142 @@ import com.company.meetinghelper.seating.repository.PlanItemRepository;
 import com.company.meetinghelper.seating.repository.PlanItemTargetRepository;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
 import com.company.meetinghelper.venue.entity.ElementType;
+import com.company.meetinghelper.venue.preset.PresetVenueDefinition;
 import com.company.meetinghelper.venue.preset.PresetVenueStore;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
 public class DemoDataInitializer implements ApplicationRunner {
+    private static final String DEMO_USER_ID = "demo-secretary";
+    private static final String DEMO_MEETING_NAME = "2026年度荣誉表彰大会";
+    private static final List<String> PARTICIPANT_FIELD_NAMES =
+            List.of("部门", "人员类型", "职级", "批次", "奖项名称");
+
     private final MeetingRepository meetingRepository;
     private final MeetingElementRepository meetingElementRepository;
     private final ParticipantRepository participantRepository;
-    private final AwardRecordRepository awardRepository;
+    private final MeetingParticipantFieldRepository fieldRepository;
+    private final ParticipantRecordRepository recordRepository;
     private final SeatingPlanRepository planRepository;
     private final PlanItemRepository itemRepository;
     private final PlanItemTargetRepository targetRepository;
-    private final MeetingService meetingService;
     private final PresetVenueStore presetVenueStore;
+    private final ObjectMapper objectMapper;
 
     public DemoDataInitializer(
             MeetingRepository meetingRepository,
             MeetingElementRepository meetingElementRepository,
             ParticipantRepository participantRepository,
-            AwardRecordRepository awardRepository,
+            MeetingParticipantFieldRepository fieldRepository,
+            ParticipantRecordRepository recordRepository,
             SeatingPlanRepository planRepository,
             PlanItemRepository itemRepository,
             PlanItemTargetRepository targetRepository,
-            MeetingService meetingService,
-            PresetVenueStore presetVenueStore
+            PresetVenueStore presetVenueStore,
+            ObjectMapper objectMapper
     ) {
         this.meetingRepository = meetingRepository;
         this.meetingElementRepository = meetingElementRepository;
         this.participantRepository = participantRepository;
-        this.awardRepository = awardRepository;
+        this.fieldRepository = fieldRepository;
+        this.recordRepository = recordRepository;
         this.planRepository = planRepository;
         this.itemRepository = itemRepository;
         this.targetRepository = targetRepository;
-        this.meetingService = meetingService;
         this.presetVenueStore = presetVenueStore;
+        this.objectMapper = objectMapper;
     }
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (meetingRepository.count() > 0) {
+        var demoMeetingExists = meetingRepository
+                .findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(DEMO_USER_ID)
+                .stream()
+                .anyMatch(value -> DEMO_MEETING_NAME.equals(value.getName()));
+        if (demoMeetingExists) {
             return;
         }
         var presetVenue = presetVenueStore.findAll().getFirst();
-        var createdMeeting = meetingService.create(
-                new CreateMeetingRequest("2026年度荣誉表彰大会", presetVenue.id())
-        );
-        var meeting = meetingRepository.findById(createdMeeting.id()).orElseThrow();
+        var meeting = createDemoMeeting(presetVenue);
         var meetingElements = meetingElementRepository
                 .findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(meeting.getId());
+        createParticipantFields(meeting.getId());
         var participants = createParticipants(meeting.getId());
         participantRepository.saveAll(participants);
-        createAwards(participants);
+        createParticipantRecords(participants);
         var plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meeting.getId())
                 .orElseThrow();
         createInitialPlacements(plan, participants, meetingElements);
+    }
+
+    private MeetingEntity createDemoMeeting(PresetVenueDefinition venue) {
+        var meeting = new MeetingEntity();
+        meeting.setName(DEMO_MEETING_NAME);
+        meeting.setStatus("DRAFT");
+        meeting.setLayoutName(venue.name());
+        meeting.setGridRows(venue.gridRows());
+        meeting.setGridColumns(venue.gridColumns());
+        meeting.setCellSize(venue.cellSize());
+        meeting.setLayoutVersion(1);
+        meeting.setCreatedById(DEMO_USER_ID);
+        meeting.setCreatedByName("演示秘书");
+        meeting.setUpdatedById(DEMO_USER_ID);
+        meeting.setUpdatedByName("演示秘书");
+        meetingRepository.save(meeting);
+
+        var copiedElements = venue.elements().stream().map(source -> {
+            var target = new MeetingElementEntity();
+            target.setMeetingId(meeting.getId());
+            target.setElementType(ElementType.valueOf(source.type()));
+            target.setCode(source.code());
+            target.setLabel(source.label());
+            target.setGridRow(source.row());
+            target.setGridColumn(source.column());
+            target.setRowSpan(source.rowSpan());
+            target.setColumnSpan(source.columnSpan());
+            target.setRotation(source.rotation());
+            target.setCapacity(source.capacity());
+            target.setAssignable(source.assignable());
+            target.setWalkable(source.walkable());
+            target.setGroupCode(source.groupCode());
+            target.setGroupLabel(source.groupLabel());
+            target.setSequenceNo(source.sequenceNo());
+            target.setBackgroundColor(source.backgroundColor());
+            target.setBorderColor(source.borderColor());
+            return target;
+        }).toList();
+        meetingElementRepository.saveAll(copiedElements);
+
+        var plan = new SeatingPlanEntity();
+        plan.setMeetingId(meeting.getId());
+        plan.setName("默认排座方案");
+        plan.setStatus("DRAFT");
+        plan.setCurrentVersionNo(0);
+        planRepository.save(plan);
+        return meeting;
+    }
+
+    private void createParticipantFields(String meetingId) {
+        var fields = new ArrayList<MeetingParticipantFieldEntity>();
+        for (int index = 0; index < PARTICIPANT_FIELD_NAMES.size(); index++) {
+            var field = new MeetingParticipantFieldEntity();
+            field.setMeetingId(meetingId);
+            field.setFieldName(PARTICIPANT_FIELD_NAMES.get(index));
+            field.setSortOrder(index + 1);
+            fields.add(field);
+        }
+        fieldRepository.saveAll(fields);
     }
 
     private List<ParticipantEntity> createParticipants(String meetingId) {
@@ -89,55 +163,75 @@ public class DemoDataInitializer implements ApplicationRunner {
                 "秦牧川", "温如许", "贺知章", "黎清和", "夏予安", "白修远", "孟知微",
                 "韩墨", "罗清越", "梁知夏", "邵云帆", "谢景初", "余念安", "杜若衡"
         );
-        var departments = List.of("平台研发部", "产品设计部", "数据智能部", "企业服务部", "质量工程部");
         var participants = new ArrayList<ParticipantEntity>();
         for (int index = 0; index < names.size(); index++) {
             var participant = new ParticipantEntity();
             participant.setMeetingId(meetingId);
             participant.setEmployeeNo("a" + String.format("%08d", index + 1));
             participant.setName(names.get(index));
-            participant.setLevelValue(20 - index % 7);
-            participant.setDepartment(departments.get(index % departments.size()));
-            participant.setParticipantType(index < 3 ? "特邀嘉宾" : index < 6 ? "嘉宾" : "获奖人员");
-            participant.setTags(index % 4 == 0 ? "高级专家" : index % 5 == 0 ? "团队代表" : "");
-            participant.setCustomAttributesJson("{}");
             participants.add(participant);
         }
         return participants;
     }
 
-    private void createAwards(List<ParticipantEntity> participants) {
+    private void createParticipantRecords(List<ParticipantEntity> participants) {
+        var departments = List.of("平台研发部", "产品设计部", "数据智能部", "企业服务部", "质量工程部");
         var awardNames = List.of("卓越创新奖", "客户价值奖", "技术突破奖", "优秀项目奖");
+        var records = new ArrayList<ParticipantRecordEntity>();
         for (int index = 0; index < participants.size(); index++) {
             var participant = participants.get(index);
-            int batch = index % 8 + 1;
-            awardRepository.save(award(
-                    participant.getId(), batch, "第" + chineseNumber(batch) + "批",
-                    awardNames.get(index % awardNames.size()), "项目" + (index + 1)));
-            if (index % 6 == 0) {
+            var commonAttributes = new LinkedHashMap<String, String>();
+            commonAttributes.put("部门", departments.get(index % departments.size()));
+            commonAttributes.put("人员类型", index < 3 ? "特邀嘉宾" : index < 6 ? "嘉宾" : "参会人员");
+            commonAttributes.put("职级", String.valueOf(20 - index % 7));
+            int batch = index == 0 ? 2 : index % 8 + 1;
+            records.add(participantRecord(
+                    participant.getId(),
+                    1,
+                    commonAttributes,
+                    "第" + chineseNumber(batch) + "批",
+                    awardNames.get(index % awardNames.size())
+            ));
+            if (index == 0) {
+                records.add(participantRecord(
+                        participant.getId(),
+                        2,
+                        commonAttributes,
+                        "第三批",
+                        "特别贡献奖"
+                ));
+            } else if (index % 6 == 0) {
                 int repeated = Math.min(10, batch + 3);
-                awardRepository.save(award(
-                        participant.getId(), repeated, "第" + chineseNumber(repeated) + "批",
-                        "特别贡献奖", "联合项目" + (index + 1)));
+                records.add(participantRecord(
+                        participant.getId(),
+                        2,
+                        commonAttributes,
+                        "第" + chineseNumber(repeated) + "批",
+                        "特别贡献奖"
+                ));
             }
         }
+        recordRepository.saveAll(records);
     }
 
-    private AwardRecordEntity award(
+    private ParticipantRecordEntity participantRecord(
             String participantId,
-            int batch,
+            int recordOrder,
+            Map<String, String> commonAttributes,
             String batchName,
-            String awardName,
-            String project
+            String awardName
     ) {
-        var record = new AwardRecordEntity();
+        var attributes = new LinkedHashMap<>(commonAttributes);
+        attributes.put("批次", batchName);
+        attributes.put("奖项名称", awardName);
+        var record = new ParticipantRecordEntity();
         record.setParticipantId(participantId);
-        record.setBatchOrder(batch);
-        record.setBatchName(batchName);
-        record.setAwardName(awardName);
-        record.setAwardLevel("年度奖");
-        record.setProjectName(project);
-        record.setTeamSize(1);
+        record.setRecordOrder(recordOrder);
+        try {
+            record.setAttributesJson(objectMapper.writeValueAsString(attributes));
+        } catch (Exception exception) {
+            throw new IllegalStateException("序列化演示人员动态记录失败", exception);
+        }
         return record;
     }
 

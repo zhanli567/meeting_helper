@@ -2,8 +2,15 @@ package com.company.meetinghelper.seating.service;
 
 import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.meeting.repository.MeetingElementRepository;
+import com.company.meetinghelper.meeting.service.MeetingAccessService;
 import com.company.meetinghelper.participant.entity.AttendanceStatus;
+import com.company.meetinghelper.participant.entity.MeetingParticipantFieldEntity;
+import com.company.meetinghelper.participant.entity.ParticipantEntity;
+import com.company.meetinghelper.participant.entity.ParticipantRecordEntity;
+import com.company.meetinghelper.participant.repository.MeetingParticipantFieldRepository;
+import com.company.meetinghelper.participant.repository.ParticipantRecordRepository;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
+import com.company.meetinghelper.participant.service.ParticipantFieldRegistrationService;
 import com.company.meetinghelper.seating.api.dto.request.CreateVersionRequest;
 import com.company.meetinghelper.seating.api.dto.response.RestoreVersionResult;
 import com.company.meetinghelper.seating.api.dto.response.VersionResult;
@@ -22,6 +29,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+
 @Service
 public class PlanVersionService {
     private final SeatingPlanRepository planRepository;
@@ -29,9 +40,13 @@ public class PlanVersionService {
     private final PlanItemRepository itemRepository;
     private final PlanItemTargetRepository targetRepository;
     private final ParticipantRepository participantRepository;
+    private final ParticipantFieldRegistrationService fieldRegistrationService;
+    private final MeetingParticipantFieldRepository fieldRepository;
+    private final ParticipantRecordRepository recordRepository;
     private final MeetingElementRepository elementRepository;
     private final WorkspaceService workspaceService;
     private final ObjectMapper objectMapper;
+    private final MeetingAccessService meetingAccessService;
 
     /**
      * 创建排座版本服务。
@@ -41,9 +56,13 @@ public class PlanVersionService {
      * @param itemRepository 排座明细仓储
      * @param targetRepository 排座目标仓储
      * @param participantRepository 参会人员仓储
+     * @param fieldRegistrationService 人员动态字段注册服务
+     * @param fieldRepository 会议人员字段仓储
+     * @param recordRepository 人员动态记录仓储
      * @param elementRepository 会议元素仓储
      * @param workspaceService 工作区服务
      * @param objectMapper JSON序列化器
+     * @param meetingAccessService 会议归属校验服务
      */
     public PlanVersionService(
             SeatingPlanRepository planRepository,
@@ -51,18 +70,26 @@ public class PlanVersionService {
             PlanItemRepository itemRepository,
             PlanItemTargetRepository targetRepository,
             ParticipantRepository participantRepository,
+            ParticipantFieldRegistrationService fieldRegistrationService,
+            MeetingParticipantFieldRepository fieldRepository,
+            ParticipantRecordRepository recordRepository,
             MeetingElementRepository elementRepository,
             WorkspaceService workspaceService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            MeetingAccessService meetingAccessService
     ) {
         this.planRepository = planRepository;
         this.versionRepository = versionRepository;
         this.itemRepository = itemRepository;
         this.targetRepository = targetRepository;
         this.participantRepository = participantRepository;
+        this.fieldRegistrationService = fieldRegistrationService;
+        this.fieldRepository = fieldRepository;
+        this.recordRepository = recordRepository;
         this.elementRepository = elementRepository;
         this.workspaceService = workspaceService;
         this.objectMapper = objectMapper;
+        this.meetingAccessService = meetingAccessService;
     }
 
     /**
@@ -74,9 +101,7 @@ public class PlanVersionService {
      */
     @Transactional
     public VersionResult create(String planId, CreateVersionRequest request) {
-        var plan = planRepository.findById(planId)
-                .filter(value -> !value.isDeleted())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
+        var plan = meetingAccessService.requireOwnedPlan(planId);
         var versionName = request.versionName().trim();
         if (versionRepository.existsByPlanIdAndVersionNameIgnoreCaseAndDeletedFalse(planId, versionName)) {
             throw new ApiException(HttpStatus.CONFLICT, "版本名称已存在，请使用其他名称");
@@ -131,9 +156,7 @@ public class PlanVersionService {
      */
     @Transactional
     public RestoreVersionResult restore(String planId, String versionId) {
-        var plan = planRepository.findById(planId)
-                .filter(value -> !value.isDeleted())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
+        var plan = meetingAccessService.requireOwnedPlan(planId);
         var version = versionRepository.findById(versionId)
                 .filter(value -> !value.isDeleted() && value.getPlanId().equals(planId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "方案版本不存在"));
@@ -143,11 +166,11 @@ public class PlanVersionService {
             throw new ApiException(HttpStatus.CONFLICT, "方案版本不属于当前会议");
         }
 
+        fieldRegistrationService.lockMeeting(plan.getMeetingId());
         var currentParticipants = participantRepository
                 .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(plan.getMeetingId());
-        var participantIds = currentParticipants.stream()
-                .map(value -> value.getId())
-                .collect(java.util.stream.Collectors.toSet());
+        var participantsIncludingDeleted = participantRepository
+                .findAllByMeetingIdOrderByDeletedAscNameAsc(plan.getMeetingId());
         var elementIds = elementRepository
                 .findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(plan.getMeetingId())
                 .stream()
@@ -160,23 +183,19 @@ public class PlanVersionService {
         itemRepository.deleteAll(currentItems);
         itemRepository.flush();
 
-        var snapshotParticipants = snapshot.participants().stream()
-                .collect(java.util.stream.Collectors.toMap(
-                        WorkspaceResponse.ParticipantView::id,
-                        value -> value,
-                        (left, right) -> left
-                ));
-        currentParticipants.forEach(participant -> {
-            var source = snapshotParticipants.get(participant.getId());
-            if (source != null && source.attendanceStatus() != null) {
-                participant.setAttendanceStatus(AttendanceStatus.valueOf(source.attendanceStatus()));
-            }
-        });
-        participantRepository.saveAll(currentParticipants);
+        restoreFieldDefinitions(plan.getMeetingId(), snapshot, currentParticipants);
+        var participantIdsBySnapshotId = restoreParticipants(
+                plan.getMeetingId(),
+                participantsIncludingDeleted,
+                snapshot
+        );
 
         var restoredItems = 0;
         for (var source : snapshot.items()) {
-            if (source.participantId() != null && !participantIds.contains(source.participantId())) {
+            var participantId = source.participantId() == null
+                    ? null
+                    : participantIdsBySnapshotId.get(source.participantId());
+            if (source.participantId() != null && participantId == null) {
                 continue;
             }
             var validTargets = source.targetElementIds().stream().filter(elementIds::contains).toList();
@@ -186,7 +205,7 @@ public class PlanVersionService {
             var item = new PlanItemEntity();
             item.setPlanId(planId);
             item.setItemType(PlanItemType.valueOf(source.type()));
-            item.setParticipantId(source.participantId());
+            item.setParticipantId(participantId);
             item.setLabel(source.label());
             item.setLocked(source.locked());
             item.setBackgroundColor(source.backgroundColor());
@@ -218,9 +237,7 @@ public class PlanVersionService {
      */
     @Transactional(readOnly = true)
     public WorkspaceResponse getSnapshot(String planId, String versionId) {
-        var plan = planRepository.findById(planId)
-                .filter(value -> !value.isDeleted())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
+        var plan = meetingAccessService.requireOwnedPlan(planId);
         var version = versionRepository.findById(versionId)
                 .filter(value -> !value.isDeleted() && value.getPlanId().equals(planId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "方案版本不存在"));
@@ -240,6 +257,7 @@ public class PlanVersionService {
      */
     @Transactional(readOnly = true)
     public WorkspaceResponse getSnapshotForMeeting(String meetingId, String versionId) {
+        meetingAccessService.requireOwnedMeeting(meetingId);
         var plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议尚未建立排座方案"));
         return getSnapshot(plan.getId(), versionId);
@@ -247,10 +265,363 @@ public class PlanVersionService {
 
     private WorkspaceResponse readSnapshot(PlanVersionEntity version) {
         try {
-            return objectMapper.readValue(version.getSnapshotJson(), WorkspaceResponse.class);
+            var snapshotNode = objectMapper.readTree(version.getSnapshotJson());
+            adaptLegacySnapshot(snapshotNode);
+            return objectMapper.readValue(
+                    objectMapper.writeValueAsString(snapshotNode),
+                    WorkspaceResponse.class
+            );
         } catch (Exception exception) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "读取方案快照失败");
         }
+    }
+
+    private void adaptLegacySnapshot(tools.jackson.databind.JsonNode snapshotNode) {
+        if (!(snapshotNode instanceof tools.jackson.databind.node.ObjectNode root)
+                || !root.path("participants").isArray()
+                || !hasLegacyParticipants(root.path("participants"))) {
+            return;
+        }
+        var legacyFields = legacyFields(root);
+        root.set("fieldDefinitions", legacyFieldDefinitions(legacyFields));
+        for (var participantNode : root.path("participants")) {
+            if (!(participantNode instanceof tools.jackson.databind.node.ObjectNode participant)) {
+                continue;
+            }
+            var attributesNode = participant.path("attributes");
+            var record = new LinkedHashMap<String, String>();
+            for (var field : legacyFields) {
+                var value = text(attributesNode.path(field.sourceCode()));
+                if (value.isBlank()) {
+                    value = text(attributesNode.path(field.label()));
+                }
+                putNonBlank(
+                        record,
+                        field.label(),
+                        value
+                );
+            }
+            var records = new ArrayList<LinkedHashMap<String, String>>();
+            if (!record.isEmpty()) {
+                records.add(record);
+            }
+            writeLegacyParticipantRecords(participant, legacyFields, records);
+        }
+    }
+
+    private boolean hasLegacyParticipants(tools.jackson.databind.JsonNode participants) {
+        for (var participant : participants) {
+            if (!participant.has("records") && participant.path("attributes").isObject()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private java.util.List<LegacyField> legacyFields(
+            tools.jackson.databind.node.ObjectNode root
+    ) {
+        var fields = new ArrayList<LegacyField>();
+        var definitions = root.path("fieldDefinitions");
+        if (definitions.isArray() && !definitions.isEmpty()) {
+            for (var definition : definitions) {
+                var code = text(definition.path("code"));
+                if ("name".equals(code) || "employeeNo".equals(code)) {
+                    continue;
+                }
+                var label = text(definition.path("label"));
+                addLegacyField(fields, code, label.isBlank() ? code : label);
+            }
+        }
+        for (var participant : root.path("participants")) {
+            var attributes = participant.path("attributes");
+            if (!attributes.isObject()) {
+                continue;
+            }
+            for (var entry : attributes.properties()) {
+                addLegacyField(fields, entry.getKey(), entry.getKey());
+            }
+        }
+        return fields;
+    }
+
+    private void addLegacyField(
+            java.util.List<LegacyField> fields,
+            String sourceCode,
+            String label
+    ) {
+        if (sourceCode == null || sourceCode.isBlank() || label == null || label.isBlank()
+                || fields.stream().anyMatch(value -> normalize(value.label())
+                .equals(normalize(label)))) {
+            return;
+        }
+        fields.add(new LegacyField(sourceCode, label));
+    }
+
+    private tools.jackson.databind.node.ArrayNode legacyFieldDefinitions(
+            java.util.List<LegacyField> legacyFields
+    ) {
+        var definitions = objectMapper.createArrayNode();
+        definitions.add(fieldDefinitionNode("name", "姓名", false, true));
+        definitions.add(fieldDefinitionNode("employeeNo", "工号", false, false));
+        legacyFields.forEach(field -> definitions.add(
+                fieldDefinitionNode(field.label(), field.label(), true, false)
+        ));
+        return definitions;
+    }
+
+    private tools.jackson.databind.node.ObjectNode fieldDefinitionNode(
+            String code,
+            String label,
+            boolean filterable,
+            boolean cardVisible
+    ) {
+        var field = objectMapper.createObjectNode();
+        field.put("code", code);
+        field.put("label", label);
+        field.put("type", "TEXT");
+        field.put("searchable", true);
+        field.put("filterable", filterable);
+        field.put("sortable", true);
+        field.put("cardVisible", cardVisible);
+        return field;
+    }
+
+    private void writeLegacyParticipantRecords(
+            tools.jackson.databind.node.ObjectNode participant,
+            java.util.List<LegacyField> fields,
+            java.util.List<LinkedHashMap<String, String>> records
+    ) {
+        var primaryAttributes = objectMapper.createObjectNode();
+        var attributeValues = objectMapper.createObjectNode();
+        for (var field : fields) {
+            var values = records.stream()
+                    .map(record -> record.get(field.label()))
+                    .filter(value -> value != null && !value.isBlank())
+                    .distinct()
+                    .toList();
+            if (values.isEmpty()) {
+                continue;
+            }
+            primaryAttributes.put(field.label(), values.getFirst());
+            var valueArray = objectMapper.createArrayNode();
+            values.forEach(valueArray::add);
+            attributeValues.set(field.label(), valueArray);
+        }
+        var recordNodes = objectMapper.createArrayNode();
+        var participantId = text(participant.path("id"));
+        for (var index = 0; index < records.size(); index++) {
+            var recordNode = objectMapper.createObjectNode();
+            recordNode.put("id", "legacy-" + participantId + "-" + (index + 1));
+            recordNode.put("recordOrder", index + 1);
+            var attributes = objectMapper.createObjectNode();
+            records.get(index).forEach(attributes::put);
+            recordNode.set("attributes", attributes);
+            recordNodes.add(recordNode);
+        }
+        participant.set("primaryAttributes", primaryAttributes);
+        participant.set("attributeValues", attributeValues);
+        participant.set("records", recordNodes);
+    }
+
+    private void putNonBlank(
+            java.util.Map<String, String> attributes,
+            String fieldName,
+            String value
+    ) {
+        if (value != null && !value.isBlank()) {
+            attributes.put(fieldName, value);
+        }
+    }
+
+    private String text(tools.jackson.databind.JsonNode value) {
+        return value == null || value.isNull() || value.isMissingNode()
+                ? ""
+                : value.asText();
+    }
+
+    private void restoreFieldDefinitions(
+            String meetingId,
+            WorkspaceResponse snapshot,
+            java.util.List<ParticipantEntity> currentParticipants
+    ) {
+        if (snapshot.fieldDefinitions() == null) {
+            return;
+        }
+        var currentFields = fieldRepository
+                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+        var snapshotEmployeeNumbers = snapshot.participants() == null
+                ? java.util.Set.<String>of()
+                : snapshot.participants().stream()
+                        .map(value -> normalize(value.employeeNo()))
+                        .collect(java.util.stream.Collectors.toSet());
+        var laterParticipantIds = currentParticipants.stream()
+                .filter(value -> !snapshotEmployeeNumbers.contains(
+                        normalize(value.getEmployeeNo())
+                ))
+                .map(ParticipantEntity::getId)
+                .toList();
+        var laterFieldNames = new java.util.LinkedHashSet<String>();
+        if (!laterParticipantIds.isEmpty()) {
+            recordRepository
+                    .findAllByParticipantIdInAndDeletedFalseOrderByParticipantIdAscRecordOrderAsc(
+                            laterParticipantIds
+                    )
+                    .forEach(record -> readRecordAttributes(record.getAttributesJson())
+                            .keySet()
+                            .forEach(value -> laterFieldNames.add(normalize(value))));
+        }
+        fieldRepository.deleteAll(currentFields);
+        fieldRepository.flush();
+
+        var restoredNames = new java.util.LinkedHashSet<String>();
+        var sortOrder = 0;
+        for (var source : snapshot.fieldDefinitions()) {
+            if ("name".equals(source.code()) || "employeeNo".equals(source.code())) {
+                continue;
+            }
+            var fieldName = source.label() == null || source.label().isBlank()
+                    ? source.code()
+                    : source.label();
+            if (fieldName == null || fieldName.isBlank()
+                    || !restoredNames.add(normalize(fieldName))) {
+                continue;
+            }
+            var field = new MeetingParticipantFieldEntity();
+            field.setMeetingId(meetingId);
+            field.setFieldName(fieldName);
+            field.setSortOrder(++sortOrder);
+            fieldRepository.save(field);
+        }
+        for (var source : currentFields) {
+            if (!laterFieldNames.contains(normalize(source.getFieldName()))
+                    || !restoredNames.add(normalize(source.getFieldName()))) {
+                continue;
+            }
+            var field = new MeetingParticipantFieldEntity();
+            field.setMeetingId(meetingId);
+            field.setFieldName(source.getFieldName());
+            field.setSortOrder(++sortOrder);
+            fieldRepository.save(field);
+        }
+        fieldRepository.flush();
+    }
+
+    private java.util.Map<String, String> readRecordAttributes(String json) {
+        if (json == null || json.isBlank()) {
+            return java.util.Map.of();
+        }
+        try {
+            return objectMapper.readValue(
+                    json,
+                    new tools.jackson.core.type.TypeReference<java.util.Map<String, String>>() {
+                    }
+            );
+        } catch (Exception exception) {
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "读取人员动态记录失败"
+            );
+        }
+    }
+
+    private LinkedHashMap<String, String> restoreParticipants(
+            String meetingId,
+            java.util.List<ParticipantEntity> currentParticipants,
+            WorkspaceResponse snapshot
+    ) {
+        var participantByEmployeeNo = new LinkedHashMap<String, ParticipantEntity>();
+        currentParticipants.forEach(participant -> participantByEmployeeNo.putIfAbsent(
+                normalize(participant.getEmployeeNo()),
+                participant
+        ));
+        var participantIdsBySnapshotId = new LinkedHashMap<String, String>();
+        var restoredParticipants = new ArrayList<ParticipantEntity>();
+        var recordsToDelete = new ArrayList<ParticipantRecordEntity>();
+        var snapshotParticipants = snapshot.participants() == null
+                ? java.util.List.<WorkspaceResponse.ParticipantView>of()
+                : snapshot.participants();
+        for (var source : snapshotParticipants) {
+            var participant = participantByEmployeeNo.get(normalize(source.employeeNo()));
+            if (participant == null) {
+                participant = new ParticipantEntity();
+                participant.setMeetingId(meetingId);
+                participant.setEmployeeNo(source.employeeNo());
+                participantByEmployeeNo.put(normalize(source.employeeNo()), participant);
+            }
+            participant.setName(source.name());
+            participant.setAttendanceStatus(attendanceStatus(source.attendanceStatus()));
+            participant.setDeleted(false);
+            restoredParticipants.add(participant);
+            if (participant.getId() != null && source.records() != null) {
+                recordsToDelete.addAll(recordRepository
+                        .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(
+                                participant.getId()
+                        ));
+            }
+        }
+        participantRepository.saveAll(restoredParticipants);
+        participantRepository.flush();
+        restoredParticipants.forEach(participant -> {
+            var source = snapshotParticipants.stream()
+                    .filter(value -> normalize(value.employeeNo())
+                            .equals(normalize(participant.getEmployeeNo())))
+                    .findFirst()
+                    .orElseThrow();
+            participantIdsBySnapshotId.put(source.id(), participant.getId());
+        });
+
+        recordRepository.deleteAll(recordsToDelete);
+        recordRepository.flush();
+        for (var source : snapshotParticipants) {
+            if (source.records() == null) {
+                continue;
+            }
+            var participantId = participantIdsBySnapshotId.get(source.id());
+            var recordOrder = 0;
+            for (var sourceRecord : source.records().stream()
+                    .sorted(java.util.Comparator.comparingInt(
+                            WorkspaceResponse.ParticipantRecordView::recordOrder
+                    ))
+                    .toList()) {
+                var record = new ParticipantRecordEntity();
+                record.setParticipantId(participantId);
+                record.setRecordOrder(++recordOrder);
+                try {
+                    record.setAttributesJson(objectMapper.writeValueAsString(
+                            sourceRecord.attributes() == null
+                                    ? java.util.Map.of()
+                                    : sourceRecord.attributes()
+                    ));
+                } catch (Exception exception) {
+                    throw new ApiException(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "恢复人员动态记录失败"
+                    );
+                }
+                recordRepository.save(record);
+            }
+        }
+        recordRepository.flush();
+        return participantIdsBySnapshotId;
+    }
+
+    private AttendanceStatus attendanceStatus(String value) {
+        if (value == null || value.isBlank()) {
+            return AttendanceStatus.PRESENT;
+        }
+        try {
+            return AttendanceStatus.valueOf(value);
+        } catch (IllegalArgumentException exception) {
+            return AttendanceStatus.PRESENT;
+        }
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private record LegacyField(String sourceCode, String label) {
     }
 
 }

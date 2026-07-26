@@ -1,49 +1,42 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Download, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { meetingApi } from '@/api/meeting'
-import { apiErrorMessage } from '@/api/http'
-import { apiDownloadUrl } from '@/utils/apiPath'
+import { importContract, meetingApi } from '@/api/meeting'
+import { apiErrorMessage, downloadBlob } from '@/api/http'
 const visible = defineModel({ required: true })
 const props = defineProps({
   meetingId: { type: String, required: true },
 })
 const emit = defineEmits(['done'])
-const templates = ref([])
-const templateCode = ref('AWARD_CEREMONY_V1')
 const file = ref()
 const preview = ref()
-const selections = reactive({})
 const loading = ref(false)
-const currentTemplate = computed(() =>
-  templates.value.find((item) => item.code === templateCode.value),
-)
-const canCommit = computed(
-  () =>
-    preview.value &&
-    preview.value.duplicateGroups.every((group) => selections[group.employeeNo] !== undefined),
-)
-onMounted(async () => {
-  try {
-    templates.value = await meetingApi.importTemplates()
-  } catch (error) {
-    ElMessage.error(apiErrorMessage(error))
-  }
-})
+const canCommit = computed(() => importContract.canCommit(preview.value))
 watch(visible, (value) => {
   if (!value) {
     file.value = undefined
     preview.value = undefined
-    Object.keys(selections).forEach((key) => delete selections[key])
   }
 })
 function onFileChange(uploadFile) {
   file.value = uploadFile.raw
   preview.value = undefined
 }
-function downloadTemplate() {
-  window.open(apiDownloadUrl(`/import-templates/${templateCode.value}/file`), '_blank')
+async function downloadTemplate() {
+  loading.value = true
+  try {
+    const template = await meetingApi.importTemplate()
+    downloadBlob(
+      template,
+      '参会人员导入模板.xlsx',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+  } catch (error) {
+    ElMessage.error(apiErrorMessage(error))
+  } finally {
+    loading.value = false
+  }
 }
 async function parseFile() {
   if (!file.value) {
@@ -52,11 +45,7 @@ async function parseFile() {
   }
   loading.value = true
   try {
-    preview.value = await meetingApi.previewImport(props.meetingId, templateCode.value, file.value)
-    preview.value.duplicateGroups.forEach((group) => {
-      if (group.candidates.length === 1)
-        selections[group.employeeNo] = group.candidates[0].sourceRow
-    })
+    preview.value = await meetingApi.previewImport(props.meetingId, file.value)
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
   } finally {
@@ -67,8 +56,10 @@ async function commit() {
   if (!preview.value || !canCommit.value) return
   loading.value = true
   try {
-    const result = await meetingApi.commitImport(props.meetingId, preview.value.token, selections)
-    ElMessage.success(`导入完成：新增${result.inserted}人，更新${result.updated}人`)
+    const result = await meetingApi.commitImport(props.meetingId, preview.value.token)
+    ElMessage.success(
+      `导入完成：新增${result.newParticipants}人，合并${result.mergedRecords}条记录，追加${result.appendedRecords}条记录`,
+    )
     visible.value = false
     emit('done')
   } catch (error) {
@@ -83,27 +74,13 @@ async function commit() {
   <el-dialog v-model="visible" title="导入参会人员" width="820px" top="5vh">
     <div class="import-layout">
       <section class="template-section">
-        <label>选择数据模板</label>
-        <el-select v-model="templateCode" class="template-select">
-          <el-option
-            v-for="template in templates"
-            :key="template.code"
-            :label="template.name"
-            :value="template.code"
-          />
-        </el-select>
-        <div v-if="currentTemplate" class="template-note">
-          <strong>{{ currentTemplate.description }}</strong>
-          <span>
-            包含：
-            {{
-              currentTemplate.sheets
-                .map((sheet) => `${sheet.name}（${sheet.rowMeaning}）`)
-                .join('、')
-            }}
-          </span>
+        <div>
+          <strong>人员导入模板</strong>
+          <p>使用单一 Excel 模板导入人员及其动态记录。</p>
         </div>
-        <el-button :icon="Download" @click="downloadTemplate">下载标准模板</el-button>
+        <el-button :icon="Download" :loading="loading" @click="downloadTemplate">
+          下载人员模板
+        </el-button>
       </section>
 
       <el-upload
@@ -128,56 +105,43 @@ async function commit() {
       <section v-if="preview" class="preview-section">
         <div class="preview-stats">
           <div>
-            <strong>{{ preview.participantRowCount }}</strong
-            ><span>人员行</span>
+            <strong>{{ preview.totalRows }}</strong
+            ><span>总行数</span>
           </div>
           <div>
-            <strong>{{ preview.awardRowCount }}</strong
-            ><span>业务记录</span>
+            <strong>{{ preview.ignoredDuplicateRows }}</strong
+            ><span>去重行数</span>
           </div>
           <div>
-            <strong>{{ preview.duplicateGroups.length }}</strong
-            ><span>重复工号</span>
+            <strong>{{ preview.participantCount }}</strong
+            ><span>人员数</span>
           </div>
           <div>
-            <strong>{{ preview.errors.length }}</strong
-            ><span>数据提醒</span>
+            <strong>{{ preview.recordCount }}</strong
+            ><span>记录数</span>
           </div>
         </div>
+
+        <section class="field-section">
+          <header>本次新增字段</header>
+          <el-tag v-for="field in preview.newFields" :key="field" type="success">{{ field }}</el-tag>
+          <span v-if="preview.newFields.length === 0">无</span>
+        </section>
+
+        <section class="field-section">
+          <header>已有字段</header>
+          <el-tag v-for="field in preview.existingFields" :key="field" type="info">{{ field }}</el-tag>
+          <span v-if="preview.existingFields.length === 0">无</span>
+        </section>
 
         <el-alert
           v-for="error in preview.errors"
           :key="error"
-          :title="error"
-          type="warning"
+          :title="`阻断错误：${error}`"
+          type="error"
           :closable="false"
           show-icon
         />
-
-        <div
-          v-for="group in preview.duplicateGroups"
-          :key="group.employeeNo"
-          class="duplicate-group"
-        >
-          <header>
-            <strong>重复工号 {{ group.employeeNo }}</strong>
-            <span>请选择本次导入使用的记录</span>
-          </header>
-          <el-radio-group v-model="selections[group.employeeNo]">
-            <el-radio
-              v-for="candidate in group.candidates"
-              :key="candidate.sourceRow"
-              :value="candidate.sourceRow"
-              border
-            >
-              第{{ candidate.sourceRow }}行 · {{ candidate.name }} · 职级{{
-                candidate.level ?? '—'
-              }}
-              · {{ candidate.department || '未填写部门' }} ·
-              {{ candidate.participantType || '未填写类型' }}
-            </el-radio>
-          </el-radio-group>
-        </div>
       </section>
     </div>
 
@@ -200,13 +164,14 @@ async function commit() {
 <style scoped>
 .import-layout,
 .template-section,
-.preview-section {
+.preview-section,
+.field-section {
   display: grid;
   gap: 14px;
 }
 
 .template-section {
-  grid-template-columns: 140px 1fr auto;
+  grid-template-columns: 1fr auto;
   align-items: center;
   padding: 14px;
   background: #f6f8fb;
@@ -214,21 +179,10 @@ async function commit() {
   border-radius: 10px;
 }
 
-.template-section > label {
-  color: #475569;
-  font-weight: 700;
-}
-
-.template-note {
-  grid-column: 2 / 4;
-  display: grid;
-  gap: 4px;
+.template-section p {
+  margin: 4px 0 0;
   color: #718096;
   font-size: 12px;
-}
-
-.template-note strong {
-  color: #475569;
 }
 
 .preview-stats {
@@ -255,27 +209,13 @@ async function commit() {
   font-size: 11px;
 }
 
-.duplicate-group {
+.field-section {
+  grid-template-columns: auto repeat(auto-fit, minmax(90px, max-content));
+  align-items: center;
   padding: 12px;
-  border: 1px solid #f1c978;
+  border: 1px solid #e2e8f0;
   border-radius: 10px;
-}
-
-.duplicate-group header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 10px;
-  color: #92400e;
+  color: #718096;
   font-size: 12px;
-}
-
-.duplicate-group :deep(.el-radio-group) {
-  display: grid;
-  gap: 8px;
-}
-
-.duplicate-group :deep(.el-radio) {
-  width: 100%;
-  margin: 0;
 }
 </style>

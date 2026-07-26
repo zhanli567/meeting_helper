@@ -177,7 +177,7 @@ async function deleteVenue(venue) {
     <el-dialog v-model="meetingVisible" title="使用场馆创建会议" width="460px">
       <el-form label-position="top">
         <el-form-item label="会议名称" required>
-          <el-input v-model="form.name" placeholder="例如：2026年度表彰大会" />
+          <el-input v-model="form.name" placeholder="例如：2026年度技术交流会" />
         </el-form-item>
         <el-alert
           title="创建后会生成独立场馆快照，后续调整不会影响模板。"

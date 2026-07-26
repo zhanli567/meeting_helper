@@ -52,8 +52,22 @@ class DdlConventionTests {
                 sqlFiles.stream().allMatch(path -> path.normalize().startsWith(ddlDirectory)),
                 "所有 SQL 源文件必须统一放在根目录 DDL 文件夹中");
 
+        String sql = Files.readString(ddlDirectory.resolve("meeting_helper.sql"));
+        assertTrue(
+                sql.contains("create table if not exists t_meeting_participant_fields"),
+                "DDL 必须包含会议人员字段定义表");
+        assertTrue(
+                sql.contains("create table if not exists t_participant_records"),
+                "DDL 必须包含人员通用记录表");
+        assertTrue(
+                sql.contains("comment on table t_meeting_participant_fields"),
+                "DDL 必须包含会议人员字段定义表注释");
+        assertTrue(
+                sql.contains("comment on table t_participant_records"),
+                "DDL 必须包含人员通用记录表注释");
+
         for (Path sqlFile : sqlFiles) {
-            String sql = Files.readString(sqlFile);
+            sql = Files.readString(sqlFile);
             Set<String> createdTables = new HashSet<>();
             Set<String> expectedColumnComments = new HashSet<>();
             Set<String> tableComments = new HashSet<>();

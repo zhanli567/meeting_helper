@@ -1,14 +1,17 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
+import { groupableFields } from '@/utils/participantFields'
+import { submitParticipant } from '@/utils/participantActions'
 import { hasDuplicateEmployeeNo, isValidEmployeeNo } from '@/utils/participantRules'
 const visible = defineModel({ required: true })
 const props = defineProps({
   meetingId: { type: String, required: true },
   targetElementId: { type: String, default: undefined },
   participants: { type: Array, default: () => [] },
+  fieldDefinitions: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['done'])
 const formRef = ref()
@@ -16,11 +19,9 @@ const submitting = ref(false)
 const form = reactive({
   employeeNo: '',
   name: '',
-  level: undefined,
-  department: '',
-  participantType: '获奖人员',
-  tags: '',
+  attributes: {},
 })
+const dynamicFields = computed(() => groupableFields(props.fieldDefinitions))
 const rules = {
   employeeNo: [
     { required: true, message: '请输入工号', trigger: 'blur' },
@@ -41,9 +42,10 @@ async function submit() {
   if (!valid) return
   submitting.value = true
   try {
-    const participant = await meetingApi.addParticipant(props.meetingId, {
-      ...form,
-      attributes: {},
+    const participant = await submitParticipant({
+      addParticipant: meetingApi.addParticipant,
+      meetingId: props.meetingId,
+      form,
       targetElementId: props.targetElementId,
     })
     ElMessage.success(
@@ -53,10 +55,7 @@ async function submit() {
     Object.assign(form, {
       employeeNo: '',
       name: '',
-      level: undefined,
-      department: '',
-      participantType: '获奖人员',
-      tags: '',
+      attributes: {},
     })
     emit('done', participant)
   } catch (error) {
@@ -81,23 +80,9 @@ async function submit() {
         <el-form-item label="姓名" prop="name">
           <el-input v-model="form.name" placeholder="请输入姓名" />
         </el-form-item>
-        <el-form-item label="职级">
-          <el-input-number v-model="form.level" :min="1" :max="99" controls-position="right" />
-        </el-form-item>
-        <el-form-item label="人员类型">
-          <el-select v-model="form.participantType">
-            <el-option label="获奖人员" value="获奖人员" />
-            <el-option label="嘉宾" value="嘉宾" />
-            <el-option label="特邀嘉宾" value="特邀嘉宾" />
-            <el-option label="参会人员" value="参会人员" />
-          </el-select>
-        </el-form-item>
       </div>
-      <el-form-item label="部门">
-        <el-input v-model="form.department" placeholder="请输入部门" />
-      </el-form-item>
-      <el-form-item label="标签">
-        <el-input v-model="form.tags" placeholder="多个标签使用逗号分隔" />
+      <el-form-item v-for="field in dynamicFields" :key="field.code" :label="field.label">
+        <el-input v-model="form.attributes[field.code]" />
       </el-form-item>
     </el-form>
     <template #footer>

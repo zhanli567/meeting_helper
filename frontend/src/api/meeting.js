@@ -1,4 +1,13 @@
-import { http } from './http'
+import { http } from './http.js'
+
+export const importContract = Object.freeze({
+  templatePath: '/imports/template',
+  previewPath: (meetingId) => `/meetings/${meetingId}/imports/preview`,
+  commitPath: (meetingId, token) => `/meetings/${meetingId}/imports/${token}/commit`,
+  canCommit: (preview) =>
+    Boolean(preview) && Array.isArray(preview.errors) && preview.errors.length === 0,
+})
+
 export const meetingApi = {
   async meetings() {
     return (await http.get('/meetings')).data
@@ -40,23 +49,20 @@ export const meetingApi = {
   async versionSnapshot(planId, versionId) {
     return (await http.get(`/plans/${planId}/versions/${versionId}`)).data
   },
-  async importTemplates() {
-    return (await http.get('/import-templates')).data
+  async importTemplate() {
+    return (await http.get(importContract.templatePath, { responseType: 'arraybuffer' })).data
   },
-  async previewImport(meetingId, templateCode, file) {
+  async previewImport(meetingId, file) {
     const form = new FormData()
     form.append('file', file)
     return (
-      await http.post(`/meetings/${meetingId}/imports/preview`, form, {
-        params: { templateCode },
+      await http.post(importContract.previewPath(meetingId), form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
     ).data
   },
-  async commitImport(meetingId, token, selectedSourceRows) {
-    return (
-      await http.post(`/meetings/${meetingId}/imports/${token}/commit`, { selectedSourceRows })
-    ).data
+  async commitImport(meetingId, token) {
+    return (await http.post(importContract.commitPath(meetingId, token))).data
   },
   async exportFile(meetingId, type, versionId) {
     return (

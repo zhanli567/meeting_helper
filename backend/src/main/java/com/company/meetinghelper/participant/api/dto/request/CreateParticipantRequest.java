@@ -13,10 +13,6 @@ public record CreateParticipantRequest(
         )
         String employeeNo,
         @NotBlank String name,
-        Integer level,
-        String department,
-        String participantType,
-        String tags,
         Map<String, String> attributes,
         String targetElementId
 ) {

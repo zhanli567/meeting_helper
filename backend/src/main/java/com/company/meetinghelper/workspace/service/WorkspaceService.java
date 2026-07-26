@@ -1,13 +1,15 @@
 package com.company.meetinghelper.workspace.service;
 
-import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse;
 import com.company.meetinghelper.common.exception.ApiException;
-import com.company.meetinghelper.award.entity.AwardRecordEntity;
-import com.company.meetinghelper.award.repository.AwardRecordRepository;
+import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse;
 import com.company.meetinghelper.meeting.entity.MeetingElementEntity;
 import com.company.meetinghelper.meeting.repository.MeetingElementRepository;
-import com.company.meetinghelper.meeting.repository.MeetingRepository;
+import com.company.meetinghelper.meeting.service.MeetingAccessService;
+import com.company.meetinghelper.participant.entity.MeetingParticipantFieldEntity;
 import com.company.meetinghelper.participant.entity.ParticipantEntity;
+import com.company.meetinghelper.participant.entity.ParticipantRecordEntity;
+import com.company.meetinghelper.participant.repository.MeetingParticipantFieldRepository;
+import com.company.meetinghelper.participant.repository.ParticipantRecordRepository;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
 import com.company.meetinghelper.seating.repository.PlanItemRepository;
 import com.company.meetinghelper.seating.repository.PlanItemTargetRepository;
@@ -21,26 +23,19 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 public class WorkspaceService {
-    private static final List<String> BATCH_COLORS = List.of(
-            "#DBEAFE", "#E0F2FE", "#CFFAFE", "#E0E7FF", "#EDE9FE",
-            "#ECFEFF", "#EFF6FF", "#EEF2FF", "#F0F9FF", "#F5F3FF"
-    );
-
-    private final MeetingRepository meetingRepository;
+    private final MeetingAccessService meetingAccessService;
     private final MeetingElementRepository elementRepository;
     private final ParticipantRepository participantRepository;
-    private final AwardRecordRepository awardRepository;
+    private final MeetingParticipantFieldRepository fieldRepository;
+    private final ParticipantRecordRepository recordRepository;
     private final SeatingPlanRepository planRepository;
     private final PlanItemRepository itemRepository;
     private final PlanItemTargetRepository targetRepository;
@@ -50,10 +45,11 @@ public class WorkspaceService {
     /**
      * 创建会议工作区聚合服务。
      *
-     * @param meetingRepository 会议仓储
+     * @param meetingAccessService 会议归属校验服务
      * @param elementRepository 会议元素仓储
      * @param participantRepository 参会人员仓储
-     * @param awardRepository 获奖记录仓储
+     * @param fieldRepository 人员动态字段仓储
+     * @param recordRepository 人员动态记录仓储
      * @param planRepository 排座方案仓储
      * @param itemRepository 排座明细仓储
      * @param targetRepository 排座目标仓储
@@ -61,20 +57,22 @@ public class WorkspaceService {
      * @param objectMapper JSON序列化器
      */
     public WorkspaceService(
-            MeetingRepository meetingRepository,
+            MeetingAccessService meetingAccessService,
             MeetingElementRepository elementRepository,
             ParticipantRepository participantRepository,
-            AwardRecordRepository awardRepository,
+            MeetingParticipantFieldRepository fieldRepository,
+            ParticipantRecordRepository recordRepository,
             SeatingPlanRepository planRepository,
             PlanItemRepository itemRepository,
             PlanItemTargetRepository targetRepository,
             PlanVersionRepository versionRepository,
             ObjectMapper objectMapper
     ) {
-        this.meetingRepository = meetingRepository;
+        this.meetingAccessService = meetingAccessService;
         this.elementRepository = elementRepository;
         this.participantRepository = participantRepository;
-        this.awardRepository = awardRepository;
+        this.fieldRepository = fieldRepository;
+        this.recordRepository = recordRepository;
         this.planRepository = planRepository;
         this.itemRepository = itemRepository;
         this.targetRepository = targetRepository;
@@ -90,19 +88,22 @@ public class WorkspaceService {
      */
     @Transactional(readOnly = true)
     public WorkspaceResponse getWorkspace(String meetingId) {
-        var meeting = meetingRepository.findById(meetingId)
-                .filter(value -> !value.isDeleted())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议不存在"));
+        var meeting = meetingAccessService.requireOwnedMeeting(meetingId);
         var plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议尚未建立排座方案"));
         var elements = elementRepository.findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(meetingId);
         var participants = participantRepository.findAllByMeetingIdAndDeletedFalseOrderByNameAsc(meetingId);
         var participantIds = participants.stream().map(ParticipantEntity::getId).toList();
-        var awards = participantIds.isEmpty()
-                ? List.<AwardRecordEntity>of()
-                : awardRepository.findAllByParticipantIdInAndDeletedFalseOrderByBatchOrderAsc(participantIds);
-        var awardsByParticipant = awards.stream().collect(Collectors.groupingBy(
-                AwardRecordEntity::getParticipantId,
+        var participantFields = fieldRepository
+                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+        var participantRecords = participantIds.isEmpty()
+                ? List.<ParticipantRecordEntity>of()
+                : recordRepository
+                        .findAllByParticipantIdInAndDeletedFalseOrderByParticipantIdAscRecordOrderAsc(
+                                participantIds
+                        );
+        var recordsByParticipant = participantRecords.stream().collect(Collectors.groupingBy(
+                ParticipantRecordEntity::getParticipantId,
                 LinkedHashMap::new,
                 Collectors.toList()
         ));
@@ -135,7 +136,8 @@ public class WorkspaceService {
         var participantViews = participants.stream()
                 .map(participant -> toParticipantView(
                         participant,
-                        awardsByParticipant.getOrDefault(participant.getId(), List.of()),
+                        participantFields,
+                        recordsByParticipant.getOrDefault(participant.getId(), List.of()),
                         assignedByParticipant.get(participant.getId()),
                         lockedByParticipant.getOrDefault(participant.getId(), false)
                 ))
@@ -151,18 +153,6 @@ public class WorkspaceService {
                 item.isBold(),
                 targetsByItem.getOrDefault(item.getId(), List.of())
         )).toList();
-        var styleRules = participantViews.stream()
-                .filter(view -> view.primaryBatchName() != null && view.displayColor() != null)
-                .collect(Collectors.toMap(
-                        WorkspaceResponse.ParticipantView::primaryBatchName,
-                        WorkspaceResponse.ParticipantView::displayColor,
-                        (left, right) -> left,
-                        LinkedHashMap::new
-                ))
-                .entrySet().stream()
-                .map(entry -> new WorkspaceResponse.StyleRuleView(
-                        "primaryBatchName", entry.getKey(), entry.getValue(), "#172033"))
-                .toList();
 
         return new WorkspaceResponse(
                 new WorkspaceResponse.MeetingView(
@@ -180,8 +170,8 @@ public class WorkspaceService {
                                 version.isAutomatic(), version.getAssignedCount(), version.getUnassignedCount(),
                                 version.getCreatedAt(), version.getCreatedByName()))
                         .toList(),
-                fieldDefinitions(participantViews),
-                styleRules
+                fieldDefinitions(participantFields),
+                List.of()
         );
     }
 
@@ -197,54 +187,66 @@ public class WorkspaceService {
 
     private WorkspaceResponse.ParticipantView toParticipantView(
             ParticipantEntity participant,
-            List<AwardRecordEntity> records,
+            List<MeetingParticipantFieldEntity> fields,
+            List<ParticipantRecordEntity> records,
             String assignedElementId,
             boolean locked
     ) {
-        var sorted = records.stream()
-                .sorted(java.util.Comparator.comparingInt(AwardRecordEntity::getBatchOrder))
-                .toList();
-        var primary = sorted.stream().findFirst().orElse(null);
-        var repeated = primary == null ? List.<String>of() : sorted.stream()
-                .filter(record -> record.getBatchOrder() != primary.getBatchOrder())
-                .map(AwardRecordEntity::getBatchName)
-                .distinct()
-                .toList();
-        var guest = participant.getParticipantType() != null
-                && participant.getParticipantType().contains("嘉宾");
-        var color = primary == null || guest
-                ? null
-                : BATCH_COLORS.get(Math.floorMod(primary.getBatchOrder() - 1, BATCH_COLORS.size()));
+        var values = new LinkedHashMap<String, List<String>>();
+        fields.forEach(field -> values.put(field.getFieldName(), new ArrayList<>()));
+        var recordViews = new ArrayList<WorkspaceResponse.ParticipantRecordView>();
+        records.stream()
+                .sorted(java.util.Comparator.comparingInt(ParticipantRecordEntity::getRecordOrder))
+                .forEach(record -> {
+                    var attributes = orderedAttributes(readAttributes(record.getAttributesJson()), fields);
+                    recordViews.add(new WorkspaceResponse.ParticipantRecordView(
+                            record.getId(),
+                            record.getRecordOrder(),
+                            attributes
+                    ));
+                    attributes.forEach((fieldName, value) -> {
+                        if (value == null || value.isBlank()) {
+                            return;
+                        }
+                        var fieldValues = values.get(fieldName);
+                        if (!fieldValues.contains(value)) {
+                            fieldValues.add(value);
+                        }
+                    });
+                });
+        var primaryAttributes = new LinkedHashMap<String, String>();
+        var attributeValues = new LinkedHashMap<String, List<String>>();
+        values.forEach((fieldName, fieldValues) -> {
+            if (!fieldValues.isEmpty()) {
+                primaryAttributes.put(fieldName, fieldValues.getFirst());
+                attributeValues.put(fieldName, List.copyOf(fieldValues));
+            }
+        });
         return new WorkspaceResponse.ParticipantView(
                 participant.getId(),
                 participant.getEmployeeNo(),
                 participant.getName(),
-                participant.getLevelValue(),
-                participant.getDepartment(),
-                participant.getParticipantType(),
-                splitTags(participant.getTags()),
-                readAttributes(participant.getCustomAttributesJson()),
+                Collections.unmodifiableMap(primaryAttributes),
+                Collections.unmodifiableMap(attributeValues),
+                List.copyOf(recordViews),
                 participant.getAttendanceStatus() == null ? "PRESENT" : participant.getAttendanceStatus().name(),
                 locked,
-                assignedElementId,
-                primary == null ? null : primary.getBatchOrder(),
-                primary == null ? null : primary.getBatchName(),
-                color,
-                repeated,
-                sorted.stream().map(record -> new WorkspaceResponse.AwardView(
-                        record.getId(), record.getBatchOrder(), record.getBatchName(), record.getAwardName(),
-                        record.getAwardLevel(), record.getProjectName(), record.getTeamSize())).toList()
+                assignedElementId
         );
     }
 
-    private List<String> splitTags(String tags) {
-        if (tags == null || tags.isBlank()) {
-            return List.of();
+    private Map<String, String> orderedAttributes(
+            Map<String, String> attributes,
+            List<MeetingParticipantFieldEntity> fields
+    ) {
+        var ordered = new LinkedHashMap<String, String>();
+        for (var field : fields) {
+            var value = attributes.get(field.getFieldName());
+            if (value != null) {
+                ordered.put(field.getFieldName(), value);
+            }
         }
-        return Arrays.stream(tags.split("[,，]"))
-                .map(String::trim)
-                .filter(value -> !value.isBlank())
-                .toList();
+        return Collections.unmodifiableMap(ordered);
     }
 
     private Map<String, String> readAttributes(String json) {
@@ -260,26 +262,20 @@ public class WorkspaceService {
     }
 
     private List<WorkspaceResponse.FieldDefinitionView> fieldDefinitions(
-            List<WorkspaceResponse.ParticipantView> participants
+            List<MeetingParticipantFieldEntity> participantFields
     ) {
         var fields = new ArrayList<WorkspaceResponse.FieldDefinitionView>();
         fields.add(new WorkspaceResponse.FieldDefinitionView("name", "姓名", "TEXT", true, false, true, true));
         fields.add(new WorkspaceResponse.FieldDefinitionView("employeeNo", "工号", "TEXT", true, false, true, false));
-        fields.add(new WorkspaceResponse.FieldDefinitionView("level", "职级", "NUMBER", false, true, true, true));
-        fields.add(new WorkspaceResponse.FieldDefinitionView("department", "部门", "TEXT", true, true, true, true));
-        fields.add(new WorkspaceResponse.FieldDefinitionView(
-                "participantType", "人员类型", "ENUM", true, true, true, true));
-        if (participants.stream().anyMatch(value -> value.primaryBatchName() != null)) {
-            fields.add(new WorkspaceResponse.FieldDefinitionView(
-                    "primaryBatchName", "主排座批次", "ENUM", true, true, true, true));
-        }
-        fields.add(new WorkspaceResponse.FieldDefinitionView("tags", "标签", "MULTI_ENUM", true, true, true, false));
-        participants.stream()
-                .flatMap(participant -> participant.attributes().keySet().stream())
-                .distinct()
-                .sorted()
-                .forEach(code -> fields.add(new WorkspaceResponse.FieldDefinitionView(
-                        code, code, "TEXT", true, true, true, false)));
-        return fields;
+        participantFields.forEach(field -> fields.add(new WorkspaceResponse.FieldDefinitionView(
+                field.getFieldName(),
+                field.getFieldName(),
+                "TEXT",
+                true,
+                true,
+                true,
+                false
+        )));
+        return List.copyOf(fields);
     }
 }

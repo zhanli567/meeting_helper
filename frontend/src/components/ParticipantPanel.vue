@@ -1,7 +1,22 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { CircleCheckFilled, CircleCloseFilled, Delete, Search, UploadFilled } from '@element-plus/icons-vue'
+import {
+  filteredParticipants,
+  groupParticipants,
+  groupableFields,
+  paginateParticipants,
+  participantSummary,
+} from '@/utils/participantFields'
 import { attendingPendingCount, isTemporarilyAbsent } from '@/utils/participantRules'
+import {
+  dropParticipantToPending,
+  requestParticipantAttendance,
+  requestParticipantRemoval,
+  resetParticipantPage,
+  resolveParticipantPage,
+  startParticipantDrag,
+} from '@/utils/participantActions'
 const props = defineProps({
   participants: { type: Array, required: true },
   fieldDefinitions: { type: Array, required: true },
@@ -16,51 +31,24 @@ const groupField = ref('')
 const currentPage = ref(1)
 const pageSize = ref(8)
 const dropActive = ref(false)
-function fieldValue(person, fieldCode) {
-  if (fieldCode === 'name') return person.name
-  if (fieldCode === 'employeeNo') return person.employeeNo
-  if (fieldCode === 'level') return person.level
-  if (fieldCode === 'department') return person.department
-  if (fieldCode === 'participantType') return person.participantType
-  if (fieldCode === 'primaryBatchName') return person.primaryBatchName
-  if (fieldCode === 'tags') return person.tags
-  return person.attributes[fieldCode]
-}
-const groupFields = computed(() =>
-  props.fieldDefinitions.filter(
-    (field) => field.filterable && !['name', 'employeeNo'].includes(field.code),
-  ),
-)
+const groupFields = computed(() => groupableFields(props.fieldDefinitions))
 const pendingCount = computed(() => attendingPendingCount(props.participants))
 const absentCount = computed(
   () => props.participants.filter((person) => isTemporarilyAbsent(person)).length,
 )
 const filtered = computed(() => {
   const keyword = search.value.trim().toLocaleLowerCase()
-  return props.participants.filter((person) => {
-    if (tab.value === 'pending' && person.assignedElementId) return false
-    if (!keyword) return true
-    const fuzzyName = person.name.toLocaleLowerCase().includes(keyword)
-    const exactEmployeeNo = person.employeeNo.toLocaleLowerCase() === keyword
-    return fuzzyName || exactEmployeeNo
-  })
+  return filteredParticipants(props.participants, tab.value, keyword)
 })
 const paged = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return filtered.value.slice(start, start + pageSize.value)
+  return paginateParticipants(filtered.value, currentPage.value, pageSize.value)
 })
 const grouped = computed(() => {
   if (!groupField.value) return [{ key: '', label: '', people: paged.value }]
-  const result = new Map()
-  paged.value.forEach((person) => {
-    const raw = fieldValue(person, groupField.value)
-    const key = Array.isArray(raw) ? raw.join('、') : String(raw || '未分组')
-    result.set(key, [...(result.get(key) || []), person])
-  })
-  return Array.from(result.entries()).map(([key, people]) => ({ key, label: key, people }))
+  return groupParticipants(paged.value, groupField.value)
 })
 watch([tab, search, groupField], () => {
-  currentPage.value = 1
+  currentPage.value = resetParticipantPage()
 })
 watch(
   () => props.readonly,
@@ -72,26 +60,34 @@ watch(
 watch(
   () => filtered.value.length,
   (total) => {
-    const lastPage = Math.max(1, Math.ceil(total / pageSize.value))
-    if (currentPage.value > lastPage) currentPage.value = lastPage
+    currentPage.value = resolveParticipantPage(currentPage.value, total, pageSize.value)
   },
 )
 function dragStart(event, participant) {
-  if (props.readonly || participant.locked || isTemporarilyAbsent(participant)) {
-    event.preventDefault()
-    return
-  }
-  event.dataTransfer?.setData('text/participant-id', participant.id)
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
-  emit('select', participant)
-  emit('dragState', participant.id)
+  startParticipantDrag({
+    event,
+    participant,
+    readonly: props.readonly,
+    locked: participant.locked,
+    onSelect: (person) => emit('select', person),
+    onDragState: (participantId) => emit('dragState', participantId),
+  })
 }
 function dropToPending(event) {
-  if (props.readonly) return
-  event.preventDefault()
-  dropActive.value = false
-  const participantId = event.dataTransfer?.getData('text/participant-id')
-  if (participantId) emit('unassign', participantId)
+  dropParticipantToPending({
+    event,
+    readonly: props.readonly,
+    onUnassign: (participantId) => emit('unassign', participantId),
+    onDrop: () => {
+      dropActive.value = false
+    },
+  })
+}
+function changeAttendance(participant) {
+  requestParticipantAttendance({ readonly: props.readonly, participant, emit })
+}
+function removeParticipant(participant) {
+  requestParticipantRemoval({ readonly: props.readonly, participant, emit })
 }
 function dragOverPanel(event) {
   if (props.readonly) return
@@ -182,17 +178,16 @@ function leavePanel(event) {
             <div class="person-main">
               <div>
                 <strong>{{ person.name }}</strong>
-                <el-tag v-if="person.primaryBatchName" size="small" effect="plain">
-                  {{ person.primaryBatchName }}
-                </el-tag>
               </div>
-              <span>{{ person.employeeNo }} · {{ person.department || '未填写部门' }}</span>
+              <span>{{ person.employeeNo }}</span>
               <small>
                 <el-tag v-if="isTemporarilyAbsent(person)" size="small" type="info">临时不出席</el-tag>
-                {{ person.participantType || '参会人员' }}
-                <template v-if="person.level"> · 职级{{ person.level }}</template>
-                <template v-if="person.repeatedBatches.length">
-                  · 复{{ person.repeatedBatches.join('、') }}
+                <template v-if="participantSummary(person, fieldDefinitions).length">
+                  {{ participantSummary(person, fieldDefinitions).join(' · ') }}
+                </template>
+                <template v-if="person.records?.length > 1">
+                  {{ participantSummary(person, fieldDefinitions).length ? ' · ' : '' }}
+                  共 {{ person.records.length }} 条记录
                 </template>
               </small>
             </div>
@@ -202,13 +197,7 @@ function leavePanel(event) {
                 size="small"
                 :type="isTemporarilyAbsent(person) ? 'success' : 'warning'"
                 :icon="isTemporarilyAbsent(person) ? CircleCheckFilled : CircleCloseFilled"
-                @click="
-                  emit(
-                    'attendance',
-                    person,
-                    isTemporarilyAbsent(person) ? 'PRESENT' : 'TEMPORARILY_ABSENT',
-                  )
-                "
+                @click="changeAttendance(person)"
               >
                 {{ isTemporarilyAbsent(person) ? '恢复出席' : '临时不来' }}
               </el-button>
@@ -217,7 +206,7 @@ function leavePanel(event) {
                 size="small"
                 type="danger"
                 :icon="Delete"
-                @click="emit('remove', person)"
+                @click="removeParticipant(person)"
               >
                 移出会议
               </el-button>

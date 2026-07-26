@@ -56,30 +56,19 @@ public record WorkspaceResponse(
             String id,
             String employeeNo,
             String name,
-            Integer level,
-            String department,
-            String participantType,
-            List<String> tags,
-            Map<String, String> attributes,
+            Map<String, String> primaryAttributes,
+            Map<String, List<String>> attributeValues,
+            List<ParticipantRecordView> records,
             String attendanceStatus,
             boolean locked,
-            String assignedElementId,
-            Integer primaryBatchOrder,
-            String primaryBatchName,
-            String displayColor,
-            List<String> repeatedBatches,
-            List<AwardView> awards
+            String assignedElementId
     ) {
     }
 
-    public record AwardView(
+    public record ParticipantRecordView(
             String id,
-            int batchOrder,
-            String batchName,
-            String awardName,
-            String awardLevel,
-            String projectName,
-            Integer teamSize
+            int recordOrder,
+            Map<String, String> attributes
     ) {
     }
 

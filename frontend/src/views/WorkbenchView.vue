@@ -648,6 +648,7 @@ async function onParticipantAdded(participant) {
       :meeting-id="store.workspace.meeting.id"
       :target-element-id="addTargetElementId"
       :participants="store.workspace.participants"
+      :field-definitions="store.workspace.fieldDefinitions"
       @done="onParticipantAdded"
     />
     <ImportDialog

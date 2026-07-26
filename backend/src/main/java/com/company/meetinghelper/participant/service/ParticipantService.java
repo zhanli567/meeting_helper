@@ -1,12 +1,14 @@
 package com.company.meetinghelper.participant.service;
 
 import com.company.meetinghelper.common.exception.ApiException;
-import com.company.meetinghelper.meeting.repository.MeetingRepository;
+import com.company.meetinghelper.meeting.service.MeetingAccessService;
 import com.company.meetinghelper.participant.api.dto.request.CreateParticipantRequest;
 import com.company.meetinghelper.participant.api.dto.request.UpdateAttendanceRequest;
 import com.company.meetinghelper.participant.api.dto.response.ParticipantResult;
 import com.company.meetinghelper.participant.entity.AttendanceStatus;
 import com.company.meetinghelper.participant.entity.ParticipantEntity;
+import com.company.meetinghelper.participant.entity.ParticipantRecordEntity;
+import com.company.meetinghelper.participant.repository.ParticipantRecordRepository;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
 import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
 import com.company.meetinghelper.seating.repository.PlanItemRepository;
@@ -20,12 +22,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Service
 public class ParticipantService {
-    private final MeetingRepository meetingRepository;
+    private final MeetingAccessService meetingAccessService;
     private final ParticipantRepository participantRepository;
+    private final ParticipantFieldRegistrationService fieldRegistrationService;
+    private final ParticipantRecordRepository recordRepository;
     private final SeatingPlanRepository planRepository;
     private final PlanItemRepository itemRepository;
     private final PlanItemTargetRepository targetRepository;
@@ -35,8 +40,10 @@ public class ParticipantService {
     /**
      * 创建参会人员服务。
      *
-     * @param meetingRepository 会议仓储
+     * @param meetingAccessService 会议归属校验服务
      * @param participantRepository 参会人员仓储
+     * @param fieldRegistrationService 人员动态字段注册服务
+     * @param recordRepository 人员动态记录仓储
      * @param planRepository 排座方案仓储
      * @param itemRepository 排座明细仓储
      * @param targetRepository 排座目标仓储
@@ -44,16 +51,20 @@ public class ParticipantService {
      * @param objectMapper JSON序列化器
      */
     public ParticipantService(
-            MeetingRepository meetingRepository,
+            MeetingAccessService meetingAccessService,
             ParticipantRepository participantRepository,
+            ParticipantFieldRegistrationService fieldRegistrationService,
+            ParticipantRecordRepository recordRepository,
             SeatingPlanRepository planRepository,
             PlanItemRepository itemRepository,
             PlanItemTargetRepository targetRepository,
             SeatingService seatingService,
             ObjectMapper objectMapper
     ) {
-        this.meetingRepository = meetingRepository;
+        this.meetingAccessService = meetingAccessService;
         this.participantRepository = participantRepository;
+        this.fieldRegistrationService = fieldRegistrationService;
+        this.recordRepository = recordRepository;
         this.planRepository = planRepository;
         this.itemRepository = itemRepository;
         this.targetRepository = targetRepository;
@@ -70,9 +81,14 @@ public class ParticipantService {
      */
     @Transactional
     public ParticipantResult create(String meetingId, CreateParticipantRequest request) {
-        meetingRepository.findById(meetingId)
-                .filter(value -> !value.isDeleted())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议不存在"));
+        meetingAccessService.requireOwnedMeeting(meetingId);
+        var incomingAttributes = request.attributes();
+        var canonicalNames = fieldRegistrationService.registerFields(
+                meetingId,
+                incomingAttributes == null
+                        ? java.util.List.of()
+                        : incomingAttributes.keySet()
+        );
         var employeeNo = request.employeeNo().trim();
         if (participantRepository
                 .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, employeeNo)
@@ -83,20 +99,18 @@ public class ParticipantService {
         participant.setMeetingId(meetingId);
         participant.setEmployeeNo(employeeNo);
         participant.setName(request.name());
-        participant.setLevelValue(request.level());
-        participant.setDepartment(request.department());
-        participant.setParticipantType(request.participantType());
-        participant.setTags(request.tags());
-        try {
-            participant.setCustomAttributesJson(objectMapper.writeValueAsString(
-                    request.attributes() == null ? Map.of() : request.attributes()));
-        } catch (Exception exception) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "扩展属性格式不正确");
-        }
         try {
             participantRepository.saveAndFlush(participant);
         } catch (DataIntegrityViolationException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "该工号已在会议名单中");
+        }
+        var attributes = canonicalAttributes(incomingAttributes, canonicalNames);
+        if (!attributes.isEmpty()) {
+            var record = new ParticipantRecordEntity();
+            record.setParticipantId(participant.getId());
+            record.setRecordOrder(1);
+            record.setAttributesJson(writeAttributes(attributes));
+            recordRepository.save(record);
         }
         if (request.targetElementId() != null && !request.targetElementId().isBlank()) {
             var plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)
@@ -122,13 +136,13 @@ public class ParticipantService {
             String participantId,
             UpdateAttendanceRequest request
     ) {
+        meetingAccessService.requireOwnedMeeting(meetingId);
         var participant = participantRepository.findById(participantId)
                 .filter(value -> !value.isDeleted() && value.getMeetingId().equals(meetingId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "人员不存在"));
         participant.setAttendanceStatus(request.attendanceStatus());
         if (request.attendanceStatus() == AttendanceStatus.TEMPORARILY_ABSENT) {
             removeAssignment(meetingId, participantId);
-            participant.setLocked(false);
         }
         participantRepository.save(participant);
     }
@@ -141,6 +155,7 @@ public class ParticipantService {
      */
     @Transactional
     public void delete(String meetingId, String participantId) {
+        meetingAccessService.requireOwnedMeeting(meetingId);
         var participant = participantRepository.findById(participantId)
                 .filter(value -> !value.isDeleted() && value.getMeetingId().equals(meetingId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "人员不存在"));
@@ -159,6 +174,34 @@ public class ParticipantService {
             targetRepository.deleteAllByPlanItemId(item.getId());
             itemRepository.delete(item);
         });
+    }
+
+    private Map<String, String> canonicalAttributes(
+            Map<String, String> incomingAttributes,
+            Map<String, String> canonicalNames
+    ) {
+        if (incomingAttributes == null || incomingAttributes.isEmpty()) {
+            return Map.of();
+        }
+        var attributes = new LinkedHashMap<String, String>();
+        for (var entry : incomingAttributes.entrySet()) {
+            var fieldName = entry.getKey() == null ? "" : entry.getKey().trim();
+            var value = entry.getValue();
+            if (fieldName.isBlank() || value == null || value.isBlank()) {
+                continue;
+            }
+            var canonicalName = canonicalNames.get(fieldName.toLowerCase(java.util.Locale.ROOT));
+            attributes.put(canonicalName, value);
+        }
+        return attributes;
+    }
+
+    private String writeAttributes(Map<String, String> attributes) {
+        try {
+            return objectMapper.writeValueAsString(attributes);
+        } catch (Exception exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "人员动态记录无法保存");
+        }
     }
 
 }

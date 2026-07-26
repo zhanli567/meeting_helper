@@ -1,9 +1,15 @@
 import axios from 'axios'
-import { apiBaseUrl } from '@/utils/apiPath'
+import { currentUser } from '../auth/session.js'
+import { apiBaseUrl } from '../utils/apiPath.js'
 
 export const http = axios.create({
-  baseURL: apiBaseUrl(),
+  baseURL: apiBaseUrl(Boolean(import.meta.env?.DEV)),
   timeout: 20_000,
+})
+
+http.interceptors.request.use((config) => {
+  config.headers['X-User-Id'] = currentUser.id
+  return config
 })
 export function apiErrorMessage(error) {
   if (axios.isAxiosError(error)) {

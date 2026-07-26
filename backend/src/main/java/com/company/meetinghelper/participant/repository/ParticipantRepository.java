@@ -16,6 +16,23 @@ public interface ParticipantRepository extends JpaRepository<ParticipantEntity, 
     List<ParticipantEntity> findAllByMeetingIdAndDeletedFalseOrderByNameAsc(String meetingId);
 
     /**
+     * 查询会议中的全部人员，并将有效人员排在软删除人员之前。
+     *
+     * @param meetingId 会议ID
+     * @return 包含软删除记录的参会人员
+     */
+    List<ParticipantEntity> findAllByMeetingIdOrderByDeletedAscNameAsc(String meetingId);
+
+    /**
+     * 按人员ID和会议ID查询有效人员。
+     *
+     * @param id 人员ID
+     * @param meetingId 会议ID
+     * @return 属于指定会议的有效人员，不存在时返回空
+     */
+    Optional<ParticipantEntity> findByIdAndMeetingIdAndDeletedFalse(String id, String meetingId);
+
+    /**
      * 根据会议和工号查询有效人员。
      *
      * @param meetingId 会议ID

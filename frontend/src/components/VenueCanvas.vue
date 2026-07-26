@@ -1,6 +1,8 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
+import { firstParticipantSummary } from '@/utils/participantFields'
+import { startParticipantDrag as performParticipantDrag } from '@/utils/participantActions'
 import { displayCellUnit, elementBox } from '@/utils/venueCanvasMetrics'
 const props = defineProps({
   workspace: { type: Object, required: true },
@@ -55,6 +57,9 @@ function participantFor(elementId) {
   const item = itemFor(elementId)
   return item?.participantId ? participantById.value.get(item.participantId) : undefined
 }
+function participantSeatSummary(elementId) {
+  return firstParticipantSummary(participantFor(elementId), props.workspace.fieldDefinitions)
+}
 function visualStyle(element) {
   const item = itemFor(element.id)
   const person = participantFor(element.id)
@@ -67,14 +72,14 @@ function visualStyle(element) {
   }
 }
 function onDragStart(event, participant) {
-  if (props.readonly) {
-    event.preventDefault()
-    return
-  }
-  event.dataTransfer?.setData('text/participant-id', participant.id)
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
-  emit('select', participant)
-  emit('dragState', participant.id)
+  performParticipantDrag({
+    event,
+    participant,
+    readonly: props.readonly,
+    locked: participant.locked,
+    onSelect: (person) => emit('select', person),
+    onDragState: (participantId) => emit('dragState', participantId),
+  })
 }
 function startParticipantDrag(event, elementId) {
   const participant = participantFor(elementId)
@@ -218,18 +223,8 @@ onBeforeUnmount(endPan)
                   {{ participantFor(element.id)?.name }} ·
                   {{ participantFor(element.id)?.employeeNo }}
                 </span>
-                <span>
-                  {{ participantFor(element.id)?.participantType || '参会人员' }}
-                  <template v-if="participantFor(element.id)?.level">
-                    · 职级{{ participantFor(element.id)?.level }}
-                  </template>
-                </span>
-                <span v-if="participantFor(element.id)?.primaryBatchName">
-                  {{ participantFor(element.id)?.primaryBatchName }} ·
-                  {{ participantFor(element.id)?.awards[0]?.awardName }}
-                </span>
-                <span v-if="participantFor(element.id)?.repeatedBatches.length">
-                  重复批次：{{ participantFor(element.id)?.repeatedBatches.join('、') }}
+                <span v-if="participantSeatSummary(element.id)">
+                  {{ participantSeatSummary(element.id) }}
                 </span>
               </template>
               <span v-else-if="itemFor(element.id)">
@@ -271,8 +266,8 @@ onBeforeUnmount(endPan)
               >
                 {{ participantFor(element.id)?.name }}
               </span>
-              <span v-if="participantFor(element.id)?.repeatedBatches.length" class="repeat-badge">
-                +{{ participantFor(element.id)?.repeatedBatches.length }}
+              <span v-if="participantSeatSummary(element.id)" class="seat-summary">
+                {{ participantSeatSummary(element.id) }}
               </span>
               <el-icon v-if="itemFor(element.id)?.locked" class="lock-badge"><Lock /></el-icon>
             </template>
@@ -460,16 +455,21 @@ onBeforeUnmount(endPan)
   white-space: nowrap;
 }
 
-.repeat-badge {
+.seat-person:has(+ .seat-summary) {
+  inset: 25% 1px auto;
+  height: 30%;
+}
+
+.seat-summary {
   position: absolute;
-  top: 1px;
-  right: 1px;
-  padding: 1px 3px;
-  color: #fff;
-  background: #8b5cf6;
-  border-radius: 6px;
-  font-size: 7px;
-  line-height: 1.2;
+  inset: 58% 1px 1px;
+  overflow: hidden;
+  color: inherit;
+  font-size: max(6px, calc(var(--unit) * 0.19));
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lock-badge {

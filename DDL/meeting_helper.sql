@@ -200,12 +200,7 @@ create table if not exists t_participants (
     meeting_id varchar(36) not null,
     employee_no varchar(9) not null,
     name varchar(80) not null,
-    level_value integer,
-    department varchar(160),
-    participant_type varchar(80),
-    tags varchar(500),
     attendance_status varchar(30) not null default 'PRESENT',
-    custom_attributes_json text,
     locked boolean not null,
     created_by_id varchar(64) not null,
     created_by_name varchar(80) not null,
@@ -224,12 +219,7 @@ comment on column t_participants.id is '参会人员主键';
 comment on column t_participants.meeting_id is '所属会议标识';
 comment on column t_participants.employee_no is '公司工号，格式为8位数字或1个小写字母加8位数字';
 comment on column t_participants.name is '参会人员姓名';
-comment on column t_participants.level_value is '人员职级数值，数值越大职级越高';
-comment on column t_participants.department is '人员所属部门';
-comment on column t_participants.participant_type is '人员业务类型，如嘉宾或获奖人员';
-comment on column t_participants.tags is '人员标签集合';
 comment on column t_participants.attendance_status is '出席状态：PRESENT正常出席，TEMPORARILY_ABSENT临时不出席';
-comment on column t_participants.custom_attributes_json is '场景扩展属性 JSON';
 comment on column t_participants.locked is '人员是否锁定不可移动';
 comment on column t_participants.created_by_id is '创建人标识';
 comment on column t_participants.created_by_name is '创建人姓名';
@@ -240,15 +230,11 @@ comment on column t_participants.updated_at is '最后更新时间';
 comment on column t_participants.deleted is '逻辑删除标记';
 comment on column t_participants.row_version is '乐观锁版本号';
 
-create table if not exists t_award_records (
+create table if not exists t_meeting_participant_fields (
     id varchar(36) primary key,
-    participant_id varchar(36) not null,
-    batch_order integer not null,
-    batch_name varchar(80) not null,
-    award_name varchar(200) not null,
-    award_level varchar(80),
-    project_name varchar(240),
-    team_size integer,
+    meeting_id varchar(36) not null,
+    field_name varchar(120) not null,
+    sort_order integer not null,
     created_by_id varchar(64) not null,
     created_by_name varchar(80) not null,
     created_at timestamp with time zone not null,
@@ -257,26 +243,54 @@ create table if not exists t_award_records (
     updated_at timestamp with time zone not null,
     deleted boolean not null,
     row_version bigint not null,
-    constraint fk_t_award_participant foreign key (participant_id) references t_participants(id)
+    constraint fk_t_participant_field_meeting foreign key (meeting_id) references t_meetings(id),
+    constraint uk_t_participant_field_name unique (meeting_id, field_name)
 );
 
-comment on table t_award_records is '获奖人员的颁奖批次与奖项记录';
-comment on column t_award_records.id is '获奖记录主键';
-comment on column t_award_records.participant_id is '获奖人员标识';
-comment on column t_award_records.batch_order is '领奖批次顺序';
-comment on column t_award_records.batch_name is '领奖批次名称';
-comment on column t_award_records.award_name is '奖项名称';
-comment on column t_award_records.award_level is '奖项等级';
-comment on column t_award_records.project_name is '获奖项目名称';
-comment on column t_award_records.team_size is '获奖团队人数';
-comment on column t_award_records.created_by_id is '创建人标识';
-comment on column t_award_records.created_by_name is '创建人姓名';
-comment on column t_award_records.created_at is '创建时间';
-comment on column t_award_records.updated_by_id is '最后更新人标识';
-comment on column t_award_records.updated_by_name is '最后更新人姓名';
-comment on column t_award_records.updated_at is '最后更新时间';
-comment on column t_award_records.deleted is '逻辑删除标记';
-comment on column t_award_records.row_version is '乐观锁版本号';
+comment on table t_meeting_participant_fields is '会议自定义人员字段定义';
+comment on column t_meeting_participant_fields.id is '会议人员字段主键';
+comment on column t_meeting_participant_fields.meeting_id is '所属会议标识';
+comment on column t_meeting_participant_fields.field_name is '自定义字段名称';
+comment on column t_meeting_participant_fields.sort_order is '字段展示排序号';
+comment on column t_meeting_participant_fields.created_by_id is '创建人标识';
+comment on column t_meeting_participant_fields.created_by_name is '创建人姓名';
+comment on column t_meeting_participant_fields.created_at is '创建时间';
+comment on column t_meeting_participant_fields.updated_by_id is '最后更新人标识';
+comment on column t_meeting_participant_fields.updated_by_name is '最后更新人姓名';
+comment on column t_meeting_participant_fields.updated_at is '最后更新时间';
+comment on column t_meeting_participant_fields.deleted is '逻辑删除标记';
+comment on column t_meeting_participant_fields.row_version is '乐观锁版本号';
+
+create table if not exists t_participant_records (
+    id varchar(36) primary key,
+    participant_id varchar(36) not null,
+    record_order integer not null,
+    attributes_json text not null,
+    created_by_id varchar(64) not null,
+    created_by_name varchar(80) not null,
+    created_at timestamp with time zone not null,
+    updated_by_id varchar(64) not null,
+    updated_by_name varchar(80) not null,
+    updated_at timestamp with time zone not null,
+    deleted boolean not null,
+    row_version bigint not null,
+    constraint fk_t_participant_record_person foreign key (participant_id) references t_participants(id),
+    constraint uk_t_participant_record_order unique (participant_id, record_order)
+);
+
+comment on table t_participant_records is '参会人员通用扩展记录';
+comment on column t_participant_records.id is '人员记录主键';
+comment on column t_participant_records.participant_id is '关联参会人员标识';
+comment on column t_participant_records.record_order is '人员记录排序号';
+comment on column t_participant_records.attributes_json is '人员扩展属性 JSON';
+comment on column t_participant_records.created_by_id is '创建人标识';
+comment on column t_participant_records.created_by_name is '创建人姓名';
+comment on column t_participant_records.created_at is '创建时间';
+comment on column t_participant_records.updated_by_id is '最后更新人标识';
+comment on column t_participant_records.updated_by_name is '最后更新人姓名';
+comment on column t_participant_records.updated_at is '最后更新时间';
+comment on column t_participant_records.deleted is '逻辑删除标记';
+comment on column t_participant_records.row_version is '乐观锁版本号';
 
 create table if not exists t_seating_plans (
     id varchar(36) primary key,

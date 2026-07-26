@@ -1,6 +1,7 @@
 package com.company.meetinghelper.meeting.service;
 
 import com.company.meetinghelper.common.exception.ApiException;
+import com.company.meetinghelper.common.user.CurrentUserProvider;
 import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
 import com.company.meetinghelper.meeting.api.dto.response.MeetingSummary;
 import com.company.meetinghelper.meeting.entity.MeetingElementEntity;
@@ -23,6 +24,7 @@ public class MeetingService {
     private final MeetingElementRepository meetingElementRepository;
     private final VenueService venueService;
     private final SeatingPlanRepository planRepository;
+    private final CurrentUserProvider currentUserProvider;
 
     /**
      * 创建会议服务。
@@ -31,27 +33,31 @@ public class MeetingService {
      * @param meetingElementRepository 会议元素仓储
      * @param venueService 场馆模板服务
      * @param planRepository 排座方案仓储
+     * @param currentUserProvider 当前用户提供器
      */
     public MeetingService(
             MeetingRepository meetingRepository,
             MeetingElementRepository meetingElementRepository,
             VenueService venueService,
-            SeatingPlanRepository planRepository
+            SeatingPlanRepository planRepository,
+            CurrentUserProvider currentUserProvider
     ) {
         this.meetingRepository = meetingRepository;
         this.meetingElementRepository = meetingElementRepository;
         this.venueService = venueService;
         this.planRepository = planRepository;
+        this.currentUserProvider = currentUserProvider;
     }
 
     /**
-     * 查询全部有效会议。
+     * 查询当前用户拥有的全部有效会议。
      *
      * @return 会议摘要列表
      */
     @Transactional(readOnly = true)
     public List<MeetingSummary> list() {
-        return meetingRepository.findAllByDeletedFalseOrderByUpdatedAtDesc().stream()
+        var userId = currentUserProvider.requireUserId();
+        return meetingRepository.findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(userId).stream()
                 .map(meeting -> new MeetingSummary(
                         meeting.getId(), meeting.getName(), meeting.getStatus(), meeting.getLayoutName(),
                         meeting.getUpdatedAt(), meeting.getUpdatedByName()))
@@ -66,8 +72,12 @@ public class MeetingService {
      */
     @Transactional
     public MeetingSummary create(CreateMeetingRequest request) {
+        var userId = currentUserProvider.requireUserId();
         var normalizedName = request.name().trim();
-        if (meetingRepository.existsByNameIgnoreCaseAndDeletedFalse(normalizedName)) {
+        if (meetingRepository.existsByCreatedByIdAndNameIgnoreCaseAndDeletedFalse(
+                userId,
+                normalizedName
+        )) {
             throw new ApiException(HttpStatus.CONFLICT, "会议名称已存在");
         }
         var venue = venueService.get(request.venueTemplateId());
@@ -80,6 +90,10 @@ public class MeetingService {
         meeting.setGridColumns(venue.gridColumns());
         meeting.setCellSize(venue.cellSize());
         meeting.setLayoutVersion(1);
+        meeting.setCreatedById(userId);
+        meeting.setCreatedByName(userId);
+        meeting.setUpdatedById(userId);
+        meeting.setUpdatedByName(userId);
         meetingRepository.save(meeting);
 
         var copiedElements = venue.elements().stream()

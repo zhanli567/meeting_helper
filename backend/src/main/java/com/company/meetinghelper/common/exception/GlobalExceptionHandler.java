@@ -2,6 +2,7 @@ package com.company.meetinghelper.common.exception;
 
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.HttpStatus;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -24,6 +25,18 @@ public class GlobalExceptionHandler {
                 .orElse("请求参数不正确");
         var detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, message);
         detail.setTitle("数据校验失败");
+        return detail;
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    ProblemDetail handleOptimisticLockingFailure(
+            ObjectOptimisticLockingFailureException exception
+    ) {
+        var detail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "数据已发生变化，请刷新后重试"
+        );
+        detail.setTitle("数据已更新");
         return detail;
     }
 }

@@ -1,4 +1,12 @@
 package com.company.meetinghelper.importing.api.dto.response;
 
-public record CommitResult(int inserted, int updated, int awardRecords, int pendingCount) {
+/**
+ * 通用人员导入提交的分类统计。
+ */
+public record CommitResult(
+        int newParticipants,
+        int mergedRecords,
+        int appendedRecords,
+        int skippedRecords
+) {
 }

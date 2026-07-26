@@ -17,6 +17,18 @@ function readRecentMeetingId() {
     return ''
   }
 }
+function normalizeWorkspace(value) {
+  return {
+    ...value,
+    fieldDefinitions: value.fieldDefinitions || [],
+    participants: (value.participants || []).map((participant) => ({
+      ...participant,
+      primaryAttributes: participant.primaryAttributes || {},
+      attributeValues: participant.attributeValues || {},
+      records: participant.records || [],
+    })),
+  }
+}
 function createWorkspaceStore() {
   const meetings = ref([])
   const activeMeetingId = ref(readRecentMeetingId())
@@ -52,7 +64,7 @@ function createWorkspaceStore() {
   }
   async function loadWorkspace() {
     if (!activeMeetingId.value) return
-    workspace.value = await meetingApi.workspace(activeMeetingId.value)
+    workspace.value = normalizeWorkspace(await meetingApi.workspace(activeMeetingId.value))
     dirty.value = false
   }
   async function switchMeeting(meetingId) {

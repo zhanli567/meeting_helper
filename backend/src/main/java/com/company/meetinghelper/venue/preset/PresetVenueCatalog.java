@@ -10,10 +10,10 @@ final class PresetVenueCatalog {
     }
 
     static List<PresetVenueDefinition> definitions() {
-        return List.of(awardCeremonyHall());
+        return List.of(auditoriumHall());
     }
 
-    private static PresetVenueDefinition awardCeremonyHall() {
+    private static PresetVenueDefinition auditoriumHall() {
         var elements = new ArrayList<ElementInput>();
         elements.add(element("STAGE", "STAGE", "舞台", 1, 5, 2, 35,
                 false, true, 0, "#DBEAFE", "#93C5FD"));
@@ -58,9 +58,9 @@ final class PresetVenueCatalog {
         elements.add(element("LABEL", "EXIT", "后方出口", 16, 18, 1, 9,
                 false, true, 0, "#F1F5F9", "#CBD5E1"));
         return new PresetVenueDefinition(
-                "preset-award-ceremony-hall",
-                "颁奖典礼礼堂",
-                "舞台位于上方，包含左右门、四条纵向通道和九排座位的预置演示场馆。",
+                "preset-auditorium-hall",
+                "多功能礼堂",
+                "舞台位于上方，包含左右门、四条纵向通道和九排座位的通用预置场馆。",
                 18,
                 43,
                 34,
