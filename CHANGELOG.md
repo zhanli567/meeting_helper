@@ -73,6 +73,7 @@
 
 ### 变更
 
+- 2026-07-26 22:49  引入 MyBatis-Plus 3.5.10.1，完成 11 个持久化实体与现有 `t_` 表、审计字段和逻辑删除字段的显式映射。
 - 2026-07-26 22:46  后端基线降至 Spring Boot 3.3.5，自动化测试改用专用 PostgreSQL 数据库 `meeting_helper_test` 并通过根目录 DDL 安全重建。
 - 2026-07-26 22:28  编制公司技术栈迁移实施计划，按 PostgreSQL 测试基线、MyBatis-Plus 分域迁移、统一响应与 GET/POST 接口、Aurora 请求封装和全量回归拆分执行步骤。
 - 2026-07-26 22:09  确定公司技术栈对齐设计：后端迁移至 MyBatis-Plus Mapper 与 Repository 分层，前端接入 Aurora 封装，JSON 响应统一为 `{code,data,msg}`，请求仅保留 GET 和 POST。

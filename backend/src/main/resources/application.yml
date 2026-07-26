@@ -22,3 +22,13 @@ spring:
 
 server:
   port: 8080
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: true
+      logic-not-delete-value: false
