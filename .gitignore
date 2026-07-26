@@ -14,3 +14,4 @@ frontend/.env.*.local
 backend/target/
 backend/uploads/
 DDL/target/
+.worktrees/
