@@ -41,7 +41,7 @@ public class MeetingAccessService {
      */
     @Transactional(readOnly = true)
     public MeetingEntity requireOwnedMeeting(String meetingId) {
-        var userId = currentUserProvider.requireUserId();
+        String userId = currentUserProvider.requireUserId();
         return meetingRepository.findByIdAndCreatedByIdAndDeletedFalse(meetingId, userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议不存在"));
     }
@@ -54,7 +54,7 @@ public class MeetingAccessService {
      */
     @Transactional(readOnly = true)
     public SeatingPlanEntity requireOwnedPlan(String planId) {
-        var userId = currentUserProvider.requireUserId();
+        String userId = currentUserProvider.requireUserId();
         return planRepository.findOwnedById(planId, userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
     }

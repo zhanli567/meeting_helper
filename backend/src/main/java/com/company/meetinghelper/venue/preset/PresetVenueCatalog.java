@@ -14,7 +14,7 @@ final class PresetVenueCatalog {
     }
 
     private static PresetVenueDefinition auditoriumHall() {
-        var elements = new ArrayList<ElementInput>();
+        ArrayList<ElementInput> elements = new ArrayList<ElementInput>();
         elements.add(element("STAGE", "STAGE", "舞台", 1, 5, 2, 35,
                 false, true, 0, "#DBEAFE", "#93C5FD"));
         elements.add(element("WALL", null, null, 1, 1, 4, 1,
@@ -41,7 +41,7 @@ final class PresetVenueCatalog {
                 false, true, 0, "#F8FAFC", "#E2E8F0"));
 
         for (int row = 1; row <= 9; row++) {
-            var gridRow = row + 5;
+            int gridRow = row + 5;
             for (int index = 1; index <= 7; index++) {
                 elements.add(seat(row, index, gridRow, 3 + index, 1));
             }

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.company.meetinghelper.participant.service.ParticipantRecordMerger;
 import com.company.meetinghelper.participant.service.ParticipantRecordMerger.Action;
+import com.company.meetinghelper.participant.service.ParticipantRecordMerger.MergeDecision;
 import com.company.meetinghelper.participant.service.ParticipantRecordMerger.RecordValue;
 import java.util.List;
 import java.util.Map;
@@ -15,9 +16,9 @@ class ParticipantRecordMergerTests {
 
     @Test
     void enrichesTheOnlyCompatibleRecord() {
-        var existing = List.of(new RecordValue("r1", 1, Map.of("字段1", "值1")));
+        List<RecordValue> existing = List.of(new RecordValue("r1", 1, Map.of("字段1", "值1")));
 
-        var result = merger.decide(
+        MergeDecision result = merger.decide(
                 Map.of("字段1", "值1", "字段2", "值2"),
                 existing);
 
@@ -28,10 +29,10 @@ class ParticipantRecordMergerTests {
 
     @Test
     void skipsIncomingDataAlreadyContainedByARecord() {
-        var existing = List.of(new RecordValue(
+        List<RecordValue> existing = List.of(new RecordValue(
                 "r1", 1, Map.of("字段1", "值1", "字段2", "值2")));
 
-        var result = merger.decide(Map.of("字段1", "值1"), existing);
+        MergeDecision result = merger.decide(Map.of("字段1", "值1"), existing);
 
         assertEquals(Action.SKIP, result.action());
         assertEquals("r1", result.targetRecordId());
@@ -40,10 +41,10 @@ class ParticipantRecordMergerTests {
 
     @Test
     void appendsWhenSharedFieldsConflict() {
-        var existing = List.of(new RecordValue(
+        List<RecordValue> existing = List.of(new RecordValue(
                 "r1", 1, Map.of("批次", "第二批", "奖项", "优秀项目奖")));
 
-        var result = merger.decide(
+        MergeDecision result = merger.decide(
                 Map.of("批次", "第三批", "奖项", "创新奖"), existing);
 
         assertEquals(Action.APPEND, result.action());
@@ -53,11 +54,11 @@ class ParticipantRecordMergerTests {
 
     @Test
     void appendsWhenSeveralRecordsAreCompatibleButTargetIsAmbiguous() {
-        var existing = List.of(
+        List<RecordValue> existing = List.of(
                 new RecordValue("r1", 1, Map.of("批次", "第二批")),
                 new RecordValue("r2", 2, Map.of("批次", "第三批")));
 
-        var result = merger.decide(Map.of("部门", "研发部"), existing);
+        MergeDecision result = merger.decide(Map.of("部门", "研发部"), existing);
 
         assertEquals(Action.APPEND, result.action());
         assertEquals(null, result.targetRecordId());
@@ -66,10 +67,10 @@ class ParticipantRecordMergerTests {
 
     @Test
     void normalizesWhitespaceAndDiscardsBlankKeysAndValuesBeforeDeciding() {
-        var existing = List.of(new RecordValue(
+        List<RecordValue> existing = List.of(new RecordValue(
                 "r1", 1, Map.of(" 部门 ", " 研发部 ", "空值", "   ")));
 
-        var result = merger.decide(
+        MergeDecision result = merger.decide(
                 Map.of(" 部门 ", " 研发部 ", " ", "忽略", "无效", " "),
                 existing);
 

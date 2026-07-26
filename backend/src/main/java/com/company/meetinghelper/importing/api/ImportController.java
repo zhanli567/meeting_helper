@@ -38,7 +38,7 @@ public class ImportController {
      */
     @GetMapping("/imports/template")
     public ResponseEntity<byte[]> template() {
-        var disposition = ContentDisposition.attachment()
+        ContentDisposition disposition = ContentDisposition.attachment()
                 .filename("参会人员导入模板.xlsx", StandardCharsets.UTF_8)
                 .build();
         return ResponseEntity.ok()

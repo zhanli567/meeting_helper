@@ -61,7 +61,7 @@ public class ExportController {
     }
 
     private ResponseEntity<byte[]> download(byte[] bytes, String filename, String contentType) {
-        var disposition = ContentDisposition.attachment()
+        ContentDisposition disposition = ContentDisposition.attachment()
                 .filename(filename, StandardCharsets.UTF_8)
                 .build();
         return ResponseEntity.ok()

@@ -1,69 +1,7 @@
 package com.company.meetinghelper;
 
-import com.company.meetinghelper.common.context.CurrentUserHolder;
-import com.company.meetinghelper.common.security.CurrentUser;
-import com.company.meetinghelper.support.PostgreSqlTestDatabaseInitializer;
-import com.company.meetinghelper.export.service.ExportService;
-import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
-import com.company.meetinghelper.meeting.repository.MeetingRepository;
-import com.company.meetinghelper.meeting.service.MeetingService;
-import com.company.meetinghelper.participant.api.dto.request.CreateParticipantRequest;
-import com.company.meetinghelper.participant.api.dto.request.UpdateAttendanceRequest;
-import com.company.meetinghelper.participant.entity.AttendanceStatus;
-import com.company.meetinghelper.participant.entity.MeetingParticipantFieldEntity;
-import com.company.meetinghelper.participant.entity.ParticipantEntity;
-import com.company.meetinghelper.participant.entity.ParticipantRecordEntity;
-import com.company.meetinghelper.participant.repository.MeetingParticipantFieldRepository;
-import com.company.meetinghelper.participant.repository.ParticipantRecordRepository;
-import com.company.meetinghelper.participant.repository.ParticipantRepository;
-import com.company.meetinghelper.participant.service.ParticipantFieldRegistrationService;
-import com.company.meetinghelper.participant.service.ParticipantService;
-import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
-import com.company.meetinghelper.seating.api.dto.request.AssignmentInput;
-import com.company.meetinghelper.seating.api.dto.request.CreateVersionRequest;
-import com.company.meetinghelper.seating.api.dto.request.SaveAssignmentsRequest;
-import com.company.meetinghelper.seating.repository.PlanVersionRepository;
-import com.company.meetinghelper.seating.service.PlanVersionService;
-import com.company.meetinghelper.seating.service.SeatingService;
-import com.company.meetinghelper.venue.api.dto.ElementInput;
-import com.company.meetinghelper.venue.api.dto.request.CreateVenueRequest;
-import com.company.meetinghelper.venue.service.VenueService;
-import com.company.meetinghelper.workspace.service.WorkspaceService;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.text.PDFTextStripper;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.boot.test.mock.mockito.SpyBean;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
-import org.springframework.web.filter.OncePerRequestFilter;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import java.io.ByteArrayOutputStream;
-import java.util.Map;
-
+import static java.util.Locale.ROOT;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -73,6 +11,101 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.company.meetinghelper.common.context.CurrentUserHolder;
+import com.company.meetinghelper.common.security.CurrentUser;
+import com.company.meetinghelper.export.service.ExportService;
+import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
+import com.company.meetinghelper.meeting.api.dto.response.MeetingSummary;
+import com.company.meetinghelper.meeting.repository.MeetingRepository;
+import com.company.meetinghelper.meeting.service.MeetingService;
+import com.company.meetinghelper.participant.api.dto.request.CreateParticipantRequest;
+import com.company.meetinghelper.participant.api.dto.request.UpdateAttendanceRequest;
+import com.company.meetinghelper.participant.api.dto.response.ParticipantResult;
+import com.company.meetinghelper.participant.entity.AttendanceStatus;
+import com.company.meetinghelper.participant.entity.MeetingParticipantFieldEntity;
+import com.company.meetinghelper.participant.entity.ParticipantEntity;
+import com.company.meetinghelper.participant.entity.ParticipantRecordEntity;
+import com.company.meetinghelper.participant.repository.MeetingParticipantFieldRepository;
+import com.company.meetinghelper.participant.repository.ParticipantRecordRepository;
+import com.company.meetinghelper.participant.repository.ParticipantRepository;
+import com.company.meetinghelper.participant.service.ParticipantFieldRegistrationService;
+import com.company.meetinghelper.participant.service.ParticipantService;
+import com.company.meetinghelper.seating.api.dto.request.AssignmentInput;
+import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
+import com.company.meetinghelper.seating.api.dto.request.CreateVersionRequest;
+import com.company.meetinghelper.seating.api.dto.request.SaveAssignmentsRequest;
+import com.company.meetinghelper.seating.api.dto.response.VersionResult;
+import com.company.meetinghelper.seating.entity.PlanVersionEntity;
+import com.company.meetinghelper.seating.repository.PlanVersionRepository;
+import com.company.meetinghelper.seating.service.PlanVersionService;
+import com.company.meetinghelper.seating.service.SeatingService;
+import com.company.meetinghelper.support.PostgreSqlTestDatabaseInitializer;
+import com.company.meetinghelper.venue.api.dto.ElementInput;
+import com.company.meetinghelper.venue.api.dto.request.CreateVenueRequest;
+import com.company.meetinghelper.venue.api.dto.response.VenueDetail;
+import com.company.meetinghelper.venue.api.dto.response.VenueSummary;
+import com.company.meetinghelper.venue.service.VenueService;
+import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse;
+import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.ElementView;
+import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.ParticipantView;
+import com.company.meetinghelper.workspace.service.WorkspaceService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.xssf.usermodel.XSSFRow;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.util.AopTestUtils;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -130,7 +163,7 @@ class MeetingHelperIntegrationTests {
 
     @BeforeEach
     void bindDefaultUserToDirectServiceCalls() {
-        CurrentUserHolder.set(new CurrentUser(DEFAULT_USER, DEFAULT_USER, java.util.Set.of()));
+        CurrentUserHolder.set(new CurrentUser(DEFAULT_USER, DEFAULT_USER, Set.of()));
     }
 
     @AfterEach
@@ -174,17 +207,17 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void meetingAndAllChildResourcesAreIsolatedByOwner() throws Exception {
-        var suffix = java.util.UUID.randomUUID();
-        var userAMeetingName = "用户A会议-" + suffix;
-        var userBMeetingName = "用户B会议-" + suffix;
-        var userAMeetingId = createMeetingAs("user-a", userAMeetingName);
-        var userBMeetingId = createMeetingAs("user-b", userBMeetingName);
+        UUID suffix = UUID.randomUUID();
+        String userAMeetingName = "用户A会议-" + suffix;
+        String userBMeetingName = "用户B会议-" + suffix;
+        String userAMeetingId = createMeetingAs("user-a", userAMeetingName);
+        String userBMeetingId = createMeetingAs("user-b", userBMeetingName);
 
-        var userAList = responseJson(mockMvc.perform(
+        JsonNode userAList = responseJson(mockMvc.perform(
                         get("/meetings").header(USER_HEADER, "user-a"))
                 .andExpect(status().isOk())
                 .andReturn());
-        var userBList = responseJson(mockMvc.perform(
+        JsonNode userBList = responseJson(mockMvc.perform(
                         get("/meetings").header(USER_HEADER, "user-b"))
                 .andExpect(status().isOk())
                 .andReturn());
@@ -199,19 +232,19 @@ class MeetingHelperIntegrationTests {
                         .header(USER_HEADER, "user-a"))
                 .andExpect(status().isNotFound());
 
-        var participantId = createParticipantAs(
+        String participantId = createParticipantAs(
                 "user-b",
                 userBMeetingId,
                 "b00000001",
                 "用户B人员"
         );
-        var workspace = responseJson(mockMvc.perform(
+        JsonNode workspace = responseJson(mockMvc.perform(
                         get("/meetings/{meetingId}/workspace", userBMeetingId)
                                 .header(USER_HEADER, "user-b"))
                 .andExpect(status().isOk())
                 .andReturn());
-        var planId = workspace.path("plan").path("id").asText();
-        var seatId = java.util.stream.StreamSupport.stream(
+        String planId = workspace.path("plan").path("id").asText();
+        String seatId = StreamSupport.stream(
                         workspace.path("layout").path("elements").spliterator(),
                         false
                 )
@@ -244,7 +277,7 @@ class MeetingHelperIntegrationTests {
                 ).header(USER_HEADER, "user-a"))
                 .andExpect(status().isNotFound());
 
-        var importContent = workbook("工号,姓名,批次\nb00000001,用户B人员,第一批");
+        byte[] importContent = workbook("工号,姓名,批次\nb00000001,用户B人员,第一批");
         mockMvc.perform(multipart("/meetings/{meetingId}/imports/preview", userBMeetingId)
                         .file(new MockMultipartFile(
                                 "file",
@@ -254,8 +287,8 @@ class MeetingHelperIntegrationTests {
                         ))
                         .header(USER_HEADER, "user-a"))
                 .andExpect(status().isNotFound());
-        var preview = previewAs("user-b", userBMeetingId, importContent);
-        var token = preview.path("token").asText();
+        JsonNode preview = previewAs("user-b", userBMeetingId, importContent);
+        String token = preview.path("token").asText();
         mockMvc.perform(post(
                         "/meetings/{meetingId}/imports/{token}/commit",
                         userAMeetingId,
@@ -269,7 +302,7 @@ class MeetingHelperIntegrationTests {
                 ).header(USER_HEADER, "user-b"))
                 .andExpect(status().isOk());
 
-        var assignmentJson = """
+        String assignmentJson = """
                 {"participantId":"%s","targetElementId":"%s"}
                 """.formatted(participantId, seatId);
         mockMvc.perform(post("/plans/{planId}/assignments", planId)
@@ -302,7 +335,7 @@ class MeetingHelperIntegrationTests {
                 ).param("locked", "true").header(USER_HEADER, "user-a"))
                 .andExpect(status().isNotFound());
 
-        var versionRequest = """
+        String versionRequest = """
                 {"versionName":"用户B发布版","changeNote":"","automatic":false}
                 """;
         mockMvc.perform(post("/plans/{planId}/versions", planId)
@@ -310,13 +343,13 @@ class MeetingHelperIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(versionRequest))
                 .andExpect(status().isNotFound());
-        var version = responseJson(mockMvc.perform(post("/plans/{planId}/versions", planId)
+        JsonNode version = responseJson(mockMvc.perform(post("/plans/{planId}/versions", planId)
                         .header(USER_HEADER, "user-b")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(versionRequest))
                 .andExpect(status().isOk())
                 .andReturn());
-        var versionId = version.path("id").asText();
+        String versionId = version.path("id").asText();
         mockMvc.perform(get("/plans/{planId}/versions/{versionId}", planId, versionId)
                         .header(USER_HEADER, "user-a"))
                 .andExpect(status().isNotFound());
@@ -342,21 +375,21 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void seatingAssignmentsDoNotRevealForeignOrMissingParticipantAndElementIds() throws Exception {
-        var suffix = java.util.UUID.randomUUID();
-        var userAMeetingId = createMeetingAs("user-a", "座位侧信道A-" + suffix);
-        var userBMeetingId = createMeetingAs("user-b", "座位侧信道B-" + suffix);
-        var userAParticipantId = createParticipantAs(
+        UUID suffix = UUID.randomUUID();
+        String userAMeetingId = createMeetingAs("user-a", "座位侧信道A-" + suffix);
+        String userBMeetingId = createMeetingAs("user-b", "座位侧信道B-" + suffix);
+        String userAParticipantId = createParticipantAs(
                 "user-a", userAMeetingId, "a90000001", "用户A人员"
         );
-        var userBParticipantId = createParticipantAs(
+        String userBParticipantId = createParticipantAs(
                 "user-b", userBMeetingId, "b90000001", "用户B人员"
         );
-        var userAWorkspace = workspaceAs("user-a", userAMeetingId);
-        var userBWorkspace = workspaceAs("user-b", userBMeetingId);
-        var userAPlanId = userAWorkspace.path("plan").path("id").asText();
-        var userAElementId = assignableSeatId(userAWorkspace);
-        var userBElementId = assignableSeatId(userBWorkspace);
-        var missingId = "missing-" + suffix;
+        JsonNode userAWorkspace = workspaceAs("user-a", userAMeetingId);
+        JsonNode userBWorkspace = workspaceAs("user-b", userBMeetingId);
+        String userAPlanId = userAWorkspace.path("plan").path("id").asText();
+        String userAElementId = assignableSeatId(userAWorkspace);
+        String userBElementId = assignableSeatId(userBWorkspace);
+        String missingId = "missing-" + suffix;
 
         mockMvc.perform(post("/plans/{planId}/assignments", userAPlanId)
                         .header(USER_HEADER, "user-a")
@@ -396,19 +429,19 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void temporarilyAbsentParticipantReleasesSeatAndDoesNotBlockPublishing() {
-        var venue = venueService.list().getFirst();
-        var meeting = meetingService.create(new CreateMeetingRequest(
-                "临时不出席测试-" + java.util.UUID.randomUUID(),
+        VenueSummary venue = venueService.list().getFirst();
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "临时不出席测试-" + UUID.randomUUID(),
                 venue.id()
         ));
-        var participant = participantService.create(
+        ParticipantResult participant = participantService.create(
                 meeting.id(),
                 new CreateParticipantRequest(
-                        "12345678", "测试人员", java.util.Map.of(), null
+                        "12345678", "测试人员", Map.of(), null
                 )
         );
-        var workspace = workspaceService.getWorkspace(meeting.id());
-        var seat = workspace.layout().elements().stream()
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        ElementView seat = workspace.layout().elements().stream()
                 .filter(value -> value.assignable() && value.capacity() == 1)
                 .findFirst()
                 .orElseThrow();
@@ -423,8 +456,8 @@ class MeetingHelperIntegrationTests {
                 new UpdateAttendanceRequest(AttendanceStatus.TEMPORARILY_ABSENT)
         );
 
-        var absentWorkspace = workspaceService.getWorkspace(meeting.id());
-        var absentParticipant = absentWorkspace.participants().getFirst();
+        WorkspaceResponse absentWorkspace = workspaceService.getWorkspace(meeting.id());
+        ParticipantView absentParticipant = absentWorkspace.participants().getFirst();
         assertThat(absentParticipant.attendanceStatus()).isEqualTo("TEMPORARILY_ABSENT");
         assertThat(absentParticipant.assignedElementId()).isNull();
         assertThat(planVersionService.create(
@@ -435,13 +468,13 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void creatingParticipantFromEmptySeatAssignsTheNewParticipantAtomically() throws Exception {
-        var venue = venueService.list().getFirst();
-        var meeting = meetingService.create(new CreateMeetingRequest(
-                "空座新增人员测试-" + java.util.UUID.randomUUID(),
+        VenueSummary venue = venueService.list().getFirst();
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "空座新增人员测试-" + UUID.randomUUID(),
                 venue.id()
         ));
-        var before = workspaceService.getWorkspace(meeting.id());
-        var seat = before.layout().elements().stream()
+        WorkspaceResponse before = workspaceService.getWorkspace(meeting.id());
+        ElementView seat = before.layout().elements().stream()
                 .filter(value -> value.assignable() && value.capacity() == 1)
                 .findFirst()
                 .orElseThrow();
@@ -462,8 +495,8 @@ class MeetingHelperIntegrationTests {
                                 """.formatted(seat.id())))
                 .andExpect(status().isOk());
 
-        var after = workspaceService.getWorkspace(meeting.id());
-        var participant = after.participants().stream()
+        WorkspaceResponse after = workspaceService.getWorkspace(meeting.id());
+        ParticipantView participant = after.participants().stream()
                 .filter(value -> value.employeeNo().equals("87654321"))
                 .findFirst()
                 .orElseThrow();
@@ -485,7 +518,7 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void workspaceAggregatesDynamicParticipantRecordsByRecordAndFieldOrder() throws Exception {
-        var meetingId = createImportMeeting();
+        String meetingId = createImportMeeting();
         previewAndCommit(
                 meetingId,
                 "工号,姓名,批次,奖项名称",
@@ -497,8 +530,8 @@ class MeetingHelperIntegrationTests {
                 "a12345678,张三,第三批,卓越奖"
         );
 
-        var workspace = workspaceService.getWorkspace(meetingId);
-        var person = workspace.participants().stream()
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meetingId);
+        ParticipantView person = workspace.participants().stream()
                 .filter(value -> value.employeeNo().equals("a12345678"))
                 .findFirst()
                 .orElseThrow();
@@ -532,24 +565,24 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void workspaceKeepsBlankRecordAttributesButSkipsThemWhenChoosingPrimaryValues() throws Exception {
-        var meetingId = createImportMeeting();
+        String meetingId = createImportMeeting();
         previewAndCommit(
                 meetingId,
                 "工号,姓名,批次,奖项名称",
                 "a12345678,张三,第二批,创新奖"
         );
-        var participant = participantRepository
+        ParticipantEntity participant = participantRepository
                 .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
                 .orElseThrow();
-        var blankRecord = new ParticipantRecordEntity();
+        ParticipantRecordEntity blankRecord = new ParticipantRecordEntity();
         blankRecord.setParticipantId(participant.getId());
         blankRecord.setRecordOrder(0);
         blankRecord.setAttributesJson(objectMapper.writeValueAsString(
-                java.util.Map.of("批次", "   ", "奖项名称", "")
+                Map.of("批次", "   ", "奖项名称", "")
         ));
         recordRepository.saveAndFlush(blankRecord);
 
-        var person = workspaceService.getWorkspace(meetingId).participants().stream()
+        ParticipantView person = workspaceService.getWorkspace(meetingId).participants().stream()
                 .filter(value -> value.id().equals(participant.getId()))
                 .findFirst()
                 .orElseThrow();
@@ -568,22 +601,22 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void legacyParticipantLockDoesNotBlockAssignmentWithoutLockedPlanItem() {
-        var venue = venueService.list().getFirst();
-        var meeting = meetingService.create(new CreateMeetingRequest(
-                "旧人员锁兼容测试-" + java.util.UUID.randomUUID(),
+        VenueSummary venue = venueService.list().getFirst();
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "旧人员锁兼容测试-" + UUID.randomUUID(),
                 venue.id()
         ));
-        var participant = participantService.create(
+        ParticipantResult participant = participantService.create(
                 meeting.id(),
                 new CreateParticipantRequest(
                         "12345678", "测试人员", Map.of(), null
                 )
         );
-        var entity = participantRepository.findById(participant.id()).orElseThrow();
+        ParticipantEntity entity = participantRepository.findById(participant.id()).orElseThrow();
         entity.setLocked(true);
         participantRepository.saveAndFlush(entity);
-        var workspace = workspaceService.getWorkspace(meeting.id());
-        var seat = workspace.layout().elements().stream()
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        ElementView seat = workspace.layout().elements().stream()
                 .filter(value -> value.assignable() && value.capacity() == 1)
                 .findFirst()
                 .orElseThrow();
@@ -603,7 +636,7 @@ class MeetingHelperIntegrationTests {
     @Test
     void workspaceContainsPresetLayoutAndExplicitlyCreatedParticipants() {
         String meetingId = createSeatingScenario(4, 2);
-        var workspace = workspaceService.getWorkspace(meetingId);
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meetingId);
 
         assertThat(workspace.layout().gridRows()).isEqualTo(18);
         assertThat(workspace.layout().gridColumns()).isEqualTo(43);
@@ -617,20 +650,20 @@ class MeetingHelperIntegrationTests {
     @Test
     void unassignedParticipantCanBeMovedIntoAnEmptySeat() {
         String meetingId = createSeatingScenario(3, 2);
-        var before = workspaceService.getWorkspace(meetingId);
-        var participant = before.participants().stream()
+        WorkspaceResponse before = workspaceService.getWorkspace(meetingId);
+        ParticipantView participant = before.participants().stream()
                 .filter(value -> value.assignedElementId() == null)
                 .findFirst().orElseThrow();
-        var occupied = before.items().stream()
+        Set<String> occupied = before.items().stream()
                 .flatMap(item -> item.targetElementIds().stream())
-                .collect(java.util.stream.Collectors.toSet());
-        var seat = before.layout().elements().stream()
+                .collect(Collectors.toSet());
+        ElementView seat = before.layout().elements().stream()
                 .filter(value -> value.assignable() && !occupied.contains(value.id()))
                 .findFirst().orElseThrow();
 
         seatingService.assign(before.plan().id(), new AssignmentRequest(participant.id(), seat.id()));
 
-        var after = workspaceService.getWorkspace(meetingId);
+        WorkspaceResponse after = workspaceService.getWorkspace(meetingId);
         assertThat(after.participants().stream()
                 .filter(value -> value.id().equals(participant.id()))
                 .findFirst().orElseThrow().assignedElementId()).isEqualTo(seat.id());
@@ -639,22 +672,22 @@ class MeetingHelperIntegrationTests {
     @Test
     void twoAssignedParticipantsCanSwapSeatsWithoutViolatingUniqueConstraint() {
         String meetingId = createSeatingScenario(2, 2);
-        var before = workspaceService.getWorkspace(meetingId);
-        var assigned = before.participants().stream()
+        WorkspaceResponse before = workspaceService.getWorkspace(meetingId);
+        List<ParticipantView> assigned = before.participants().stream()
                 .filter(value -> value.assignedElementId() != null && !value.locked())
                 .limit(2)
                 .toList();
-        var first = assigned.get(0);
-        var second = assigned.get(1);
+        ParticipantView first = assigned.get(0);
+        ParticipantView second = assigned.get(1);
 
         seatingService.assign(
                 before.plan().id(),
                 new AssignmentRequest(first.id(), second.assignedElementId())
         );
 
-        var after = workspaceService.getWorkspace(meetingId);
-        var participantById = after.participants().stream()
-                .collect(java.util.stream.Collectors.toMap(value -> value.id(), value -> value));
+        WorkspaceResponse after = workspaceService.getWorkspace(meetingId);
+        Map<String,ParticipantView> participantById = after.participants().stream()
+                .collect(Collectors.toMap(value -> value.id(), value -> value));
         assertThat(participantById.get(first.id()).assignedElementId())
                 .isEqualTo(second.assignedElementId());
         assertThat(participantById.get(second.id()).assignedElementId())
@@ -664,14 +697,14 @@ class MeetingHelperIntegrationTests {
     @Test
     void completeAssignmentSetCanBeSavedInOneBatch() {
         String meetingId = createSeatingScenario(2, 2);
-        var before = workspaceService.getWorkspace(meetingId);
-        var assigned = before.participants().stream()
+        WorkspaceResponse before = workspaceService.getWorkspace(meetingId);
+        List<ParticipantView> assigned = before.participants().stream()
                 .filter(value -> value.assignedElementId() != null && !value.locked())
                 .limit(2)
                 .toList();
-        var first = assigned.get(0);
-        var second = assigned.get(1);
-        var assignments = before.participants().stream()
+        ParticipantView first = assigned.get(0);
+        ParticipantView second = assigned.get(1);
+        List<AssignmentInput> assignments = before.participants().stream()
                 .filter(value -> value.assignedElementId() != null)
                 .map(value -> {
                     if (value.id().equals(first.id())) {
@@ -689,9 +722,9 @@ class MeetingHelperIntegrationTests {
                 new SaveAssignmentsRequest(assignments)
         );
 
-        var after = workspaceService.getWorkspace(meetingId);
-        var participantById = after.participants().stream()
-                .collect(java.util.stream.Collectors.toMap(value -> value.id(), value -> value));
+        WorkspaceResponse after = workspaceService.getWorkspace(meetingId);
+        Map<String,ParticipantView> participantById = after.participants().stream()
+                .collect(Collectors.toMap(value -> value.id(), value -> value));
         assertThat(participantById.get(first.id()).assignedElementId())
                 .isEqualTo(second.assignedElementId());
         assertThat(participantById.get(second.id()).assignedElementId())
@@ -701,16 +734,16 @@ class MeetingHelperIntegrationTests {
     @Test
     void savedVersionCanRestorePreviousSeatingState() {
         String meetingId = createSeatingScenario(3, 2);
-        var before = workspaceService.getWorkspace(meetingId);
+        WorkspaceResponse before = workspaceService.getWorkspace(meetingId);
 
         assertThatThrownBy(() -> planVersionService.create(before.plan().id(),
                 new CreateVersionRequest("未完成版本", "仍有待排人员", false)))
                 .hasMessageContaining("全部完成排座后才能发布");
 
-        var occupied = before.items().stream()
+        Set<String> occupied = before.items().stream()
                 .flatMap(item -> item.targetElementIds().stream())
-                .collect(java.util.stream.Collectors.toSet());
-        var emptySeats = before.layout().elements().stream()
+                .collect(Collectors.toSet());
+        Iterator<ElementView> emptySeats = before.layout().elements().stream()
                 .filter(value -> value.assignable() && !occupied.contains(value.id()))
                 .iterator();
         before.participants().stream()
@@ -720,15 +753,15 @@ class MeetingHelperIntegrationTests {
                         new AssignmentRequest(participant.id(), emptySeats.next().id())
                 ));
 
-        var readyToPublish = workspaceService.getWorkspace(meetingId);
-        var saved = planVersionService.create(before.plan().id(),
+        WorkspaceResponse readyToPublish = workspaceService.getWorkspace(meetingId);
+        VersionResult saved = planVersionService.create(before.plan().id(),
                 new CreateVersionRequest("恢复测试版本", "全部人员已完成排座", false));
-        var immutableSnapshot = planVersionService.getSnapshot(before.plan().id(), saved.id());
+        WorkspaceResponse immutableSnapshot = planVersionService.getSnapshot(before.plan().id(), saved.id());
         assertThat(immutableSnapshot.participants().stream()
                 .filter(value -> value.assignedElementId() != null)
                 .count()).isEqualTo(3);
 
-        var participant = readyToPublish.participants().getFirst();
+        ParticipantView participant = readyToPublish.participants().getFirst();
         seatingService.unassign(before.plan().id(), participant.id());
         assertThat(workspaceService.getWorkspace(meetingId).participants().stream()
                 .filter(value -> value.assignedElementId() != null)
@@ -740,7 +773,7 @@ class MeetingHelperIntegrationTests {
 
         planVersionService.restore(before.plan().id(), saved.id());
 
-        var restored = workspaceService.getWorkspace(meetingId);
+        WorkspaceResponse restored = workspaceService.getWorkspace(meetingId);
         assertThat(restored.plan().currentVersionNo()).isEqualTo(saved.versionNo());
         assertThat(restored.participants().stream()
                 .filter(value -> value.assignedElementId() != null)
@@ -749,7 +782,7 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void publishedVersionFreezesAndRestoresDynamicParticipantStateByEmployeeNumber() throws Exception {
-        var meetingId = createImportMeeting();
+        String meetingId = createImportMeeting();
         previewAndCommit(
                 meetingId,
                 "工号,姓名,批次,奖项名称",
@@ -760,11 +793,11 @@ class MeetingHelperIntegrationTests {
                 "工号,姓名,批次,奖项名称",
                 "a12345678,张三,第三批,创新奖"
         );
-        var original = participantRepository
+        ParticipantEntity original = participantRepository
                 .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
                 .orElseThrow();
-        var before = workspaceService.getWorkspace(meetingId);
-        var seat = before.layout().elements().stream()
+        WorkspaceResponse before = workspaceService.getWorkspace(meetingId);
+        ElementView seat = before.layout().elements().stream()
                 .filter(value -> value.assignable() && value.capacity() == 1)
                 .findFirst()
                 .orElseThrow();
@@ -772,13 +805,13 @@ class MeetingHelperIntegrationTests {
                 before.plan().id(),
                 new AssignmentRequest(original.getId(), seat.id())
         );
-        var version = planVersionService.create(
+        VersionResult version = planVersionService.create(
                 before.plan().id(),
                 new CreateVersionRequest("动态记录恢复版", "", false)
         );
 
-        var frozen = planVersionService.getSnapshot(before.plan().id(), version.id());
-        var frozenPerson = frozen.participants().stream()
+        WorkspaceResponse frozen = planVersionService.getSnapshot(before.plan().id(), version.id());
+        ParticipantView frozenPerson = frozen.participants().stream()
                 .filter(value -> value.employeeNo().equals("a12345678"))
                 .findFirst()
                 .orElseThrow();
@@ -790,7 +823,7 @@ class MeetingHelperIntegrationTests {
                 .containsExactly("第二批", "第三批");
 
         participantService.delete(meetingId, original.getId());
-        var replacement = new ParticipantEntity();
+        ParticipantEntity replacement = new ParticipantEntity();
         replacement.setMeetingId(meetingId);
         replacement.setEmployeeNo("A12345678");
         replacement.setName("草稿姓名");
@@ -799,18 +832,18 @@ class MeetingHelperIntegrationTests {
         saveRecord(replacement.getId(), 7, Map.of("批次", "草稿批次"));
         saveRecord(replacement.getId(), 8, Map.of("批次", "残留批次"));
 
-        var draftFields = fieldRepository
+        List<MeetingParticipantFieldEntity> draftFields = fieldRepository
                 .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
         draftFields.get(0).setSortOrder(20);
         draftFields.get(1).setSortOrder(10);
         fieldRepository.saveAll(draftFields);
-        var staleField = new MeetingParticipantFieldEntity();
+        MeetingParticipantFieldEntity staleField = new MeetingParticipantFieldEntity();
         staleField.setMeetingId(meetingId);
         staleField.setFieldName("草稿新增字段");
         staleField.setSortOrder(1);
         fieldRepository.saveAndFlush(staleField);
 
-        var laterParticipant = participantService.create(
+        ParticipantResult laterParticipant = participantService.create(
                 meetingId,
                 new CreateParticipantRequest(
                         "87654321",
@@ -820,8 +853,8 @@ class MeetingHelperIntegrationTests {
                 )
         );
 
-        var stillFrozen = planVersionService.getSnapshot(before.plan().id(), version.id());
-        var stillFrozenPerson = stillFrozen.participants().stream()
+        WorkspaceResponse stillFrozen = planVersionService.getSnapshot(before.plan().id(), version.id());
+        ParticipantView stillFrozenPerson = stillFrozen.participants().stream()
                 .filter(value -> value.employeeNo().equals("a12345678"))
                 .findFirst()
                 .orElseThrow();
@@ -831,8 +864,8 @@ class MeetingHelperIntegrationTests {
 
         planVersionService.restore(before.plan().id(), version.id());
 
-        var restored = workspaceService.getWorkspace(meetingId);
-        var restoredPerson = restored.participants().stream()
+        WorkspaceResponse restored = workspaceService.getWorkspace(meetingId);
+        ParticipantView restoredPerson = restored.participants().stream()
                 .filter(value -> value.employeeNo().equalsIgnoreCase("a12345678"))
                 .findFirst()
                 .orElseThrow();
@@ -867,17 +900,17 @@ class MeetingHelperIntegrationTests {
     @Test
     void publishedVersionReactivatesSoftDeletedParticipantWithOriginalIdentityRecordsAndSeat()
             throws Exception {
-        var meetingId = createImportMeeting();
+        String meetingId = createImportMeeting();
         previewAndCommit(
                 meetingId,
                 "工号,姓名,批次,奖项名称",
                 "a12345678,张三,第二批,优秀项目奖"
         );
-        var original = participantRepository
+        ParticipantEntity original = participantRepository
                 .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
                 .orElseThrow();
-        var before = workspaceService.getWorkspace(meetingId);
-        var seat = before.layout().elements().stream()
+        WorkspaceResponse before = workspaceService.getWorkspace(meetingId);
+        ElementView seat = before.layout().elements().stream()
                 .filter(value -> value.assignable() && value.capacity() == 1)
                 .findFirst()
                 .orElseThrow();
@@ -885,7 +918,7 @@ class MeetingHelperIntegrationTests {
                 before.plan().id(),
                 new AssignmentRequest(original.getId(), seat.id())
         );
-        var version = planVersionService.create(
+        VersionResult version = planVersionService.create(
                 before.plan().id(),
                 new CreateVersionRequest("软删除人员恢复版", "", false)
         );
@@ -902,8 +935,8 @@ class MeetingHelperIntegrationTests {
 
         planVersionService.restore(before.plan().id(), version.id());
 
-        var restored = workspaceService.getWorkspace(meetingId);
-        var restoredPerson = restored.participants().stream()
+        WorkspaceResponse restored = workspaceService.getWorkspace(meetingId);
+        ParticipantView restoredPerson = restored.participants().stream()
                 .filter(value -> value.employeeNo().equalsIgnoreCase("a12345678"))
                 .findFirst()
                 .orElseThrow();
@@ -925,8 +958,8 @@ class MeetingHelperIntegrationTests {
     @Test
     void legacyGenericAttributesAreAdaptedToDynamicFieldsForExportAndRestore()
             throws Exception {
-        var meetingId = createImportMeeting();
-        var participant = participantService.create(
+        String meetingId = createImportMeeting();
+        ParticipantResult participant = participantService.create(
                 meetingId,
                 new CreateParticipantRequest(
                         "a12345678",
@@ -935,8 +968,8 @@ class MeetingHelperIntegrationTests {
                         null
                 )
         );
-        var before = workspaceService.getWorkspace(meetingId);
-        var seat = before.layout().elements().stream()
+        WorkspaceResponse before = workspaceService.getWorkspace(meetingId);
+        ElementView seat = before.layout().elements().stream()
                 .filter(value -> value.assignable() && value.capacity() == 1)
                 .findFirst()
                 .orElseThrow();
@@ -944,16 +977,16 @@ class MeetingHelperIntegrationTests {
                 before.plan().id(),
                 new AssignmentRequest(participant.id(), seat.id())
         );
-        var version = planVersionService.create(
+        VersionResult version = planVersionService.create(
                 before.plan().id(),
                 new CreateVersionRequest("旧快照兼容版", "", false)
         );
-        var versionEntity = planVersionRepository.findById(version.id()).orElseThrow();
-        var legacySnapshot = (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper
+        PlanVersionEntity versionEntity = planVersionRepository.findById(version.id()).orElseThrow();
+        ObjectNode legacySnapshot = (ObjectNode) objectMapper
                 .readTree(versionEntity.getSnapshotJson());
         legacySnapshot.remove("fieldDefinitions");
         legacySnapshot.withArray("participants").forEach(value -> {
-            var participantNode = (com.fasterxml.jackson.databind.node.ObjectNode) value;
+            ObjectNode participantNode = (ObjectNode) value;
             participantNode.remove("primaryAttributes");
             participantNode.remove("attributeValues");
             participantNode.remove("records");
@@ -964,14 +997,14 @@ class MeetingHelperIntegrationTests {
         versionEntity.setSnapshotJson(objectMapper.writeValueAsString(legacySnapshot));
         planVersionRepository.saveAndFlush(versionEntity);
 
-        var adaptedSnapshot = planVersionService.getSnapshot(before.plan().id(), version.id());
+        WorkspaceResponse adaptedSnapshot = planVersionService.getSnapshot(before.plan().id(), version.id());
         assertThat(adaptedSnapshot.fieldDefinitions())
                 .extracting(value -> value.label())
                 .containsExactly("姓名", "工号", "部门", "备注");
         assertThat(adaptedSnapshot.participants().getFirst().primaryAttributes())
                 .containsEntry("部门", "研发部")
                 .containsEntry("备注", "重点");
-        try (var workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(
                 exportService.exportExcel(meetingId, version.id())
         ))) {
             assertThat(cellValues(workbook.getSheet("人员名单").getRow(0)))
@@ -998,14 +1031,14 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void publishedVersionNamesAreUniqueWithinASeatingPlan() {
-        var venue = venueService.list().getFirst();
-        var meeting = meetingService.create(new CreateMeetingRequest(
-                "版本名称判重测试-" + java.util.UUID.randomUUID(),
+        VenueSummary venue = venueService.list().getFirst();
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "版本名称判重测试-" + UUID.randomUUID(),
                 venue.id()
         ));
-        var workspace = workspaceService.getWorkspace(meeting.id());
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
 
-        var published = planVersionService.create(
+        VersionResult published = planVersionService.create(
                 workspace.plan().id(),
                 new CreateVersionRequest("  Final  ", "", false)
         );
@@ -1020,9 +1053,9 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void draftWorkspaceCannotBeExported() throws Exception {
-        var venue = venueService.list().getFirst();
-        var meeting = meetingService.create(new CreateMeetingRequest(
-                "草稿导出限制测试-" + java.util.UUID.randomUUID(),
+        VenueSummary venue = venueService.list().getFirst();
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "草稿导出限制测试-" + UUID.randomUUID(),
                 venue.id()
         ));
 
@@ -1035,23 +1068,23 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void genericParticipantTemplateAndExportsAreGenerated() throws Exception {
-        var template = mockMvc.perform(get("/imports/template"))
+        byte[] template = mockMvc.perform(get("/imports/template"))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
                 .getContentAsByteArray();
-        try (var workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(template))) {
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(template))) {
             assertThat(workbook.getSheet("参会人员")).isNotNull();
             assertThat(workbook.getNumberOfSheets()).isEqualTo(1);
         }
 
-        var venue = venueService.list().getFirst();
-        var meeting = meetingService.create(new CreateMeetingRequest(
-                "发布版本导出测试-" + java.util.UUID.randomUUID(),
+        VenueSummary venue = venueService.list().getFirst();
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "发布版本导出测试-" + UUID.randomUUID(),
                 venue.id()
         ));
-        var workspace = workspaceService.getWorkspace(meeting.id());
-        var version = planVersionService.create(
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        VersionResult version = planVersionService.create(
                 workspace.plan().id(),
                 new CreateVersionRequest("导出确认版", "", false)
         );
@@ -1061,7 +1094,7 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void exportedParticipantSheetKeepsDynamicRecordsAndCanBeReimported() throws Exception {
-        var meetingId = createImportMeeting();
+        String meetingId = createImportMeeting();
         previewAndCommit(
                 meetingId,
                 "工号,姓名,批次,奖项名称",
@@ -1076,29 +1109,29 @@ class MeetingHelperIntegrationTests {
                 meetingId,
                 new CreateParticipantRequest("87654321", "无动态记录人员", Map.of(), null)
         );
-        var workspace = workspaceService.getWorkspace(meetingId);
-        var seats = workspace.layout().elements().stream()
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meetingId);
+        Iterator<ElementView> seats = workspace.layout().elements().stream()
                 .filter(value -> value.assignable() && value.capacity() == 1)
                 .iterator();
         workspace.participants().forEach(participant -> seatingService.assign(
                 workspace.plan().id(),
                 new AssignmentRequest(participant.id(), seats.next().id())
         ));
-        var version = planVersionService.create(
+        VersionResult version = planVersionService.create(
                 workspace.plan().id(),
                 new CreateVersionRequest("动态记录导出版", "", false)
         );
 
-        var exported = exportService.exportExcel(meetingId, version.id());
-        try (var workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(exported))) {
+        byte[] exported = exportService.exportExcel(meetingId, version.id());
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(exported))) {
             assertThat(workbook.getSheetAt(0).getSheetName()).isEqualTo("人员名单");
             assertThat(workbook.getSheet("获奖名单")).isNull();
-            var sheet = workbook.getSheet("人员名单");
+            XSSFSheet sheet = workbook.getSheet("人员名单");
             assertThat(cellValues(sheet.getRow(0)))
                     .containsExactly("工号", "姓名", "批次", "奖项名称");
-            var rows = new java.util.ArrayList<java.util.List<String>>();
-            for (var rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
-                var values = cellValues(sheet.getRow(rowIndex));
+            ArrayList<List<String>> rows = new ArrayList<List<String>>();
+            for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                List<String> values = cellValues(sheet.getRow(rowIndex));
                 if (values.getFirst().equalsIgnoreCase("a12345678")) {
                     rows.add(values);
                 }
@@ -1110,19 +1143,19 @@ class MeetingHelperIntegrationTests {
             assertThat(rows.get(1)).containsExactly(
                     "a12345678", "张三", "第三批", "创新奖"
             );
-            assertThat(java.util.stream.IntStream.rangeClosed(1, sheet.getLastRowNum())
+            assertThat(IntStream.rangeClosed(1, sheet.getLastRowNum())
                     .mapToObj(sheet::getRow)
                     .map(this::cellValues)
                     .filter(values -> values.getFirst().equals("87654321"))
                     .findFirst())
-                    .contains(java.util.List.of("87654321", "无动态记录人员", "", ""));
+                    .contains(List.of("87654321", "无动态记录人员", "", ""));
         }
 
-        var importedMeetingId = createImportMeeting();
-        var importedPreview = preview(importedMeetingId, exported);
+        String importedMeetingId = createImportMeeting();
+        JsonNode importedPreview = preview(importedMeetingId, exported);
         assertThat(importedPreview.path("errors").isEmpty()).isTrue();
         commit(importedMeetingId, importedPreview.path("token").asText());
-        var imported = participantRepository
+        ParticipantEntity imported = participantRepository
                 .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(
                         importedMeetingId,
                         "a12345678"
@@ -1143,39 +1176,39 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void exportedLayoutAndPdfUseOnlyFirstNonBlankDynamicSummary() throws Exception {
-        var meetingId = createImportMeeting();
+        String meetingId = createImportMeeting();
         previewAndCommit(
                 meetingId,
                 "工号,姓名,空字段,活动角色,批次",
                 "12345678,导出人员,,主持人,第一批"
         );
-        var workspace = workspaceService.getWorkspace(meetingId);
-        var seat = workspace.layout().elements().stream()
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meetingId);
+        ElementView seat = workspace.layout().elements().stream()
                 .filter(value -> value.assignable() && value.capacity() == 1)
                 .findFirst()
                 .orElseThrow();
-        var participant = workspace.participants().getFirst();
+        ParticipantView participant = workspace.participants().getFirst();
         seatingService.assign(
                 workspace.plan().id(),
                 new AssignmentRequest(participant.id(), seat.id())
         );
-        var version = planVersionService.create(
+        VersionResult version = planVersionService.create(
                 workspace.plan().id(),
                 new CreateVersionRequest("排座图文本边界版", "", false)
         );
 
-        try (var workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(
                 exportService.exportExcel(meetingId, version.id())
         ))) {
-            var cellText = workbook.getSheet("排座图")
+            String cellText = workbook.getSheet("排座图")
                     .getRow(seat.row() - 1)
                     .getCell(seat.column() - 1)
                     .getStringCellValue();
             assertThat(cellText).isEqualTo(seat.code() + "\n导出人员\n主持人");
             assertThat(cellText).doesNotContain("第一批");
         }
-        try (var document = Loader.loadPDF(exportService.exportPdf(meetingId, version.id()))) {
-            var text = new PDFTextStripper().getText(document);
+        try (PDDocument document = Loader.loadPDF(exportService.exportPdf(meetingId, version.id()))) {
+            String text = new PDFTextStripper().getText(document);
             assertThat(text).contains("主持人");
             assertThat(text).doesNotContain("第一批");
         }
@@ -1183,25 +1216,25 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void compatibleParticipantImportsMergeIntoOneRecordAndKeepFieldOrder() throws Exception {
-        var meetingId = createImportMeeting();
+        String meetingId = createImportMeeting();
 
-        var first = previewAndCommit(
+        JsonNode first = previewAndCommit(
                 meetingId,
                 "工号,姓名,字段1",
                 "a12345678,张三,值1"
         );
-        var second = previewAndCommit(
+        JsonNode second = previewAndCommit(
                 meetingId,
                 "工号,姓名,字段1,字段2",
                 "a12345678,张三,值1,值2"
         );
 
-        var participant = participantRepository
+        ParticipantEntity participant = participantRepository
                 .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
                 .orElseThrow();
-        var records = recordRepository
+        List<ParticipantRecordEntity> records = recordRepository
                 .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.getId());
-        var fields = fieldRepository.findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+        List<MeetingParticipantFieldEntity> fields = fieldRepository.findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
 
         assertThat(first.path("newParticipants").asInt()).isEqualTo(1);
         assertThat(first.path("appendedRecords").asInt()).isEqualTo(1);
@@ -1221,24 +1254,24 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void conflictingParticipantImportsAppendRecordsAndIdenticalImportIsSkipped() throws Exception {
-        var meetingId = createImportMeeting();
+        String meetingId = createImportMeeting();
         previewAndCommit(meetingId, "工号,姓名,字段1", "a12345678,张三,初始值");
         previewAndCommit(meetingId, "工号,姓名,字段1", "a12345678,张三,冲突值1");
-        var third = previewAndCommit(
+        JsonNode third = previewAndCommit(
                 meetingId,
                 "工号,姓名,字段1",
                 "a12345678,张三,冲突值2"
         );
-        var repeated = previewAndCommit(
+        JsonNode repeated = previewAndCommit(
                 meetingId,
                 "工号,姓名,字段1",
                 "a12345678,张三,冲突值2"
         );
 
-        var participant = participantRepository
+        ParticipantEntity participant = participantRepository
                 .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
                 .orElseThrow();
-        var records = recordRepository
+        List<ParticipantRecordEntity> records = recordRepository
                 .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.getId());
 
         assertThat(third.path("appendedRecords").asInt()).isEqualTo(1);
@@ -1253,10 +1286,10 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void participantImportPreviewReportsStableFieldUnionAndIgnoresExactRows() throws Exception {
-        var meetingId = createImportMeeting();
+        String meetingId = createImportMeeting();
         previewAndCommit(meetingId, "工号,姓名,已有字段", "a12345678,张三,已有值");
 
-        var preview = preview(
+        JsonNode preview = preview(
                 meetingId,
                 "工号,姓名,新字段,已有字段\n"
                         + "a12345678,张三,新值,已有值\n"
@@ -1275,7 +1308,7 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void participantFieldNamesReuseRegisteredCasingAcrossImports() throws Exception {
-        var meetingId = createImportMeeting();
+        String meetingId = createImportMeeting();
         previewAndCommit(meetingId, "工号,姓名,Department", "a12345678,张三,研发部");
 
         previewAndCommit(
@@ -1284,10 +1317,10 @@ class MeetingHelperIntegrationTests {
                 "a12345678,张三,研发部,值2"
         );
 
-        var participant = participantRepository
+        ParticipantEntity participant = participantRepository
                 .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
                 .orElseThrow();
-        var record = recordRepository
+        ParticipantRecordEntity record = recordRepository
                 .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.getId())
                 .getFirst();
         assertThat(fieldRepository
@@ -1302,15 +1335,15 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void participantNameConflictRejectsCommitWithoutDatabaseWrites() throws Exception {
-        var meetingId = createImportMeeting();
+        String meetingId = createImportMeeting();
         participantService.create(
                 meetingId,
                 new CreateParticipantRequest(
                         "a12345678", "张三", Map.of(), null
                 )
         );
-        var preview = preview(meetingId, "工号,姓名,字段1\na12345678,李四,值1");
-        var token = preview.path("token").asText();
+        JsonNode preview = preview(meetingId, "工号,姓名,字段1\na12345678,李四,值1");
+        String token = preview.path("token").asText();
 
         assertThat(jsonTextValues(preview.path("errors")))
                 .containsExactly("工号a12345678已对应人员张三");
@@ -1321,7 +1354,7 @@ class MeetingHelperIntegrationTests {
                 ).header(USER_HEADER, DEFAULT_USER))
                 .andExpect(status().isConflict());
 
-        var participant = participantRepository
+        ParticipantEntity participant = participantRepository
                 .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
                 .orElseThrow();
         assertThat(participant.getName()).isEqualTo("张三");
@@ -1334,8 +1367,8 @@ class MeetingHelperIntegrationTests {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void participantNameConflictInsideWorkbookCommitsAsConflictWithoutWrites() throws Exception {
-        var meetingId = createImportMeeting();
-        var preview = preview(
+        String meetingId = createImportMeeting();
+        JsonNode preview = preview(
                 meetingId,
                 "工号,姓名,新字段\n"
                         + "a12345678,张三,值1\n"
@@ -1357,8 +1390,8 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void participantPreviewSimulatesEarlierRowsInTheSameWorkbook() throws Exception {
-        var meetingId = createImportMeeting();
-        var preview = preview(
+        String meetingId = createImportMeeting();
+        JsonNode preview = preview(
                 meetingId,
                 "工号,姓名,字段1,字段2\n"
                         + "a12345678,张三,值1,\n"
@@ -1372,10 +1405,10 @@ class MeetingHelperIntegrationTests {
 
         commit(meetingId, preview.path("token").asText());
 
-        var participant = participantRepository
+        ParticipantEntity participant = participantRepository
                 .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
                 .orElseThrow();
-        var records = recordRepository
+        List<ParticipantRecordEntity> records = recordRepository
                 .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.getId());
         assertThat(records).hasSize(1);
         assertThat(readAttributes(records.getFirst().getAttributesJson()))
@@ -1385,8 +1418,8 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void previewErrorsRejectCommitWithoutDatabaseWrites() throws Exception {
-        var meetingId = createImportMeeting();
-        var preview = preview(meetingId, "工号,姓名,新字段\n错误工号,张三,值1");
+        String meetingId = createImportMeeting();
+        JsonNode preview = preview(meetingId, "工号,姓名,新字段\n错误工号,张三,值1");
 
         assertThat(preview.path("errors").isEmpty()).isFalse();
         mockMvc.perform(post(
@@ -1405,14 +1438,14 @@ class MeetingHelperIntegrationTests {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void participantNameConflictRollsBackEarlierWritesInRequestTransaction() throws Exception {
-        var meetingId = createImportMeeting();
+        String meetingId = createImportMeeting();
         participantService.create(
                 meetingId,
                 new CreateParticipantRequest(
                         "a12345678", "张三", Map.of(), null
                 )
         );
-        var preview = preview(
+        JsonNode preview = preview(
                 meetingId,
                 "工号,姓名,新字段\n"
                         + "12345678,王五,先写入\n"
@@ -1431,7 +1464,7 @@ class MeetingHelperIntegrationTests {
                 .isEmpty();
         assertThat(fieldRepository.findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId))
                 .isEmpty();
-        var existing = participantRepository
+        ParticipantEntity existing = participantRepository
                 .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
                 .orElseThrow();
         assertThat(recordRepository
@@ -1441,15 +1474,15 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void importingAssignedParticipantReusesParticipantId() throws Exception {
-        var meetingId = createImportMeeting();
-        var participant = participantService.create(
+        String meetingId = createImportMeeting();
+        ParticipantResult participant = participantService.create(
                 meetingId,
                 new CreateParticipantRequest(
                         "a12345678", "张三", Map.of(), null
                 )
         );
-        var workspace = workspaceService.getWorkspace(meetingId);
-        var seat = workspace.layout().elements().stream()
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meetingId);
+        ElementView seat = workspace.layout().elements().stream()
                 .filter(value -> value.assignable() && value.capacity() == 1)
                 .findFirst()
                 .orElseThrow();
@@ -1460,10 +1493,10 @@ class MeetingHelperIntegrationTests {
 
         previewAndCommit(meetingId, "工号,姓名,字段1", "a12345678,张三,值1");
 
-        var imported = participantRepository
+        ParticipantEntity imported = participantRepository
                 .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
                 .orElseThrow();
-        var refreshedWorkspace = workspaceService.getWorkspace(meetingId);
+        WorkspaceResponse refreshedWorkspace = workspaceService.getWorkspace(meetingId);
         assertThat(imported.getId()).isEqualTo(participant.id());
         assertThat(refreshedWorkspace.participants().stream()
                 .filter(value -> value.id().equals(participant.id()))
@@ -1477,23 +1510,23 @@ class MeetingHelperIntegrationTests {
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void concurrentImportAndParticipantRequestsRegisterCaseInsensitiveFieldsWithContinuousUniqueOrder()
             throws Exception {
-        var meetingId = createImportMeeting();
-        var importPreview = preview(
+        String meetingId = createImportMeeting();
+        JsonNode importPreview = preview(
                 meetingId,
                 "工号,姓名,SharedField,ImportField\n"
                         + "a11111111,并发导入人员,导入共享值,导入字段值"
         );
-        var ready = new java.util.concurrent.CountDownLatch(2);
-        var start = new java.util.concurrent.CountDownLatch(1);
-        var executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
-            var first = executor.submit(() -> commitImportAfterBarrier(
+            Future<Integer> first = executor.submit(() -> commitImportAfterBarrier(
                     meetingId,
                     importPreview.path("token").asText(),
                     ready,
                     start
             ));
-            var second = executor.submit(() -> createParticipantAfterBarrier(
+            Future<Integer> second = executor.submit(() -> createParticipantAfterBarrier(
                     meetingId,
                     "87654321",
                     "并发新增人员",
@@ -1504,20 +1537,20 @@ class MeetingHelperIntegrationTests {
                     start
             ));
 
-            assertThat(ready.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            assertThat(ready.await(5, SECONDS)).isTrue();
             start.countDown();
-            assertThat(first.get(10, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(200);
-            assertThat(second.get(10, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(200);
+            assertThat(first.get(10, SECONDS)).isEqualTo(200);
+            assertThat(second.get(10, SECONDS)).isEqualTo(200);
         } finally {
             start.countDown();
             executor.shutdownNow();
-            assertThat(executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            assertThat(executor.awaitTermination(5, SECONDS)).isTrue();
         }
 
-        var fields = fieldRepository
+        List<MeetingParticipantFieldEntity> fields = fieldRepository
                 .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
         assertThat(fields)
-                .extracting(value -> value.getFieldName().toLowerCase(java.util.Locale.ROOT))
+                .extracting(value -> value.getFieldName().toLowerCase(ROOT))
                 .containsExactlyInAnyOrder("sharedfield", "importfield", "participantfield");
         assertThat(fields)
                 .extracting(MeetingParticipantFieldEntity::getSortOrder)
@@ -1530,52 +1563,52 @@ class MeetingHelperIntegrationTests {
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void concurrentImportAndParticipantCreateForSameEmployeeHasOneWinnerWithoutFieldDuplicates()
             throws Exception {
-        var meetingId = createImportMeeting();
-        var importPreview = preview(
+        String meetingId = createImportMeeting();
+        JsonNode importPreview = preview(
                 meetingId,
                 "工号,姓名,SharedField,ImportField\n"
                         + "a22222222,并发导入姓名,导入共享值,导入字段值"
         );
-        var bothRequestsAtMeetingLock = new java.util.concurrent.CountDownLatch(2);
-        var importHasMeetingLock = new java.util.concurrent.CountDownLatch(1);
+        CountDownLatch bothRequestsAtMeetingLock = new CountDownLatch(2);
+        CountDownLatch importHasMeetingLock = new CountDownLatch(1);
         ParticipantFieldRegistrationService registrationTarget =
-                org.springframework.test.util.AopTestUtils
+                AopTestUtils
                         .getUltimateTargetObject(fieldRegistrationService);
-        org.mockito.Mockito.doAnswer(invocation -> {
-            var request = ((ServletRequestAttributes) RequestContextHolder
+        Mockito.doAnswer(invocation -> {
+            HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder
                     .currentRequestAttributes())
                     .getRequest();
-            var importRequest = request.getRequestURI().contains("/imports/");
+            boolean importRequest = request.getRequestURI().contains("/imports/");
             bothRequestsAtMeetingLock.countDown();
-            if (!bothRequestsAtMeetingLock.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+            if (!bothRequestsAtMeetingLock.await(5, SECONDS)) {
                 throw new IllegalStateException("两个请求未同时到达会议锁");
             }
             if (importRequest) {
-                var lockedMeeting = invocation.callRealMethod();
+                Object lockedMeeting = invocation.callRealMethod();
                 importHasMeetingLock.countDown();
                 return lockedMeeting;
             }
-            if (!importHasMeetingLock.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+            if (!importHasMeetingLock.await(5, SECONDS)) {
                 throw new IllegalStateException("导入请求未先取得会议锁");
             }
             return invocation.callRealMethod();
         }).when(registrationTarget).registerFields(
-                org.mockito.ArgumentMatchers.eq(meetingId),
-                org.mockito.ArgumentMatchers.any()
+                ArgumentMatchers.eq(meetingId),
+                ArgumentMatchers.any()
         );
-        var ready = new java.util.concurrent.CountDownLatch(2);
-        var start = new java.util.concurrent.CountDownLatch(1);
-        var executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
         int importStatus;
         int participantStatus;
         try {
-            var importFuture = executor.submit(() -> commitImportAfterBarrier(
+            Future<Integer> importFuture = executor.submit(() -> commitImportAfterBarrier(
                     meetingId,
                     importPreview.path("token").asText(),
                     ready,
                     start
             ));
-            var participantFuture = executor.submit(() -> createParticipantAfterBarrier(
+            Future<Integer> participantFuture = executor.submit(() -> createParticipantAfterBarrier(
                     meetingId,
                     "a22222222",
                     "并发新增姓名",
@@ -1586,29 +1619,29 @@ class MeetingHelperIntegrationTests {
                     start
             ));
 
-            assertThat(ready.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            assertThat(ready.await(5, SECONDS)).isTrue();
             start.countDown();
-            importStatus = importFuture.get(10, java.util.concurrent.TimeUnit.SECONDS);
-            participantStatus = participantFuture.get(10, java.util.concurrent.TimeUnit.SECONDS);
+            importStatus = importFuture.get(10, SECONDS);
+            participantStatus = participantFuture.get(10, SECONDS);
         } finally {
             start.countDown();
             executor.shutdownNow();
-            assertThat(executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            assertThat(executor.awaitTermination(5, SECONDS)).isTrue();
         }
 
-        assertThat(java.util.List.of(importStatus, participantStatus))
+        assertThat(List.of(importStatus, participantStatus))
                 .containsExactlyInAnyOrder(200, 409);
-        var participants = participantRepository
+        List<ParticipantEntity> participants = participantRepository
                 .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(meetingId)
                 .stream()
                 .filter(value -> value.getEmployeeNo().equalsIgnoreCase("a22222222"))
                 .toList();
         assertThat(participants).hasSize(1);
 
-        var fields = fieldRepository
+        List<MeetingParticipantFieldEntity> fields = fieldRepository
                 .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
-        var normalizedFieldNames = fields.stream()
-                .map(value -> value.getFieldName().toLowerCase(java.util.Locale.ROOT))
+        List<String> normalizedFieldNames = fields.stream()
+                .map(value -> value.getFieldName().toLowerCase(ROOT))
                 .toList();
         assertThat(normalizedFieldNames)
                 .hasSize(2)
@@ -1624,23 +1657,23 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void customVenueSupportsDuplicateCheckUpdateAndSoftDelete() {
-        var name = "测试场馆-" + java.util.UUID.randomUUID();
-        var request = new CreateVenueRequest(
+        String name = "测试场馆-" + UUID.randomUUID();
+        CreateVenueRequest request = new CreateVenueRequest(
                 name,
                 "用于验证场馆管理",
                 5,
                 5,
                 34,
                 "TOP",
-                java.util.List.of(new ElementInput(
+                List.of(new ElementInput(
                         "SEAT", "1排01", "座位", 1, 1, 1, 1, 0, 1,
                         true, false, null, null, 1, "#ffffff", "#93b4df")));
 
-        var created = venueService.create(request);
+        VenueDetail created = venueService.create(request);
         assertThatThrownBy(() -> venueService.create(request))
                 .hasMessage("场馆名称已存在");
 
-        var renamed = new CreateVenueRequest(
+        CreateVenueRequest renamed = new CreateVenueRequest(
                 name + "-修改",
                 request.description(),
                 request.gridRows(),
@@ -1648,7 +1681,7 @@ class MeetingHelperIntegrationTests {
                 request.cellSize(),
                 request.frontDirection(),
                 request.elements());
-        var updated = venueService.update(created.id(), renamed);
+        VenueDetail updated = venueService.update(created.id(), renamed);
         assertThat(updated.versionNo()).isEqualTo(2);
         assertThat(updated.name()).isEqualTo(name + "-修改");
 
@@ -1659,9 +1692,9 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void meetingNameIsCheckedOnBothCreateAttempts() {
-        var venue = venueService.list().getFirst();
-        var name = "测试会议-" + java.util.UUID.randomUUID();
-        var request = new CreateMeetingRequest(name, venue.id());
+        VenueSummary venue = venueService.list().getFirst();
+        String name = "测试会议-" + UUID.randomUUID();
+        CreateMeetingRequest request = new CreateMeetingRequest(name, venue.id());
 
         meetingService.create(request);
 
@@ -1670,9 +1703,9 @@ class MeetingHelperIntegrationTests {
     }
 
     private String createSeatingScenario(int participantCount, int assignedCount) {
-        var venue = venueService.list().getFirst();
-        var meeting = meetingService.create(new CreateMeetingRequest(
-                "排座场景测试-" + java.util.UUID.randomUUID(),
+        VenueSummary venue = venueService.list().getFirst();
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "排座场景测试-" + UUID.randomUUID(),
                 venue.id()
         ));
         for (int index = 1; index <= participantCount; index++) {
@@ -1686,8 +1719,8 @@ class MeetingHelperIntegrationTests {
                     )
             );
         }
-        var workspace = workspaceService.getWorkspace(meeting.id());
-        var seats = workspace.layout().elements().stream()
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        List<ElementView> seats = workspace.layout().elements().stream()
                 .filter(value -> value.assignable() && value.capacity() == 1)
                 .limit(assignedCount)
                 .toList();
@@ -1701,9 +1734,9 @@ class MeetingHelperIntegrationTests {
     }
 
     private String createImportMeeting() {
-        var venue = venueService.list().getFirst();
+        VenueSummary venue = venueService.list().getFirst();
         return meetingService.create(new CreateMeetingRequest(
-                "人员导入测试-" + java.util.UUID.randomUUID(),
+                "人员导入测试-" + UUID.randomUUID(),
                 venue.id()
         )).id();
     }
@@ -1711,11 +1744,11 @@ class MeetingHelperIntegrationTests {
     private int commitImportAfterBarrier(
             String meetingId,
             String token,
-            java.util.concurrent.CountDownLatch ready,
-            java.util.concurrent.CountDownLatch start
+            CountDownLatch ready,
+            CountDownLatch start
     ) throws Exception {
         ready.countDown();
-        if (!start.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+        if (!start.await(5, SECONDS)) {
             throw new IllegalStateException("并发请求未按时开始");
         }
         return mockMvc.perform(post(
@@ -1733,11 +1766,11 @@ class MeetingHelperIntegrationTests {
             String employeeNo,
             String name,
             String attributesJson,
-            java.util.concurrent.CountDownLatch ready,
-            java.util.concurrent.CountDownLatch start
+            CountDownLatch ready,
+            CountDownLatch start
     ) throws Exception {
         ready.countDown();
-        if (!start.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+        if (!start.await(5, SECONDS)) {
             throw new IllegalStateException("并发请求未按时开始");
         }
         return mockMvc.perform(post("/meetings/{meetingId}/participants", meetingId)
@@ -1756,8 +1789,8 @@ class MeetingHelperIntegrationTests {
     }
 
     private String createMeetingAs(String userId, String name) throws Exception {
-        var venueId = venueService.list().getFirst().id();
-        var result = mockMvc.perform(post("/meetings")
+        String venueId = venueService.list().getFirst().id();
+        MvcResult result = mockMvc.perform(post("/meetings")
                         .header(USER_HEADER, userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsBytes(
@@ -1774,7 +1807,7 @@ class MeetingHelperIntegrationTests {
             String employeeNo,
             String name
     ) throws Exception {
-        var result = mockMvc.perform(post("/meetings/{meetingId}/participants", meetingId)
+        MvcResult result = mockMvc.perform(post("/meetings/{meetingId}/participants", meetingId)
                         .header(USER_HEADER, userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsBytes(
@@ -1786,13 +1819,13 @@ class MeetingHelperIntegrationTests {
     }
 
     private JsonNode previewAs(String userId, String meetingId, byte[] content) throws Exception {
-        var file = new MockMultipartFile(
+        MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "participants.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 content
         );
-        var result = mockMvc.perform(multipart(
+        MvcResult result = mockMvc.perform(multipart(
                         "/meetings/{meetingId}/imports/preview",
                         meetingId
                 ).file(file).header(USER_HEADER, userId))
@@ -1801,19 +1834,19 @@ class MeetingHelperIntegrationTests {
         return responseJson(result);
     }
 
-    private JsonNode responseJson(org.springframework.test.web.servlet.MvcResult result) {
+    private JsonNode responseJson(MvcResult result) {
         try {
             JsonNode envelope = objectMapper.readTree(result.getResponse().getContentAsByteArray());
             assertThat(envelope.path("code").asInt()).isZero();
             assertThat(envelope.path("msg").asText()).isEqualTo("success");
             return envelope.path("data");
-        } catch (java.io.IOException exception) {
+        } catch (IOException exception) {
             throw new IllegalStateException("无法解析测试响应", exception);
         }
     }
 
     private JsonNode workspaceAs(String userId, String meetingId) throws Exception {
-        var result = mockMvc.perform(get("/meetings/{meetingId}/workspace", meetingId)
+        MvcResult result = mockMvc.perform(get("/meetings/{meetingId}/workspace", meetingId)
                         .header(USER_HEADER, userId))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -1821,7 +1854,7 @@ class MeetingHelperIntegrationTests {
     }
 
     private String assignableSeatId(JsonNode workspace) {
-        return java.util.stream.StreamSupport.stream(
+        return StreamSupport.stream(
                         workspace.path("layout").path("elements").spliterator(),
                         false
                 )
@@ -1846,7 +1879,7 @@ class MeetingHelperIntegrationTests {
     }
 
     private void assertUnassigned(JsonNode workspace, String participantId) {
-        var participant = java.util.stream.StreamSupport.stream(
+        JsonNode participant = StreamSupport.stream(
                         workspace.path("participants").spliterator(),
                         false
                 )
@@ -1858,7 +1891,7 @@ class MeetingHelperIntegrationTests {
     }
 
     private JsonNode previewAndCommit(String meetingId, String header, String row) throws Exception {
-        var preview = preview(meetingId, header + "\n" + row);
+        JsonNode preview = preview(meetingId, header + "\n" + row);
         return commit(meetingId, preview.path("token").asText());
     }
 
@@ -1867,13 +1900,13 @@ class MeetingHelperIntegrationTests {
     }
 
     private JsonNode preview(String meetingId, byte[] content) throws Exception {
-        var file = new MockMultipartFile(
+        MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "participants.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 content
         );
-        var result = mockMvc.perform(multipart(
+        MvcResult result = mockMvc.perform(multipart(
                         "/meetings/{meetingId}/imports/preview",
                         meetingId
                 ).file(file).header(USER_HEADER, DEFAULT_USER))
@@ -1883,7 +1916,7 @@ class MeetingHelperIntegrationTests {
     }
 
     private JsonNode commit(String meetingId, String token) throws Exception {
-        var result = mockMvc.perform(post(
+        MvcResult result = mockMvc.perform(post(
                         "/meetings/{meetingId}/imports/{token}/commit",
                         meetingId,
                         token
@@ -1894,13 +1927,13 @@ class MeetingHelperIntegrationTests {
     }
 
     private byte[] workbook(String csv) throws Exception {
-        try (var workbook = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
-            var sheet = workbook.createSheet("参会人员");
-            var lines = csv.split("\\R");
-            for (var rowIndex = 0; rowIndex < lines.length; rowIndex++) {
-                var row = sheet.createRow(rowIndex);
-                var values = lines[rowIndex].split(",", -1);
-                for (var columnIndex = 0; columnIndex < values.length; columnIndex++) {
+        try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            XSSFSheet sheet = workbook.createSheet("参会人员");
+            String[] lines = csv.split("\\R");
+            for (int rowIndex = 0; rowIndex < lines.length; rowIndex++) {
+                XSSFRow row = sheet.createRow(rowIndex);
+                String[] values = lines[rowIndex].split(",", -1);
+                for (int columnIndex = 0; columnIndex < values.length; columnIndex++) {
                     row.createCell(columnIndex).setCellValue(values[columnIndex]);
                 }
             }
@@ -1920,23 +1953,23 @@ class MeetingHelperIntegrationTests {
 
     private void saveRecord(String participantId, int recordOrder, Map<String, String> attributes)
             throws Exception {
-        var record = new ParticipantRecordEntity();
+        ParticipantRecordEntity record = new ParticipantRecordEntity();
         record.setParticipantId(participantId);
         record.setRecordOrder(recordOrder);
         record.setAttributesJson(objectMapper.writeValueAsString(attributes));
         recordRepository.saveAndFlush(record);
     }
 
-    private java.util.List<String> cellValues(org.apache.poi.ss.usermodel.Row row) {
-        var values = new java.util.ArrayList<String>();
-        for (var column = 0; column < row.getLastCellNum(); column++) {
+    private List<String> cellValues(Row row) {
+        ArrayList<String> values = new ArrayList<String>();
+        for (int column = 0; column < row.getLastCellNum(); column++) {
             values.add(row.getCell(column) == null ? "" : row.getCell(column).toString());
         }
         return values;
     }
 
-    private java.util.List<String> jsonTextValues(JsonNode values) {
-        var result = new java.util.ArrayList<String>();
+    private List<String> jsonTextValues(JsonNode values) {
+        ArrayList<String> result = new ArrayList<String>();
         values.forEach(value -> result.add(value.asText()));
         return result;
     }
@@ -1951,7 +1984,7 @@ class MeetingHelperIntegrationTests {
                         HttpServletRequest request,
                         HttpServletResponse response,
                         FilterChain filterChain
-                ) throws ServletException, java.io.IOException {
+                ) throws ServletException, IOException {
                     CurrentUser previous = CurrentUserHolder.get();
                     String userId = request.getHeader(USER_HEADER);
                     if (userId != null) {
@@ -1959,7 +1992,7 @@ class MeetingHelperIntegrationTests {
                         CurrentUserHolder.set(new CurrentUser(
                                 normalizedUserId,
                                 normalizedUserId,
-                                java.util.Set.of()
+                                Set.of()
                         ));
                     }
                     try {

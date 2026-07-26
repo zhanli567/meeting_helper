@@ -5,9 +5,11 @@ import com.company.meetinghelper.importing.api.dto.response.CommitResult;
 import com.company.meetinghelper.importing.api.dto.response.ImportPreview;
 import com.company.meetinghelper.importing.api.dto.response.ParticipantRow;
 import com.company.meetinghelper.importing.repository.ImportPreviewStore;
+import com.company.meetinghelper.importing.repository.ImportPreviewStore.StoredPreview;
 import com.company.meetinghelper.importing.service.model.ParsedParticipantRow;
 import com.company.meetinghelper.importing.service.model.ParsedParticipantWorkbook;
 import com.company.meetinghelper.meeting.service.MeetingAccessService;
+import com.company.meetinghelper.participant.entity.MeetingParticipantFieldEntity;
 import com.company.meetinghelper.participant.entity.ParticipantEntity;
 import com.company.meetinghelper.participant.entity.ParticipantRecordEntity;
 import com.company.meetinghelper.participant.repository.MeetingParticipantFieldRepository;
@@ -15,24 +17,26 @@ import com.company.meetinghelper.participant.repository.ParticipantRecordReposit
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
 import com.company.meetinghelper.participant.service.ParticipantFieldRegistrationService;
 import com.company.meetinghelper.participant.service.ParticipantRecordMerger;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
+import com.company.meetinghelper.participant.service.ParticipantRecordMerger.MergeDecision;
+import com.company.meetinghelper.participant.service.ParticipantRecordMerger.RecordValue;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class ImportService {
@@ -87,8 +91,8 @@ public class ImportService {
      * @return Excel模板字节
      */
     public byte[] template() {
-        try (var workbook = workbookParser.createTemplate();
-             var output = new ByteArrayOutputStream()) {
+        try (XSSFWorkbook workbook = workbookParser.createTemplate();
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             workbook.write(output);
             return output.toByteArray();
         } catch (IOException exception) {
@@ -106,23 +110,23 @@ public class ImportService {
     public ImportPreview preview(String meetingId, MultipartFile file) {
         meetingAccessService.requireOwnedMeeting(meetingId);
         ParsedParticipantWorkbook parsed;
-        try (var workbook = new XSSFWorkbook(file.getInputStream())) {
+        try (XSSFWorkbook workbook = new XSSFWorkbook(file.getInputStream())) {
             parsed = workbookParser.parse(workbook);
         } catch (IOException exception) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Excel文件无法读取，请使用系统下载的模板");
         }
 
-        var registeredFields = fieldRepository
+        List<MeetingParticipantFieldEntity> registeredFields = fieldRepository
                 .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
-        var canonicalFieldNames = new LinkedHashMap<String, String>();
+        LinkedHashMap<String,String> canonicalFieldNames = new LinkedHashMap<String, String>();
         registeredFields.forEach(field -> canonicalFieldNames.put(
                 normalize(field.getFieldName()),
                 field.getFieldName()
         ));
-        var newFields = parsed.fieldNames().stream()
+        List<String> newFields = parsed.fieldNames().stream()
                 .filter(field -> !canonicalFieldNames.containsKey(normalize(field)))
                 .toList();
-        var existingFields = parsed.fieldNames().stream()
+        List<String> existingFields = parsed.fieldNames().stream()
                 .filter(field -> canonicalFieldNames.containsKey(normalize(field)))
                 .map(field -> canonicalFieldNames.get(normalize(field)))
                 .toList();
@@ -130,19 +134,19 @@ public class ImportService {
                 normalize(field),
                 field
         ));
-        var previewErrors = new ArrayList<>(parsed.errors());
-        var rows = previewRows(
+        ArrayList<String> previewErrors = new ArrayList<>(parsed.errors());
+        List<ParticipantRow> rows = previewRows(
                 meetingId,
                 parsed.rows(),
                 canonicalFieldNames,
                 previewErrors
         );
-        var participantCount = (int) parsed.rows().stream()
+        int participantCount = (int) parsed.rows().stream()
                 .map(row -> normalize(row.employeeNo()))
                 .distinct()
                 .count();
-        var token = UUID.randomUUID().toString();
-        var preview = new ImportPreview(
+        String token = UUID.randomUUID().toString();
+        ImportPreview preview = new ImportPreview(
                 token,
                 parsed.totalRows(),
                 parsed.rows().size(),
@@ -173,7 +177,7 @@ public class ImportService {
     @Transactional
     public CommitResult commit(String meetingId, String token) {
         meetingAccessService.requireOwnedMeeting(meetingId);
-        var stored = previewStore.remove(token, meetingId);
+        StoredPreview stored = previewStore.remove(token, meetingId);
         if (stored == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "导入预览已过期，请重新上传");
         }
@@ -183,20 +187,20 @@ public class ImportService {
         if (!stored.workbook().errors().isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "导入预览包含错误，无法提交");
         }
-        var canonicalFieldNames = fieldRegistrationService.registerFields(
+        Map<String,String> canonicalFieldNames = fieldRegistrationService.registerFields(
                 meetingId,
                 stored.workbook().fieldNames()
         );
         validateParticipantNames(meetingId, stored.workbook().rows());
 
-        var participantByEmployeeNo = new LinkedHashMap<String, ParticipantEntity>();
-        var newParticipants = 0;
-        for (var row : stored.workbook().rows()) {
-            var employeeKey = normalize(row.employeeNo());
+        LinkedHashMap<String,ParticipantEntity> participantByEmployeeNo = new LinkedHashMap<String, ParticipantEntity>();
+        int newParticipants = 0;
+        for (ParsedParticipantRow row : stored.workbook().rows()) {
+            String employeeKey = normalize(row.employeeNo());
             if (participantByEmployeeNo.containsKey(employeeKey)) {
                 continue;
             }
-            var existing = participantRepository
+            ParticipantEntity existing = participantRepository
                     .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, row.employeeNo())
                     .orElse(null);
             if (existing != null && !existing.getName().equals(row.name())) {
@@ -205,7 +209,7 @@ public class ImportService {
                         "工号" + row.employeeNo() + "已对应人员" + existing.getName()
                 );
             }
-            var participant = existing;
+            ParticipantEntity participant = existing;
             if (participant == null) {
                 participant = new ParticipantEntity();
                 participant.setMeetingId(meetingId);
@@ -217,27 +221,27 @@ public class ImportService {
             participantByEmployeeNo.put(employeeKey, participant);
         }
 
-        var recordsByParticipant = loadRecords(participantByEmployeeNo.values().stream()
+        Map<String,List<ParticipantRecordEntity>> recordsByParticipant = loadRecords(participantByEmployeeNo.values().stream()
                 .map(ParticipantEntity::getId)
                 .toList());
-        var mergedRecords = 0;
-        var appendedRecords = 0;
-        var skippedRecords = 0;
-        for (var row : stored.workbook().rows()) {
-            var participant = participantByEmployeeNo.get(normalize(row.employeeNo()));
-            var incomingAttributes = canonicalAttributes(
+        int mergedRecords = 0;
+        int appendedRecords = 0;
+        int skippedRecords = 0;
+        for (ParsedParticipantRow row : stored.workbook().rows()) {
+            ParticipantEntity participant = participantByEmployeeNo.get(normalize(row.employeeNo()));
+            Map<String,String> incomingAttributes = canonicalAttributes(
                     row.attributes(),
                     canonicalFieldNames
             );
-            var records = recordsByParticipant.computeIfAbsent(
+            List<ParticipantRecordEntity> records = recordsByParticipant.computeIfAbsent(
                     participant.getId(),
                     ignored -> new ArrayList<>()
             );
-            var decision = recordMerger.decide(incomingAttributes, mergerValues(records));
+            MergeDecision decision = recordMerger.decide(incomingAttributes, mergerValues(records));
             switch (decision.action()) {
                 case SKIP -> skippedRecords++;
                 case MERGE -> {
-                    var target = records.stream()
+                    ParticipantRecordEntity target = records.stream()
                             .filter(record -> record.getId().equals(decision.targetRecordId()))
                             .findFirst()
                             .orElseThrow(() -> new ApiException(
@@ -249,7 +253,7 @@ public class ImportService {
                     mergedRecords++;
                 }
                 case APPEND -> {
-                    var record = new ParticipantRecordEntity();
+                    ParticipantRecordEntity record = new ParticipantRecordEntity();
                     record.setParticipantId(participant.getId());
                     record.setRecordOrder(records.stream()
                             .mapToInt(ParticipantRecordEntity::getRecordOrder)
@@ -276,14 +280,14 @@ public class ImportService {
             Map<String, String> canonicalFieldNames,
             List<String> previewErrors
     ) {
-        var workingParticipants = new LinkedHashMap<String, PreviewParticipant>();
-        var previewRows = new ArrayList<ParticipantRow>();
-        for (var row : parsedRows) {
-            var employeeKey = normalize(row.employeeNo());
-            var state = workingParticipants.get(employeeKey);
-            var firstIncomingRow = state == null;
+        LinkedHashMap<String,PreviewParticipant> workingParticipants = new LinkedHashMap<String, PreviewParticipant>();
+        ArrayList<ParticipantRow> previewRows = new ArrayList<ParticipantRow>();
+        for (ParsedParticipantRow row : parsedRows) {
+            String employeeKey = normalize(row.employeeNo());
+            PreviewParticipant state = workingParticipants.get(employeeKey);
+            boolean firstIncomingRow = state == null;
             if (state == null) {
-                var existing = participantRepository
+                ParticipantEntity existing = participantRepository
                         .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(
                                 meetingId,
                                 row.employeeNo()
@@ -296,7 +300,7 @@ public class ImportService {
                             new ArrayList<>()
                     );
                 } else {
-                    var records = recordRepository
+                    List<ParticipantRecordEntity> records = recordRepository
                             .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(
                                     existing.getId()
                             );
@@ -309,16 +313,16 @@ public class ImportService {
                 workingParticipants.put(employeeKey, state);
             }
 
-            var attributes = canonicalAttributes(row.attributes(), canonicalFieldNames);
+            Map<String,String> attributes = canonicalAttributes(row.attributes(), canonicalFieldNames);
             String expectedAction;
             if (!state.name().equals(row.name())) {
                 expectedAction = "姓名冲突，提交将被阻止";
-                var error = participantNameConflict(row.employeeNo(), state.name());
+                String error = participantNameConflict(row.employeeNo(), state.name());
                 if (!previewErrors.contains(error)) {
                     previewErrors.add(error);
                 }
             } else {
-                var decision = recordMerger.decide(attributes, state.records());
+                MergeDecision decision = recordMerger.decide(attributes, state.records());
                 expectedAction = expectedAction(
                         decision.action(),
                         state.newParticipant() && firstIncomingRow
@@ -340,8 +344,8 @@ public class ImportService {
             String meetingId,
             List<ParsedParticipantRow> rows
     ) {
-        var checkedEmployeeNumbers = new java.util.LinkedHashSet<String>();
-        for (var row : rows) {
+        LinkedHashSet<String> checkedEmployeeNumbers = new LinkedHashSet<String>();
+        for (ParsedParticipantRow row : rows) {
             if (!checkedEmployeeNumbers.add(normalize(row.employeeNo()))) {
                 continue;
             }
@@ -388,8 +392,8 @@ public class ImportService {
                 return;
             }
             case MERGE -> {
-                for (var index = 0; index < records.size(); index++) {
-                    var record = records.get(index);
+                for (int index = 0; index < records.size(); index++) {
+                    RecordValue record = records.get(index);
                     if (record.recordId().equals(decision.targetRecordId())) {
                         records.set(index, new ParticipantRecordMerger.RecordValue(
                                 record.recordId(),
@@ -405,7 +409,7 @@ public class ImportService {
                 );
             }
             case APPEND -> {
-                var nextOrder = records.stream()
+                int nextOrder = records.stream()
                         .mapToInt(ParticipantRecordMerger.RecordValue::recordOrder)
                         .max()
                         .orElse(0) + 1;
@@ -422,7 +426,7 @@ public class ImportService {
             Map<String, String> attributes,
             Map<String, String> canonicalFieldNames
     ) {
-        var canonical = new LinkedHashMap<String, String>();
+        LinkedHashMap<String,String> canonical = new LinkedHashMap<String, String>();
         attributes.forEach((fieldName, value) -> canonical.put(
                 canonicalFieldNames.getOrDefault(normalize(fieldName), fieldName),
                 value
@@ -431,7 +435,7 @@ public class ImportService {
     }
 
     private Map<String, List<ParticipantRecordEntity>> loadRecords(List<String> participantIds) {
-        var recordsByParticipant = new LinkedHashMap<String, List<ParticipantRecordEntity>>();
+        LinkedHashMap<String,List<ParticipantRecordEntity>> recordsByParticipant = new LinkedHashMap<String, List<ParticipantRecordEntity>>();
         participantIds.forEach(id -> recordsByParticipant.put(id, new ArrayList<>()));
         if (participantIds.isEmpty()) {
             return recordsByParticipant;

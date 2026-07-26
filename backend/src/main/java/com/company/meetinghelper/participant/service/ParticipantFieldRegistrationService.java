@@ -4,16 +4,16 @@ import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.meeting.repository.MeetingRepository;
 import com.company.meetinghelper.participant.entity.MeetingParticipantFieldEntity;
 import com.company.meetinghelper.participant.repository.MeetingParticipantFieldRepository;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Locale;
-import java.util.Map;
 
 @Service
 public class ParticipantFieldRegistrationService {
@@ -59,28 +59,28 @@ public class ParticipantFieldRegistrationService {
     ) {
         lockMeeting(meetingId);
 
-        var existing = fieldRepository
+        List<MeetingParticipantFieldEntity> existing = fieldRepository
                 .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
-        var canonicalNames = new LinkedHashMap<String, String>();
+        LinkedHashMap<String,String> canonicalNames = new LinkedHashMap<String, String>();
         existing.forEach(field -> canonicalNames.putIfAbsent(
                 normalize(field.getFieldName()),
                 field.getFieldName()
         ));
-        var nextSortOrder = existing.stream()
+        int nextSortOrder = existing.stream()
                 .mapToInt(MeetingParticipantFieldEntity::getSortOrder)
                 .max()
                 .orElse(0);
-        var requestedNames = fieldNames == null ? java.util.List.<String>of() : fieldNames;
-        for (var requestedName : requestedNames) {
-            var fieldName = requestedName == null ? "" : requestedName.trim();
+        Collection<String> requestedNames = fieldNames == null ? List.<String>of() : fieldNames;
+        for (String requestedName : requestedNames) {
+            String fieldName = requestedName == null ? "" : requestedName.trim();
             if (fieldName.isBlank()) {
                 continue;
             }
-            var normalizedName = normalize(fieldName);
+            String normalizedName = normalize(fieldName);
             if (canonicalNames.containsKey(normalizedName)) {
                 continue;
             }
-            var field = new MeetingParticipantFieldEntity();
+            MeetingParticipantFieldEntity field = new MeetingParticipantFieldEntity();
             field.setMeetingId(meetingId);
             field.setFieldName(fieldName);
             field.setSortOrder(++nextSortOrder);

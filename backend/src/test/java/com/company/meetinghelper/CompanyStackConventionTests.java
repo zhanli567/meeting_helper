@@ -50,6 +50,18 @@ class CompanyStackConventionTests {
         }
     }
 
+    @Test
+    void javaSourcesUseExplicitLocalVariableTypes() throws IOException {
+        try (Stream<Path> files = Files.walk(Path.of("src"))) {
+            String javaSources = files
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .map(this::read)
+                    .reduce("", String::concat);
+
+            assertThat(javaSources).doesNotContainPattern("\\bvar\\s+");
+        }
+    }
+
     private String read(Path path) {
         try {
             return Files.readString(path);

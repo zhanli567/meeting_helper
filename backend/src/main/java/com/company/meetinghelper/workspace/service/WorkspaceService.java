@@ -1,8 +1,8 @@
 package com.company.meetinghelper.workspace.service;
 
 import com.company.meetinghelper.common.exception.ApiException;
-import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse;
 import com.company.meetinghelper.meeting.entity.MeetingElementEntity;
+import com.company.meetinghelper.meeting.entity.MeetingEntity;
 import com.company.meetinghelper.meeting.repository.MeetingElementRepository;
 import com.company.meetinghelper.meeting.service.MeetingAccessService;
 import com.company.meetinghelper.participant.entity.MeetingParticipantFieldEntity;
@@ -11,23 +11,31 @@ import com.company.meetinghelper.participant.entity.ParticipantRecordEntity;
 import com.company.meetinghelper.participant.repository.MeetingParticipantFieldRepository;
 import com.company.meetinghelper.participant.repository.ParticipantRecordRepository;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
+import com.company.meetinghelper.seating.entity.PlanItemEntity;
+import com.company.meetinghelper.seating.entity.PlanItemTargetEntity;
+import com.company.meetinghelper.seating.entity.PlanItemType;
+import com.company.meetinghelper.seating.entity.SeatingPlanEntity;
 import com.company.meetinghelper.seating.repository.PlanItemRepository;
 import com.company.meetinghelper.seating.repository.PlanItemTargetRepository;
-import com.company.meetinghelper.seating.entity.PlanItemType;
 import com.company.meetinghelper.seating.repository.PlanVersionRepository;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse;
+import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.FieldDefinitionView;
+import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.ParticipantRecordView;
+import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.ParticipantView;
+import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.PlanItemView;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class WorkspaceService {
@@ -88,44 +96,44 @@ public class WorkspaceService {
      */
     @Transactional(readOnly = true)
     public WorkspaceResponse getWorkspace(String meetingId) {
-        var meeting = meetingAccessService.requireOwnedMeeting(meetingId);
-        var plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)
+        MeetingEntity meeting = meetingAccessService.requireOwnedMeeting(meetingId);
+        SeatingPlanEntity plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议尚未建立排座方案"));
-        var elements = elementRepository.findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(meetingId);
-        var participants = participantRepository.findAllByMeetingIdAndDeletedFalseOrderByNameAsc(meetingId);
-        var participantIds = participants.stream().map(ParticipantEntity::getId).toList();
-        var participantFields = fieldRepository
+        List<MeetingElementEntity> elements = elementRepository.findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(meetingId);
+        List<ParticipantEntity> participants = participantRepository.findAllByMeetingIdAndDeletedFalseOrderByNameAsc(meetingId);
+        List<String> participantIds = participants.stream().map(ParticipantEntity::getId).toList();
+        List<MeetingParticipantFieldEntity> participantFields = fieldRepository
                 .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
-        var participantRecords = participantIds.isEmpty()
+        List<ParticipantRecordEntity> participantRecords = participantIds.isEmpty()
                 ? List.<ParticipantRecordEntity>of()
                 : recordRepository
                         .findAllByParticipantIdInAndDeletedFalseOrderByParticipantIdAscRecordOrderAsc(
                                 participantIds
                         );
-        var recordsByParticipant = participantRecords.stream().collect(Collectors.groupingBy(
+        LinkedHashMap<String,List<ParticipantRecordEntity>> recordsByParticipant = participantRecords.stream().collect(Collectors.groupingBy(
                 ParticipantRecordEntity::getParticipantId,
                 LinkedHashMap::new,
                 Collectors.toList()
         ));
 
-        var items = itemRepository.findAllByPlanIdAndDeletedFalseOrderByCreatedAtAsc(plan.getId());
-        var itemIds = items.stream().map(item -> item.getId()).toList();
-        var targets = itemIds.isEmpty()
-                ? List.<com.company.meetinghelper.seating.entity.PlanItemTargetEntity>of()
+        List<PlanItemEntity> items = itemRepository.findAllByPlanIdAndDeletedFalseOrderByCreatedAtAsc(plan.getId());
+        List<String> itemIds = items.stream().map(item -> item.getId()).toList();
+        List<PlanItemTargetEntity> targets = itemIds.isEmpty()
+                ? List.<PlanItemTargetEntity>of()
                 : targetRepository.findAllByPlanItemIdInAndDeletedFalse(itemIds);
-        var targetsByItem = targets.stream().collect(Collectors.groupingBy(
+        LinkedHashMap<String,List<String>> targetsByItem = targets.stream().collect(Collectors.groupingBy(
                 target -> target.getPlanItemId(),
                 LinkedHashMap::new,
                 Collectors.mapping(target -> target.getMeetingElementId(), Collectors.toList())
         ));
-        var assignedByParticipant = items.stream()
+        Map<String,String> assignedByParticipant = items.stream()
                 .filter(item -> item.getItemType() == PlanItemType.PERSON && item.getParticipantId() != null)
                 .collect(Collectors.toMap(
                         item -> item.getParticipantId(),
                         item -> targetsByItem.getOrDefault(item.getId(), List.of()).stream().findFirst().orElse(null),
                         (left, right) -> left
                 ));
-        var lockedByParticipant = items.stream()
+        Map<String,Boolean> lockedByParticipant = items.stream()
                 .filter(item -> item.getItemType() == PlanItemType.PERSON && item.getParticipantId() != null)
                 .collect(Collectors.toMap(
                         item -> item.getParticipantId(),
@@ -133,7 +141,7 @@ public class WorkspaceService {
                         (left, right) -> left
                 ));
 
-        var participantViews = participants.stream()
+        List<ParticipantView> participantViews = participants.stream()
                 .map(participant -> toParticipantView(
                         participant,
                         participantFields,
@@ -142,7 +150,7 @@ public class WorkspaceService {
                         lockedByParticipant.getOrDefault(participant.getId(), false)
                 ))
                 .toList();
-        var itemViews = items.stream().map(item -> new WorkspaceResponse.PlanItemView(
+        List<PlanItemView> itemViews = items.stream().map(item -> new WorkspaceResponse.PlanItemView(
                 item.getId(),
                 item.getItemType().name(),
                 item.getParticipantId(),
@@ -192,13 +200,13 @@ public class WorkspaceService {
             String assignedElementId,
             boolean locked
     ) {
-        var values = new LinkedHashMap<String, List<String>>();
+        LinkedHashMap<String,List<String>> values = new LinkedHashMap<String, List<String>>();
         fields.forEach(field -> values.put(field.getFieldName(), new ArrayList<>()));
-        var recordViews = new ArrayList<WorkspaceResponse.ParticipantRecordView>();
+        ArrayList<ParticipantRecordView> recordViews = new ArrayList<WorkspaceResponse.ParticipantRecordView>();
         records.stream()
-                .sorted(java.util.Comparator.comparingInt(ParticipantRecordEntity::getRecordOrder))
+                .sorted(Comparator.comparingInt(ParticipantRecordEntity::getRecordOrder))
                 .forEach(record -> {
-                    var attributes = orderedAttributes(readAttributes(record.getAttributesJson()), fields);
+                    Map<String,String> attributes = orderedAttributes(readAttributes(record.getAttributesJson()), fields);
                     recordViews.add(new WorkspaceResponse.ParticipantRecordView(
                             record.getId(),
                             record.getRecordOrder(),
@@ -208,14 +216,14 @@ public class WorkspaceService {
                         if (value == null || value.isBlank()) {
                             return;
                         }
-                        var fieldValues = values.get(fieldName);
+                        List<String> fieldValues = values.get(fieldName);
                         if (!fieldValues.contains(value)) {
                             fieldValues.add(value);
                         }
                     });
                 });
-        var primaryAttributes = new LinkedHashMap<String, String>();
-        var attributeValues = new LinkedHashMap<String, List<String>>();
+        LinkedHashMap<String,String> primaryAttributes = new LinkedHashMap<String, String>();
+        LinkedHashMap<String,List<String>> attributeValues = new LinkedHashMap<String, List<String>>();
         values.forEach((fieldName, fieldValues) -> {
             if (!fieldValues.isEmpty()) {
                 primaryAttributes.put(fieldName, fieldValues.getFirst());
@@ -239,9 +247,9 @@ public class WorkspaceService {
             Map<String, String> attributes,
             List<MeetingParticipantFieldEntity> fields
     ) {
-        var ordered = new LinkedHashMap<String, String>();
-        for (var field : fields) {
-            var value = attributes.get(field.getFieldName());
+        LinkedHashMap<String,String> ordered = new LinkedHashMap<String, String>();
+        for (MeetingParticipantFieldEntity field : fields) {
+            String value = attributes.get(field.getFieldName());
             if (value != null) {
                 ordered.put(field.getFieldName(), value);
             }
@@ -264,7 +272,7 @@ public class WorkspaceService {
     private List<WorkspaceResponse.FieldDefinitionView> fieldDefinitions(
             List<MeetingParticipantFieldEntity> participantFields
     ) {
-        var fields = new ArrayList<WorkspaceResponse.FieldDefinitionView>();
+        ArrayList<FieldDefinitionView> fields = new ArrayList<WorkspaceResponse.FieldDefinitionView>();
         fields.add(new WorkspaceResponse.FieldDefinitionView("name", "姓名", "TEXT", true, false, true, true));
         fields.add(new WorkspaceResponse.FieldDefinitionView("employeeNo", "工号", "TEXT", true, false, true, false));
         participantFields.forEach(field -> fields.add(new WorkspaceResponse.FieldDefinitionView(
