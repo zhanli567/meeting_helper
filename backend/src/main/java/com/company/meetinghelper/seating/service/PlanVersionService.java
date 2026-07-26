@@ -27,7 +27,7 @@ import com.company.meetinghelper.workspace.service.WorkspaceService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -276,8 +276,8 @@ public class PlanVersionService {
         }
     }
 
-    private void adaptLegacySnapshot(tools.jackson.databind.JsonNode snapshotNode) {
-        if (!(snapshotNode instanceof tools.jackson.databind.node.ObjectNode root)
+    private void adaptLegacySnapshot(com.fasterxml.jackson.databind.JsonNode snapshotNode) {
+        if (!(snapshotNode instanceof com.fasterxml.jackson.databind.node.ObjectNode root)
                 || !root.path("participants").isArray()
                 || !hasLegacyParticipants(root.path("participants"))) {
             return;
@@ -285,7 +285,7 @@ public class PlanVersionService {
         var legacyFields = legacyFields(root);
         root.set("fieldDefinitions", legacyFieldDefinitions(legacyFields));
         for (var participantNode : root.path("participants")) {
-            if (!(participantNode instanceof tools.jackson.databind.node.ObjectNode participant)) {
+            if (!(participantNode instanceof com.fasterxml.jackson.databind.node.ObjectNode participant)) {
                 continue;
             }
             var attributesNode = participant.path("attributes");
@@ -309,7 +309,7 @@ public class PlanVersionService {
         }
     }
 
-    private boolean hasLegacyParticipants(tools.jackson.databind.JsonNode participants) {
+    private boolean hasLegacyParticipants(com.fasterxml.jackson.databind.JsonNode participants) {
         for (var participant : participants) {
             if (!participant.has("records") && participant.path("attributes").isObject()) {
                 return true;
@@ -319,7 +319,7 @@ public class PlanVersionService {
     }
 
     private java.util.List<LegacyField> legacyFields(
-            tools.jackson.databind.node.ObjectNode root
+            com.fasterxml.jackson.databind.node.ObjectNode root
     ) {
         var fields = new ArrayList<LegacyField>();
         var definitions = root.path("fieldDefinitions");
@@ -358,7 +358,7 @@ public class PlanVersionService {
         fields.add(new LegacyField(sourceCode, label));
     }
 
-    private tools.jackson.databind.node.ArrayNode legacyFieldDefinitions(
+    private com.fasterxml.jackson.databind.node.ArrayNode legacyFieldDefinitions(
             java.util.List<LegacyField> legacyFields
     ) {
         var definitions = objectMapper.createArrayNode();
@@ -370,7 +370,7 @@ public class PlanVersionService {
         return definitions;
     }
 
-    private tools.jackson.databind.node.ObjectNode fieldDefinitionNode(
+    private com.fasterxml.jackson.databind.node.ObjectNode fieldDefinitionNode(
             String code,
             String label,
             boolean filterable,
@@ -388,7 +388,7 @@ public class PlanVersionService {
     }
 
     private void writeLegacyParticipantRecords(
-            tools.jackson.databind.node.ObjectNode participant,
+            com.fasterxml.jackson.databind.node.ObjectNode participant,
             java.util.List<LegacyField> fields,
             java.util.List<LinkedHashMap<String, String>> records
     ) {
@@ -434,7 +434,7 @@ public class PlanVersionService {
         }
     }
 
-    private String text(tools.jackson.databind.JsonNode value) {
+    private String text(com.fasterxml.jackson.databind.JsonNode value) {
         return value == null || value.isNull() || value.isMissingNode()
                 ? ""
                 : value.asText();
@@ -514,7 +514,7 @@ public class PlanVersionService {
         try {
             return objectMapper.readValue(
                     json,
-                    new tools.jackson.core.type.TypeReference<java.util.Map<String, String>>() {
+                    new com.fasterxml.jackson.core.type.TypeReference<java.util.Map<String, String>>() {
                     }
             );
         } catch (Exception exception) {

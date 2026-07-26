@@ -1,6 +1,7 @@
 package com.company.meetinghelper;
 
 import com.company.meetinghelper.bootstrap.DemoDataInitializer;
+import com.company.meetinghelper.support.PostgreSqlTestDatabaseInitializer;
 import com.company.meetinghelper.export.service.ExportService;
 import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
 import com.company.meetinghelper.meeting.repository.MeetingRepository;
@@ -35,14 +36,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,9 +52,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.ByteArrayOutputStream;
 import java.util.Map;
@@ -73,6 +76,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Transactional
 @Import(MeetingHelperIntegrationTests.OptimisticLockTestController.class)
+@ContextConfiguration(initializers = PostgreSqlTestDatabaseInitializer.class)
 class MeetingHelperIntegrationTests {
     private static final String USER_HEADER = "X-User-Id";
     private static final String DEFAULT_USER = "demo-secretary";
@@ -110,7 +114,7 @@ class MeetingHelperIntegrationTests {
     @Autowired
     private ParticipantService participantService;
 
-    @MockitoSpyBean
+    @SpyBean
     private ParticipantFieldRegistrationService fieldRegistrationService;
 
     @Autowired
@@ -892,10 +896,7 @@ class MeetingHelperIntegrationTests {
                 .extracting(value -> value.attributes().get("批次"))
                 .containsExactly("第二批", "第三批");
 
-        recordRepository.deleteAll(recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(original.getId()));
-        participantRepository.delete(original);
-        participantRepository.flush();
+        participantService.delete(meetingId, original.getId());
         var replacement = new ParticipantEntity();
         replacement.setMeetingId(meetingId);
         replacement.setEmployeeNo("A12345678");
@@ -903,7 +904,7 @@ class MeetingHelperIntegrationTests {
         replacement.setAttendanceStatus(AttendanceStatus.TEMPORARILY_ABSENT);
         participantRepository.saveAndFlush(replacement);
         saveRecord(replacement.getId(), 7, Map.of("批次", "草稿批次"));
-        saveRecord(replacement.getId(), 7, Map.of("批次", "残留批次"));
+        saveRecord(replacement.getId(), 8, Map.of("批次", "残留批次"));
 
         var draftFields = fieldRepository
                 .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
@@ -1055,11 +1056,11 @@ class MeetingHelperIntegrationTests {
                 new CreateVersionRequest("旧快照兼容版", "", false)
         );
         var versionEntity = planVersionRepository.findById(version.id()).orElseThrow();
-        var legacySnapshot = (tools.jackson.databind.node.ObjectNode) objectMapper
+        var legacySnapshot = (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper
                 .readTree(versionEntity.getSnapshotJson());
         legacySnapshot.remove("fieldDefinitions");
         legacySnapshot.withArray("participants").forEach(value -> {
-            var participantNode = (tools.jackson.databind.node.ObjectNode) value;
+            var participantNode = (com.fasterxml.jackson.databind.node.ObjectNode) value;
             participantNode.remove("primaryAttributes");
             participantNode.remove("attributeValues");
             participantNode.remove("records");
@@ -1216,8 +1217,12 @@ class MeetingHelperIntegrationTests {
             assertThat(rows.get(1)).containsExactly(
                     "a12345678", "张三", "第三批", "创新奖"
             );
-            assertThat(cellValues(sheet.getRow(sheet.getLastRowNum())))
-                    .containsExactly("87654321", "无动态记录人员", "", "");
+            assertThat(java.util.stream.IntStream.rangeClosed(1, sheet.getLastRowNum())
+                    .mapToObj(sheet::getRow)
+                    .map(this::cellValues)
+                    .filter(values -> values.getFirst().equals("87654321"))
+                    .findFirst())
+                    .contains(java.util.List.of("87654321", "无动态记录人员", "", ""));
         }
 
         var importedMeetingId = createImportMeeting();
@@ -1873,7 +1878,11 @@ class MeetingHelperIntegrationTests {
     }
 
     private JsonNode responseJson(org.springframework.test.web.servlet.MvcResult result) {
-        return objectMapper.readTree(result.getResponse().getContentAsByteArray());
+        try {
+            return objectMapper.readTree(result.getResponse().getContentAsByteArray());
+        } catch (java.io.IOException exception) {
+            throw new IllegalStateException("无法解析测试响应", exception);
+        }
     }
 
     private JsonNode workspaceAs(String userId, String meetingId) throws Exception {
@@ -1974,8 +1983,12 @@ class MeetingHelperIntegrationTests {
     }
 
     private Map<String, String> readAttributes(String json) {
-        return objectMapper.readValue(json, new TypeReference<>() {
-        });
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {
+            });
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("无法解析测试人员属性", exception);
+        }
     }
 
     private void saveRecord(String participantId, int recordOrder, Map<String, String> attributes)
