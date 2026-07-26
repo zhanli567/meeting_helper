@@ -10,13 +10,13 @@ import com.company.meetinghelper.meeting.repository.MeetingElementRepository;
 import com.company.meetinghelper.meeting.repository.MeetingRepository;
 import com.company.meetinghelper.seating.entity.SeatingPlanEntity;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
+import com.company.meetinghelper.venue.api.dto.response.VenueDetail;
 import com.company.meetinghelper.venue.entity.ElementType;
 import com.company.meetinghelper.venue.service.VenueService;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 public class MeetingService {
@@ -56,7 +56,7 @@ public class MeetingService {
      */
     @Transactional(readOnly = true)
     public List<MeetingSummary> list() {
-        var userId = currentUserProvider.requireUserId();
+        String userId = currentUserProvider.requireUserId();
         return meetingRepository.findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(userId).stream()
                 .map(meeting -> new MeetingSummary(
                         meeting.getId(), meeting.getName(), meeting.getStatus(), meeting.getLayoutName(),
@@ -72,16 +72,16 @@ public class MeetingService {
      */
     @Transactional
     public MeetingSummary create(CreateMeetingRequest request) {
-        var userId = currentUserProvider.requireUserId();
-        var normalizedName = request.name().trim();
+        String userId = currentUserProvider.requireUserId();
+        String normalizedName = request.name().trim();
         if (meetingRepository.existsByCreatedByIdAndNameIgnoreCaseAndDeletedFalse(
                 userId,
                 normalizedName
         )) {
             throw new ApiException(HttpStatus.CONFLICT, "会议名称已存在");
         }
-        var venue = venueService.get(request.venueTemplateId());
-        var meeting = new MeetingEntity();
+        VenueDetail venue = venueService.get(request.venueTemplateId());
+        MeetingEntity meeting = new MeetingEntity();
         meeting.setName(normalizedName);
         meeting.setStatus("DRAFT");
         meeting.setVenueTemplateId(venue.preset() ? null : venue.id());
@@ -96,9 +96,9 @@ public class MeetingService {
         meeting.setUpdatedByName(userId);
         meetingRepository.save(meeting);
 
-        var copiedElements = venue.elements().stream()
+        List<MeetingElementEntity> copiedElements = venue.elements().stream()
                 .map(source -> {
-                    var target = new MeetingElementEntity();
+                    MeetingElementEntity target = new MeetingElementEntity();
                     target.setMeetingId(meeting.getId());
                     target.setElementType(ElementType.valueOf(source.type()));
                     target.setCode(source.code());
@@ -121,7 +121,7 @@ public class MeetingService {
                 .toList();
         meetingElementRepository.saveAll(copiedElements);
 
-        var plan = new SeatingPlanEntity();
+        SeatingPlanEntity plan = new SeatingPlanEntity();
         plan.setMeetingId(meeting.getId());
         plan.setName("默认排座方案");
         plan.setStatus("DRAFT");

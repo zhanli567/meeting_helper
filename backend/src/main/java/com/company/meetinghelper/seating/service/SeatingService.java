@@ -1,10 +1,13 @@
 package com.company.meetinghelper.seating.service;
 
 import com.company.meetinghelper.common.exception.ApiException;
+import com.company.meetinghelper.meeting.entity.MeetingElementEntity;
 import com.company.meetinghelper.meeting.repository.MeetingElementRepository;
 import com.company.meetinghelper.meeting.service.MeetingAccessService;
 import com.company.meetinghelper.participant.entity.AttendanceStatus;
+import com.company.meetinghelper.participant.entity.ParticipantEntity;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
+import com.company.meetinghelper.seating.api.dto.request.AssignmentInput;
 import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
 import com.company.meetinghelper.seating.api.dto.request.SaveAssignmentsRequest;
 import com.company.meetinghelper.seating.entity.PlanItemEntity;
@@ -14,14 +17,16 @@ import com.company.meetinghelper.seating.entity.SeatingPlanEntity;
 import com.company.meetinghelper.seating.repository.PlanItemRepository;
 import com.company.meetinghelper.seating.repository.PlanItemTargetRepository;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.HashSet;
-import java.util.List;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 public class SeatingService {
@@ -66,8 +71,8 @@ public class SeatingService {
      */
     @Transactional
     public void assign(String planId, AssignmentRequest request) {
-        var plan = requirePlan(planId);
-        var participant = participantRepository.findByIdAndMeetingIdAndDeletedFalse(
+        SeatingPlanEntity plan = requirePlan(planId);
+        ParticipantEntity participant = participantRepository.findByIdAndMeetingIdAndDeletedFalse(
                         request.participantId(),
                         plan.getMeetingId()
                 )
@@ -75,7 +80,7 @@ public class SeatingService {
         if (participant.getAttendanceStatus() == AttendanceStatus.TEMPORARILY_ABSENT) {
             throw new ApiException(HttpStatus.CONFLICT, "临时不出席人员不能安排座位");
         }
-        var targetElement = elementRepository.findByIdAndMeetingIdAndDeletedFalse(
+        MeetingElementEntity targetElement = elementRepository.findByIdAndMeetingIdAndDeletedFalse(
                         request.targetElementId(),
                         plan.getMeetingId()
                 )
@@ -85,11 +90,11 @@ public class SeatingService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "目标位置不是可用的单人座席");
         }
 
-        var currentItem = itemRepository.findByPlanIdAndParticipantIdAndItemTypeAndDeletedFalse(
+        PlanItemEntity currentItem = itemRepository.findByPlanIdAndParticipantIdAndItemTypeAndDeletedFalse(
                 planId, participant.getId(), PlanItemType.PERSON).orElse(null);
-        var currentTarget = currentItem == null
+        PlanItemTargetEntity currentTarget = currentItem == null
                 ? null
-                : targetRepository.findAllByPlanItemIdInAndDeletedFalse(java.util.List.of(currentItem.getId()))
+                : targetRepository.findAllByPlanItemIdInAndDeletedFalse(List.of(currentItem.getId()))
                 .stream().findFirst().orElse(null);
         if (currentItem != null && currentItem.isLocked()) {
             throw new ApiException(HttpStatus.CONFLICT, "当前座位已锁定，无法移动");
@@ -98,9 +103,9 @@ public class SeatingService {
             return;
         }
 
-        var occupiedTarget = targetRepository.findByMeetingElementIdAndDeletedFalse(targetElement.getId()).orElse(null);
+        PlanItemTargetEntity occupiedTarget = targetRepository.findByMeetingElementIdAndDeletedFalse(targetElement.getId()).orElse(null);
         if (occupiedTarget != null) {
-            var occupiedItem = itemRepository.findById(occupiedTarget.getPlanItemId())
+            PlanItemEntity occupiedItem = itemRepository.findById(occupiedTarget.getPlanItemId())
                     .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "座位占用数据不完整"));
             if (occupiedItem.isLocked()) {
                 throw new ApiException(HttpStatus.CONFLICT, "目标座位已锁定");
@@ -111,9 +116,9 @@ public class SeatingService {
             if (currentTarget == null) {
                 throw new ApiException(HttpStatus.CONFLICT, "待排人员只能拖入空座位");
             }
-            var currentElementId = currentTarget.getMeetingElementId();
-            var occupiedItemId = occupiedTarget.getPlanItemId();
-            var currentItemId = currentTarget.getPlanItemId();
+            String currentElementId = currentTarget.getMeetingElementId();
+            String occupiedItemId = occupiedTarget.getPlanItemId();
+            String currentItemId = currentTarget.getPlanItemId();
             targetRepository.deleteAll(List.of(occupiedTarget, currentTarget));
             targetRepository.flush();
             targetRepository.save(createTarget(occupiedItemId, currentElementId));
@@ -147,33 +152,33 @@ public class SeatingService {
      */
     @Transactional
     public void replaceAssignments(String planId, SaveAssignmentsRequest request) {
-        var plan = requirePlan(planId);
-        var participants = participantRepository
+        SeatingPlanEntity plan = requirePlan(planId);
+        Map<String,ParticipantEntity> participants = participantRepository
                 .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(plan.getMeetingId())
                 .stream()
                 .collect(Collectors.toMap(value -> value.getId(), Function.identity()));
-        var elements = elementRepository
+        Map<String,MeetingElementEntity> elements = elementRepository
                 .findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(plan.getMeetingId())
                 .stream()
                 .collect(Collectors.toMap(value -> value.getId(), Function.identity()));
 
-        var participantIds = new HashSet<String>();
-        var targetElementIds = new HashSet<String>();
-        for (var assignment : request.assignments()) {
+        HashSet<String> participantIds = new HashSet<String>();
+        HashSet<String> targetElementIds = new HashSet<String>();
+        for (AssignmentInput assignment : request.assignments()) {
             if (!participantIds.add(assignment.participantId())) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "同一人员不能同时安排到多个座位");
             }
             if (!targetElementIds.add(assignment.targetElementId())) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "同一座位不能同时安排多名人员");
             }
-            var participant = participants.get(assignment.participantId());
+            ParticipantEntity participant = participants.get(assignment.participantId());
             if (participant == null) {
                 throw new ApiException(HttpStatus.NOT_FOUND, "人员不存在");
             }
             if (participant.getAttendanceStatus() == AttendanceStatus.TEMPORARILY_ABSENT) {
                 throw new ApiException(HttpStatus.CONFLICT, "临时不出席人员不能安排座位");
             }
-            var element = elements.get(assignment.targetElementId());
+            MeetingElementEntity element = elements.get(assignment.targetElementId());
             if (element == null) {
                 throw new ApiException(HttpStatus.NOT_FOUND, "目标座位不存在");
             }
@@ -182,26 +187,26 @@ public class SeatingService {
             }
         }
 
-        var currentItems = itemRepository.findAllByPlanIdAndDeletedFalseOrderByCreatedAtAsc(planId);
-        var itemIds = currentItems.stream().map(PlanItemEntity::getId).toList();
-        var currentTargets = itemIds.isEmpty()
+        List<PlanItemEntity> currentItems = itemRepository.findAllByPlanIdAndDeletedFalseOrderByCreatedAtAsc(planId);
+        List<String> itemIds = currentItems.stream().map(PlanItemEntity::getId).toList();
+        List<PlanItemTargetEntity> currentTargets = itemIds.isEmpty()
                 ? List.<PlanItemTargetEntity>of()
                 : targetRepository.findAllByPlanItemIdInAndDeletedFalse(itemIds);
-        var targetByItemId = currentTargets.stream().collect(Collectors.toMap(
+        Map<String,PlanItemTargetEntity> targetByItemId = currentTargets.stream().collect(Collectors.toMap(
                 PlanItemTargetEntity::getPlanItemId,
                 Function.identity(),
                 (left, right) -> left
         ));
-        var requestedTargetByParticipant = request.assignments().stream().collect(Collectors.toMap(
+        Map<String,String> requestedTargetByParticipant = request.assignments().stream().collect(Collectors.toMap(
                 value -> value.participantId(),
                 value -> value.targetElementId()
         ));
 
-        var reservedTargetIds = new HashSet<String>();
-        var editableItems = new java.util.ArrayList<PlanItemEntity>();
-        var lockedParticipantIds = new HashSet<String>();
-        for (var item : currentItems) {
-            var target = targetByItemId.get(item.getId());
+        HashSet<String> reservedTargetIds = new HashSet<String>();
+        ArrayList<PlanItemEntity> editableItems = new ArrayList<PlanItemEntity>();
+        HashSet<String> lockedParticipantIds = new HashSet<String>();
+        for (PlanItemEntity item : currentItems) {
+            PlanItemTargetEntity target = targetByItemId.get(item.getId());
             if (item.getItemType() != PlanItemType.PERSON) {
                 if (target != null) {
                     reservedTargetIds.add(target.getMeetingElementId());
@@ -209,7 +214,7 @@ public class SeatingService {
                 continue;
             }
             if (item.isLocked()) {
-                var requestedTarget = requestedTargetByParticipant.get(item.getParticipantId());
+                String requestedTarget = requestedTargetByParticipant.get(item.getParticipantId());
                 if (target == null || !target.getMeetingElementId().equals(requestedTarget)) {
                     throw new ApiException(HttpStatus.CONFLICT, "已锁定人员的座位不能修改或移除");
                 }
@@ -222,8 +227,8 @@ public class SeatingService {
             throw new ApiException(HttpStatus.CONFLICT, "目标座位已被设备、预留或禁用状态占用");
         }
 
-        var editableItemIds = editableItems.stream().map(PlanItemEntity::getId).collect(Collectors.toSet());
-        var editableTargets = currentTargets.stream()
+        Set<String> editableItemIds = editableItems.stream().map(PlanItemEntity::getId).collect(Collectors.toSet());
+        List<PlanItemTargetEntity> editableTargets = currentTargets.stream()
                 .filter(target -> editableItemIds.contains(target.getPlanItemId()))
                 .toList();
         if (!editableTargets.isEmpty()) {
@@ -235,12 +240,12 @@ public class SeatingService {
             itemRepository.flush();
         }
 
-        for (var assignment : request.assignments()) {
+        for (AssignmentInput assignment : request.assignments()) {
             if (lockedParticipantIds.contains(assignment.participantId())) {
                 continue;
             }
-            var participant = participants.get(assignment.participantId());
-            var item = new PlanItemEntity();
+            ParticipantEntity participant = participants.get(assignment.participantId());
+            PlanItemEntity item = new PlanItemEntity();
             item.setPlanId(planId);
             item.setItemType(PlanItemType.PERSON);
             item.setParticipantId(participant.getId());
@@ -259,8 +264,8 @@ public class SeatingService {
      */
     @Transactional
     public void unassign(String planId, String participantId) {
-        var plan = requirePlan(planId);
-        var item = itemRepository.findByPlanIdAndParticipantIdAndItemTypeAndDeletedFalse(
+        SeatingPlanEntity plan = requirePlan(planId);
+        PlanItemEntity item = itemRepository.findByPlanIdAndParticipantIdAndItemTypeAndDeletedFalse(
                 planId, participantId, PlanItemType.PERSON).orElse(null);
         if (item == null) {
             return;
@@ -282,8 +287,8 @@ public class SeatingService {
      */
     @Transactional
     public void setLocked(String planId, String participantId, boolean locked) {
-        var plan = requirePlan(planId);
-        var item = itemRepository.findByPlanIdAndParticipantIdAndItemTypeAndDeletedFalse(
+        SeatingPlanEntity plan = requirePlan(planId);
+        PlanItemEntity item = itemRepository.findByPlanIdAndParticipantIdAndItemTypeAndDeletedFalse(
                         planId, participantId, PlanItemType.PERSON)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "人员尚未排座"));
         item.setLocked(locked);
@@ -292,7 +297,7 @@ public class SeatingService {
     }
 
     private PlanItemTargetEntity createTarget(String planItemId, String meetingElementId) {
-        var target = new PlanItemTargetEntity();
+        PlanItemTargetEntity target = new PlanItemTargetEntity();
         target.setPlanItemId(planItemId);
         target.setMeetingElementId(meetingElementId);
         return target;

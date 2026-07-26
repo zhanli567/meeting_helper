@@ -2,12 +2,11 @@ package com.company.meetinghelper.importing.repository;
 
 import com.company.meetinghelper.importing.api.dto.response.ImportPreview;
 import com.company.meetinghelper.importing.service.model.ParsedParticipantWorkbook;
-import org.springframework.stereotype.Component;
-
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.stereotype.Component;
 
 @Component
 public class ImportPreviewStore {
@@ -33,7 +32,7 @@ public class ImportPreviewStore {
      * @return 匹配会议的预览数据，不存在或不匹配时返回null
      */
     public StoredPreview remove(String token, String meetingId) {
-        var preview = previews.get(token);
+        StoredPreview preview = previews.get(token);
         if (preview == null || !preview.meetingId().equals(meetingId)) {
             return null;
         }

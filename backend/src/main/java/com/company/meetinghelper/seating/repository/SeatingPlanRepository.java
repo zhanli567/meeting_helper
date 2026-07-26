@@ -1,39 +1,42 @@
 package com.company.meetinghelper.seating.repository;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.company.meetinghelper.common.repository.AbstractMyBatisRepository;
 import com.company.meetinghelper.seating.entity.SeatingPlanEntity;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-
+import com.company.meetinghelper.seating.mapper.SeatingPlanMapper;
 import java.util.Optional;
+import org.springframework.stereotype.Repository;
 
-public interface SeatingPlanRepository extends JpaRepository<SeatingPlanEntity, String> {
+@Repository
+public class SeatingPlanRepository extends AbstractMyBatisRepository<SeatingPlanEntity> {
+    private final SeatingPlanMapper planMapper;
+
+    public SeatingPlanRepository(SeatingPlanMapper planMapper) {
+        super(planMapper);
+        this.planMapper = planMapper;
+    }
+
     /**
      * 按方案ID和会议创建人查询有效排座方案。
      *
-     * @param planId 排座方案ID
+     * @param planId 方案ID
      * @param ownerId 会议创建人ID
      * @return 当前创建人拥有的会议排座方案
      */
-    @Query("""
-            select plan
-            from SeatingPlanEntity plan, MeetingEntity meeting
-            where plan.meetingId = meeting.id
-              and plan.id = :planId
-              and plan.deleted = false
-              and meeting.createdById = :ownerId
-              and meeting.deleted = false
-            """)
-    Optional<SeatingPlanEntity> findOwnedById(
-            @Param("planId") String planId,
-            @Param("ownerId") String ownerId
-    );
+    public Optional<SeatingPlanEntity> findOwnedById(String planId, String ownerId) {
+        return Optional.ofNullable(planMapper.selectOwnedById(planId, ownerId));
+    }
 
     /**
      * 查询会议最早创建的有效排座方案。
      *
      * @param meetingId 会议ID
-     * @return 排座方案，不存在时返回空
+     * @return 排座方案
      */
-    Optional<SeatingPlanEntity> findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(String meetingId);
+    public Optional<SeatingPlanEntity> findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(String meetingId) {
+        return Optional.ofNullable(planMapper.selectOne(new LambdaQueryWrapper<SeatingPlanEntity>()
+                .eq(SeatingPlanEntity::getMeetingId, meetingId)
+                .orderByAsc(SeatingPlanEntity::getCreatedAt)
+                .last("limit 1")));
+    }
 }

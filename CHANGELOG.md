@@ -73,6 +73,14 @@
 
 ### 变更
 
+- 2026-07-26 23:49  后端生产代码与测试代码统一使用显式局部变量类型，清理全部 `var`，并增加源码规范测试防止后续重新引入。
+- 2026-07-26 23:49  复核 Controller、Service、Repository 公开业务方法的 Javadoc，保留用途、参数和返回值说明。
+- 2026-07-26 23:31  后端接口仅保留 GET 与 POST，普通 JSON 响应统一为 `{code,data,msg}`，Excel 和 PDF 下载继续返回原始二进制内容。
+- 2026-07-26 23:31  前端请求层改为 Aurora 兼容封装，外网环境使用 Axios 回退，不再手工发送用户请求头，并统一解包后端响应。
+- 2026-07-26 23:22  将场馆、会议、人员、动态字段、排座和版本的数据访问完整迁移为 MyBatis-Plus Mapper 与具体 Repository，保留逻辑删除、版本恢复物理清理和座位交换语义。
+- 2026-07-26 23:22  移除 Spring Data JPA、Hibernate、JPA 实体注解和演示会议初始化器；身份读取改为公司框架 `CurrentUserHolder`，未绑定用户时使用匿名空字符串空间。
+- 2026-07-26 22:49  引入 MyBatis-Plus 3.5.10.1，完成 11 个持久化实体与现有 `t_` 表、审计字段和逻辑删除字段的显式映射。
+- 2026-07-26 22:46  后端基线降至 Spring Boot 3.3.5，自动化测试改用专用 PostgreSQL 数据库 `meeting_helper_test` 并通过根目录 DDL 安全重建。
 - 2026-07-26 22:28  编制公司技术栈迁移实施计划，按 PostgreSQL 测试基线、MyBatis-Plus 分域迁移、统一响应与 GET/POST 接口、Aurora 请求封装和全量回归拆分执行步骤。
 - 2026-07-26 22:09  确定公司技术栈对齐设计：后端迁移至 MyBatis-Plus Mapper 与 Repository 分层，前端接入 Aurora 封装，JSON 响应统一为 `{code,data,msg}`，请求仅保留 GET 和 POST。
 - 2026-07-26 22:09  确定正式运行与自动化测试全部使用 PostgreSQL，删除 H2、自定义用户请求头和演示业务数据初始化代码。

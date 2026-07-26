@@ -1,15 +1,13 @@
 package com.company.meetinghelper.participant.api;
 
+import com.company.meetinghelper.common.api.ApiResponse;
 import com.company.meetinghelper.participant.api.dto.request.CreateParticipantRequest;
 import com.company.meetinghelper.participant.api.dto.request.UpdateAttendanceRequest;
 import com.company.meetinghelper.participant.api.dto.response.ParticipantResult;
 import com.company.meetinghelper.participant.service.ParticipantService;
 import jakarta.validation.Valid;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -51,14 +49,14 @@ public class ParticipantController {
      * @param request 出席状态请求
      * @return 空响应
      */
-    @PutMapping("/{participantId}/attendance")
-    public ResponseEntity<Void> updateAttendance(
+    @PostMapping("/{participantId}/attendance")
+    public ApiResponse<Void> updateAttendance(
             @PathVariable String meetingId,
             @PathVariable String participantId,
             @Valid @RequestBody UpdateAttendanceRequest request
     ) {
         participantService.updateAttendance(meetingId, participantId, request);
-        return ResponseEntity.noContent().build();
+        return ApiResponse.success(null);
     }
 
     /**
@@ -68,9 +66,9 @@ public class ParticipantController {
      * @param participantId 参会人员ID
      * @return 空响应
      */
-    @DeleteMapping("/{participantId}")
-    public ResponseEntity<Void> delete(@PathVariable String meetingId, @PathVariable String participantId) {
+    @PostMapping("/{participantId}/delete")
+    public ApiResponse<Void> delete(@PathVariable String meetingId, @PathVariable String participantId) {
         participantService.delete(meetingId, participantId);
-        return ResponseEntity.noContent().build();
+        return ApiResponse.success(null);
     }
 }

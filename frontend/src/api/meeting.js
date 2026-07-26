@@ -1,4 +1,4 @@
-import { http } from './http.js'
+import { http, raw, unwrap } from './http.js'
 
 export const importContract = Object.freeze({
   templatePath: '/imports/template',
@@ -10,84 +10,84 @@ export const importContract = Object.freeze({
 
 export const meetingApi = {
   async meetings() {
-    return (await http.get('/meetings')).data
+    return unwrap(http.get('/meetings'))
   },
   async workspace(meetingId) {
-    return (await http.get(`/meetings/${meetingId}/workspace`)).data
+    return unwrap(http.get(`/meetings/${meetingId}/workspace`))
   },
   async assign(planId, participantId, targetElementId) {
-    await http.post(`/plans/${planId}/assignments`, { participantId, targetElementId })
+    return unwrap(http.post(`/plans/${planId}/assignments`, { participantId, targetElementId }))
   },
   async unassign(planId, participantId) {
-    await http.delete(`/plans/${planId}/participants/${participantId}/assignment`)
+    return unwrap(http.post(`/plans/${planId}/participants/${participantId}/assignment/remove`))
   },
   async saveAssignments(planId, assignments) {
-    await http.put(`/plans/${planId}/assignments`, { assignments })
+    return unwrap(http.post(`/plans/${planId}/assignments/save`, { assignments }))
   },
   async setLock(planId, participantId, locked) {
-    await http.put(`/plans/${planId}/participants/${participantId}/lock`, undefined, {
+    return unwrap(http.post(`/plans/${planId}/participants/${participantId}/lock`, undefined, {
       params: { locked },
-    })
+    }))
   },
   async addParticipant(meetingId, data) {
-    return (await http.post(`/meetings/${meetingId}/participants`, data)).data
+    return unwrap(http.post(`/meetings/${meetingId}/participants`, data))
   },
   async deleteParticipant(meetingId, participantId) {
-    await http.delete(`/meetings/${meetingId}/participants/${participantId}`)
+    return unwrap(http.post(`/meetings/${meetingId}/participants/${participantId}/delete`))
   },
   async updateAttendance(meetingId, participantId, attendanceStatus) {
-    await http.put(`/meetings/${meetingId}/participants/${participantId}/attendance`, {
+    return unwrap(http.post(`/meetings/${meetingId}/participants/${participantId}/attendance`, {
       attendanceStatus,
-    })
+    }))
   },
   async createVersion(planId, data) {
-    return (await http.post(`/plans/${planId}/versions`, data)).data
+    return unwrap(http.post(`/plans/${planId}/versions`, data))
   },
   async restoreVersion(planId, versionId) {
-    return (await http.post(`/plans/${planId}/versions/${versionId}/restore`)).data
+    return unwrap(http.post(`/plans/${planId}/versions/${versionId}/restore`))
   },
   async versionSnapshot(planId, versionId) {
-    return (await http.get(`/plans/${planId}/versions/${versionId}`)).data
+    return unwrap(http.get(`/plans/${planId}/versions/${versionId}`))
   },
   async importTemplate() {
-    return (await http.get(importContract.templatePath, { responseType: 'arraybuffer' })).data
+    return raw(http.get(importContract.templatePath, { responseType: 'arraybuffer' }))
   },
   async previewImport(meetingId, file) {
     const form = new FormData()
     form.append('file', file)
-    return (
-      await http.post(importContract.previewPath(meetingId), form, {
+    return unwrap(
+      http.post(importContract.previewPath(meetingId), form, {
         headers: { 'Content-Type': 'multipart/form-data' },
-      })
-    ).data
+      }),
+    )
   },
   async commitImport(meetingId, token) {
-    return (await http.post(importContract.commitPath(meetingId, token))).data
+    return unwrap(http.post(importContract.commitPath(meetingId, token)))
   },
   async exportFile(meetingId, type, versionId) {
-    return (
-      await http.get(`/meetings/${meetingId}/exports/${type}`, {
+    return raw(
+      http.get(`/meetings/${meetingId}/exports/${type}`, {
         responseType: 'arraybuffer',
         params: { versionId },
-      })
-    ).data
+      }),
+    )
   },
   async venues() {
-    return (await http.get('/venues')).data
+    return unwrap(http.get('/venues'))
   },
   async venue(id) {
-    return (await http.get(`/venues/${id}`)).data
+    return unwrap(http.get(`/venues/${id}`))
   },
   async createVenue(data) {
-    return (await http.post('/venues', data)).data
+    return unwrap(http.post('/venues', data))
   },
   async updateVenue(id, data) {
-    return (await http.put(`/venues/${id}`, data)).data
+    return unwrap(http.post(`/venues/${id}/update`, data))
   },
   async deleteVenue(id) {
-    await http.delete(`/venues/${id}`)
+    return unwrap(http.post(`/venues/${id}/delete`))
   },
   async createMeeting(name, venueTemplateId) {
-    return (await http.post('/meetings', { name, venueTemplateId })).data
+    return unwrap(http.post('/meetings', { name, venueTemplateId }))
   },
 }

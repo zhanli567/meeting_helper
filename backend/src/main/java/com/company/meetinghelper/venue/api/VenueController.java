@@ -6,10 +6,8 @@ import com.company.meetinghelper.venue.api.dto.response.VenueSummary;
 import com.company.meetinghelper.venue.service.VenueService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -69,7 +67,7 @@ public class VenueController {
      * @param request 场馆模板请求
      * @return 更新后的场馆模板详情
      */
-    @PutMapping("/{id}")
+    @PostMapping("/{id}/update")
     public VenueDetail update(
             @PathVariable String id,
             @Valid @RequestBody CreateVenueRequest request
@@ -82,7 +80,7 @@ public class VenueController {
      *
      * @param id 场馆模板ID
      */
-    @DeleteMapping("/{id}")
+    @PostMapping("/{id}/delete")
     public void delete(@PathVariable String id) {
         venueService.delete(id);
     }

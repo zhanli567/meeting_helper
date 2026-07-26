@@ -1,5 +1,7 @@
 package com.company.meetinghelper.participant.service;
 
+import static java.util.Locale.ROOT;
+
 import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.meeting.service.MeetingAccessService;
 import com.company.meetinghelper.participant.api.dto.request.CreateParticipantRequest;
@@ -11,19 +13,21 @@ import com.company.meetinghelper.participant.entity.ParticipantRecordEntity;
 import com.company.meetinghelper.participant.repository.ParticipantRecordRepository;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
 import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
+import com.company.meetinghelper.seating.entity.PlanItemType;
+import com.company.meetinghelper.seating.entity.SeatingPlanEntity;
 import com.company.meetinghelper.seating.repository.PlanItemRepository;
 import com.company.meetinghelper.seating.repository.PlanItemTargetRepository;
-import com.company.meetinghelper.seating.entity.PlanItemType;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
 import com.company.meetinghelper.seating.service.SeatingService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.ObjectMapper;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 @Service
 public class ParticipantService {
@@ -82,20 +86,20 @@ public class ParticipantService {
     @Transactional
     public ParticipantResult create(String meetingId, CreateParticipantRequest request) {
         meetingAccessService.requireOwnedMeeting(meetingId);
-        var incomingAttributes = request.attributes();
-        var canonicalNames = fieldRegistrationService.registerFields(
+        Map<String,String> incomingAttributes = request.attributes();
+        Map<String,String> canonicalNames = fieldRegistrationService.registerFields(
                 meetingId,
                 incomingAttributes == null
-                        ? java.util.List.of()
+                        ? List.of()
                         : incomingAttributes.keySet()
         );
-        var employeeNo = request.employeeNo().trim();
+        String employeeNo = request.employeeNo().trim();
         if (participantRepository
                 .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, employeeNo)
                 .isPresent()) {
             throw new ApiException(HttpStatus.CONFLICT, "该工号已在会议名单中");
         }
-        var participant = new ParticipantEntity();
+        ParticipantEntity participant = new ParticipantEntity();
         participant.setMeetingId(meetingId);
         participant.setEmployeeNo(employeeNo);
         participant.setName(request.name());
@@ -104,16 +108,16 @@ public class ParticipantService {
         } catch (DataIntegrityViolationException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "该工号已在会议名单中");
         }
-        var attributes = canonicalAttributes(incomingAttributes, canonicalNames);
+        Map<String,String> attributes = canonicalAttributes(incomingAttributes, canonicalNames);
         if (!attributes.isEmpty()) {
-            var record = new ParticipantRecordEntity();
+            ParticipantRecordEntity record = new ParticipantRecordEntity();
             record.setParticipantId(participant.getId());
             record.setRecordOrder(1);
             record.setAttributesJson(writeAttributes(attributes));
             recordRepository.save(record);
         }
         if (request.targetElementId() != null && !request.targetElementId().isBlank()) {
-            var plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)
+            SeatingPlanEntity plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
             seatingService.assign(
                     plan.getId(),
@@ -137,7 +141,7 @@ public class ParticipantService {
             UpdateAttendanceRequest request
     ) {
         meetingAccessService.requireOwnedMeeting(meetingId);
-        var participant = participantRepository.findById(participantId)
+        ParticipantEntity participant = participantRepository.findById(participantId)
                 .filter(value -> !value.isDeleted() && value.getMeetingId().equals(meetingId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "人员不存在"));
         participant.setAttendanceStatus(request.attendanceStatus());
@@ -156,7 +160,7 @@ public class ParticipantService {
     @Transactional
     public void delete(String meetingId, String participantId) {
         meetingAccessService.requireOwnedMeeting(meetingId);
-        var participant = participantRepository.findById(participantId)
+        ParticipantEntity participant = participantRepository.findById(participantId)
                 .filter(value -> !value.isDeleted() && value.getMeetingId().equals(meetingId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "人员不存在"));
         removeAssignment(meetingId, participantId);
@@ -165,7 +169,7 @@ public class ParticipantService {
     }
 
     private void removeAssignment(String meetingId, String participantId) {
-        var plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId).orElse(null);
+        SeatingPlanEntity plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId).orElse(null);
         if (plan == null) {
             return;
         }
@@ -183,14 +187,14 @@ public class ParticipantService {
         if (incomingAttributes == null || incomingAttributes.isEmpty()) {
             return Map.of();
         }
-        var attributes = new LinkedHashMap<String, String>();
-        for (var entry : incomingAttributes.entrySet()) {
-            var fieldName = entry.getKey() == null ? "" : entry.getKey().trim();
-            var value = entry.getValue();
+        LinkedHashMap<String,String> attributes = new LinkedHashMap<String, String>();
+        for (Entry<String,String> entry : incomingAttributes.entrySet()) {
+            String fieldName = entry.getKey() == null ? "" : entry.getKey().trim();
+            String value = entry.getValue();
             if (fieldName.isBlank() || value == null || value.isBlank()) {
                 continue;
             }
-            var canonicalName = canonicalNames.get(fieldName.toLowerCase(java.util.Locale.ROOT));
+            String canonicalName = canonicalNames.get(fieldName.toLowerCase(ROOT));
             attributes.put(canonicalName, value);
         }
         return attributes;

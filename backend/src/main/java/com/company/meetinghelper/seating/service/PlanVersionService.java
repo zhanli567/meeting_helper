@@ -18,20 +18,35 @@ import com.company.meetinghelper.seating.entity.PlanItemEntity;
 import com.company.meetinghelper.seating.entity.PlanItemTargetEntity;
 import com.company.meetinghelper.seating.entity.PlanItemType;
 import com.company.meetinghelper.seating.entity.PlanVersionEntity;
+import com.company.meetinghelper.seating.entity.SeatingPlanEntity;
 import com.company.meetinghelper.seating.repository.PlanItemRepository;
 import com.company.meetinghelper.seating.repository.PlanItemTargetRepository;
 import com.company.meetinghelper.seating.repository.PlanVersionRepository;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse;
+import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.FieldDefinitionView;
+import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.ParticipantRecordView;
+import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.ParticipantView;
+import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.PlanItemView;
 import com.company.meetinghelper.workspace.service.WorkspaceService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.ObjectMapper;
-
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.Locale;
 
 @Service
 public class PlanVersionService {
@@ -101,30 +116,30 @@ public class PlanVersionService {
      */
     @Transactional
     public VersionResult create(String planId, CreateVersionRequest request) {
-        var plan = meetingAccessService.requireOwnedPlan(planId);
-        var versionName = request.versionName().trim();
+        SeatingPlanEntity plan = meetingAccessService.requireOwnedPlan(planId);
+        String versionName = request.versionName().trim();
         if (versionRepository.existsByPlanIdAndVersionNameIgnoreCaseAndDeletedFalse(planId, versionName)) {
             throw new ApiException(HttpStatus.CONFLICT, "版本名称已存在，请使用其他名称");
         }
-        var nextVersion = versionRepository.findFirstByPlanIdAndDeletedFalseOrderByVersionNoDesc(planId)
+        Integer nextVersion = versionRepository.findFirstByPlanIdAndDeletedFalseOrderByVersionNoDesc(planId)
                 .map(value -> value.getVersionNo() + 1)
                 .orElse(1);
-        var workspace = workspaceService.getWorkspace(plan.getMeetingId());
-        var assignedCount = (int) workspace.participants().stream()
+        WorkspaceResponse workspace = workspaceService.getWorkspace(plan.getMeetingId());
+        int assignedCount = (int) workspace.participants().stream()
                 .filter(participant -> participant.assignedElementId() != null
                         && !"TEMPORARILY_ABSENT".equals(participant.attendanceStatus()))
                 .count();
-        var totalCount = (int) workspace.participants().stream()
+        int totalCount = (int) workspace.participants().stream()
                 .filter(participant -> !"TEMPORARILY_ABSENT".equals(participant.attendanceStatus()))
                 .count();
-        var unassignedCount = totalCount - assignedCount;
+        int unassignedCount = totalCount - assignedCount;
         if (unassignedCount > 0) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "当前还有 " + unassignedCount + " 位参会人员尚未排座，全部完成排座后才能发布"
             );
         }
-        var version = new PlanVersionEntity();
+        PlanVersionEntity version = new PlanVersionEntity();
         version.setPlanId(planId);
         version.setVersionNo(nextVersion);
         version.setVersionName(versionName);
@@ -156,53 +171,53 @@ public class PlanVersionService {
      */
     @Transactional
     public RestoreVersionResult restore(String planId, String versionId) {
-        var plan = meetingAccessService.requireOwnedPlan(planId);
-        var version = versionRepository.findById(versionId)
+        SeatingPlanEntity plan = meetingAccessService.requireOwnedPlan(planId);
+        PlanVersionEntity version = versionRepository.findById(versionId)
                 .filter(value -> !value.isDeleted() && value.getPlanId().equals(planId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "方案版本不存在"));
 
-        var snapshot = readSnapshot(version);
+        WorkspaceResponse snapshot = readSnapshot(version);
         if (!snapshot.meeting().id().equals(plan.getMeetingId())) {
             throw new ApiException(HttpStatus.CONFLICT, "方案版本不属于当前会议");
         }
 
         fieldRegistrationService.lockMeeting(plan.getMeetingId());
-        var currentParticipants = participantRepository
+        List<ParticipantEntity> currentParticipants = participantRepository
                 .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(plan.getMeetingId());
-        var participantsIncludingDeleted = participantRepository
+        List<ParticipantEntity> participantsIncludingDeleted = participantRepository
                 .findAllByMeetingIdOrderByDeletedAscNameAsc(plan.getMeetingId());
-        var elementIds = elementRepository
+        Set<String> elementIds = elementRepository
                 .findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(plan.getMeetingId())
                 .stream()
                 .map(value -> value.getId())
-                .collect(java.util.stream.Collectors.toSet());
+                .collect(Collectors.toSet());
 
-        var currentItems = itemRepository.findAllByPlanIdAndDeletedFalseOrderByCreatedAtAsc(planId);
+        List<PlanItemEntity> currentItems = itemRepository.findAllByPlanIdAndDeletedFalseOrderByCreatedAtAsc(planId);
         currentItems.forEach(item -> targetRepository.deleteAllByPlanItemId(item.getId()));
         targetRepository.flush();
         itemRepository.deleteAll(currentItems);
         itemRepository.flush();
 
         restoreFieldDefinitions(plan.getMeetingId(), snapshot, currentParticipants);
-        var participantIdsBySnapshotId = restoreParticipants(
+        LinkedHashMap<String,String> participantIdsBySnapshotId = restoreParticipants(
                 plan.getMeetingId(),
                 participantsIncludingDeleted,
                 snapshot
         );
 
-        var restoredItems = 0;
-        for (var source : snapshot.items()) {
-            var participantId = source.participantId() == null
+        int restoredItems = 0;
+        for (PlanItemView source : snapshot.items()) {
+            String participantId = source.participantId() == null
                     ? null
                     : participantIdsBySnapshotId.get(source.participantId());
             if (source.participantId() != null && participantId == null) {
                 continue;
             }
-            var validTargets = source.targetElementIds().stream().filter(elementIds::contains).toList();
+            List<String> validTargets = source.targetElementIds().stream().filter(elementIds::contains).toList();
             if (validTargets.isEmpty()) {
                 continue;
             }
-            var item = new PlanItemEntity();
+            PlanItemEntity item = new PlanItemEntity();
             item.setPlanId(planId);
             item.setItemType(PlanItemType.valueOf(source.type()));
             item.setParticipantId(participantId);
@@ -212,8 +227,8 @@ public class PlanVersionService {
             item.setTextColor(source.textColor());
             item.setBold(source.bold());
             itemRepository.save(item);
-            for (var elementId : validTargets) {
-                var target = new PlanItemTargetEntity();
+            for (String elementId : validTargets) {
+                PlanItemTargetEntity target = new PlanItemTargetEntity();
                 target.setPlanItemId(item.getId());
                 target.setMeetingElementId(elementId);
                 targetRepository.save(target);
@@ -237,11 +252,11 @@ public class PlanVersionService {
      */
     @Transactional(readOnly = true)
     public WorkspaceResponse getSnapshot(String planId, String versionId) {
-        var plan = meetingAccessService.requireOwnedPlan(planId);
-        var version = versionRepository.findById(versionId)
+        SeatingPlanEntity plan = meetingAccessService.requireOwnedPlan(planId);
+        PlanVersionEntity version = versionRepository.findById(versionId)
                 .filter(value -> !value.isDeleted() && value.getPlanId().equals(planId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "方案版本不存在"));
-        var snapshot = readSnapshot(version);
+        WorkspaceResponse snapshot = readSnapshot(version);
         if (!snapshot.meeting().id().equals(plan.getMeetingId())) {
             throw new ApiException(HttpStatus.CONFLICT, "方案版本不属于当前会议");
         }
@@ -258,14 +273,14 @@ public class PlanVersionService {
     @Transactional(readOnly = true)
     public WorkspaceResponse getSnapshotForMeeting(String meetingId, String versionId) {
         meetingAccessService.requireOwnedMeeting(meetingId);
-        var plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)
+        SeatingPlanEntity plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议尚未建立排座方案"));
         return getSnapshot(plan.getId(), versionId);
     }
 
     private WorkspaceResponse readSnapshot(PlanVersionEntity version) {
         try {
-            var snapshotNode = objectMapper.readTree(version.getSnapshotJson());
+            JsonNode snapshotNode = objectMapper.readTree(version.getSnapshotJson());
             adaptLegacySnapshot(snapshotNode);
             return objectMapper.readValue(
                     objectMapper.writeValueAsString(snapshotNode),
@@ -276,22 +291,22 @@ public class PlanVersionService {
         }
     }
 
-    private void adaptLegacySnapshot(tools.jackson.databind.JsonNode snapshotNode) {
-        if (!(snapshotNode instanceof tools.jackson.databind.node.ObjectNode root)
+    private void adaptLegacySnapshot(JsonNode snapshotNode) {
+        if (!(snapshotNode instanceof ObjectNode root)
                 || !root.path("participants").isArray()
                 || !hasLegacyParticipants(root.path("participants"))) {
             return;
         }
-        var legacyFields = legacyFields(root);
+        List<LegacyField> legacyFields = legacyFields(root);
         root.set("fieldDefinitions", legacyFieldDefinitions(legacyFields));
-        for (var participantNode : root.path("participants")) {
-            if (!(participantNode instanceof tools.jackson.databind.node.ObjectNode participant)) {
+        for (JsonNode participantNode : root.path("participants")) {
+            if (!(participantNode instanceof ObjectNode participant)) {
                 continue;
             }
-            var attributesNode = participant.path("attributes");
-            var record = new LinkedHashMap<String, String>();
-            for (var field : legacyFields) {
-                var value = text(attributesNode.path(field.sourceCode()));
+            JsonNode attributesNode = participant.path("attributes");
+            LinkedHashMap<String,String> record = new LinkedHashMap<String, String>();
+            for (LegacyField field : legacyFields) {
+                String value = text(attributesNode.path(field.sourceCode()));
                 if (value.isBlank()) {
                     value = text(attributesNode.path(field.label()));
                 }
@@ -301,7 +316,7 @@ public class PlanVersionService {
                         value
                 );
             }
-            var records = new ArrayList<LinkedHashMap<String, String>>();
+            ArrayList<LinkedHashMap<String,String>> records = new ArrayList<LinkedHashMap<String, String>>();
             if (!record.isEmpty()) {
                 records.add(record);
             }
@@ -309,8 +324,8 @@ public class PlanVersionService {
         }
     }
 
-    private boolean hasLegacyParticipants(tools.jackson.databind.JsonNode participants) {
-        for (var participant : participants) {
+    private boolean hasLegacyParticipants(JsonNode participants) {
+        for (JsonNode participant : participants) {
             if (!participant.has("records") && participant.path("attributes").isObject()) {
                 return true;
             }
@@ -318,27 +333,27 @@ public class PlanVersionService {
         return false;
     }
 
-    private java.util.List<LegacyField> legacyFields(
-            tools.jackson.databind.node.ObjectNode root
+    private List<LegacyField> legacyFields(
+            ObjectNode root
     ) {
-        var fields = new ArrayList<LegacyField>();
-        var definitions = root.path("fieldDefinitions");
+        ArrayList<LegacyField> fields = new ArrayList<LegacyField>();
+        JsonNode definitions = root.path("fieldDefinitions");
         if (definitions.isArray() && !definitions.isEmpty()) {
-            for (var definition : definitions) {
-                var code = text(definition.path("code"));
+            for (JsonNode definition : definitions) {
+                String code = text(definition.path("code"));
                 if ("name".equals(code) || "employeeNo".equals(code)) {
                     continue;
                 }
-                var label = text(definition.path("label"));
+                String label = text(definition.path("label"));
                 addLegacyField(fields, code, label.isBlank() ? code : label);
             }
         }
-        for (var participant : root.path("participants")) {
-            var attributes = participant.path("attributes");
+        for (JsonNode participant : root.path("participants")) {
+            JsonNode attributes = participant.path("attributes");
             if (!attributes.isObject()) {
                 continue;
             }
-            for (var entry : attributes.properties()) {
+            for (Entry<String,JsonNode> entry : attributes.properties()) {
                 addLegacyField(fields, entry.getKey(), entry.getKey());
             }
         }
@@ -346,7 +361,7 @@ public class PlanVersionService {
     }
 
     private void addLegacyField(
-            java.util.List<LegacyField> fields,
+            List<LegacyField> fields,
             String sourceCode,
             String label
     ) {
@@ -358,10 +373,10 @@ public class PlanVersionService {
         fields.add(new LegacyField(sourceCode, label));
     }
 
-    private tools.jackson.databind.node.ArrayNode legacyFieldDefinitions(
-            java.util.List<LegacyField> legacyFields
+    private ArrayNode legacyFieldDefinitions(
+            List<LegacyField> legacyFields
     ) {
-        var definitions = objectMapper.createArrayNode();
+        ArrayNode definitions = objectMapper.createArrayNode();
         definitions.add(fieldDefinitionNode("name", "姓名", false, true));
         definitions.add(fieldDefinitionNode("employeeNo", "工号", false, false));
         legacyFields.forEach(field -> definitions.add(
@@ -370,13 +385,13 @@ public class PlanVersionService {
         return definitions;
     }
 
-    private tools.jackson.databind.node.ObjectNode fieldDefinitionNode(
+    private ObjectNode fieldDefinitionNode(
             String code,
             String label,
             boolean filterable,
             boolean cardVisible
     ) {
-        var field = objectMapper.createObjectNode();
+        ObjectNode field = objectMapper.createObjectNode();
         field.put("code", code);
         field.put("label", label);
         field.put("type", "TEXT");
@@ -388,14 +403,14 @@ public class PlanVersionService {
     }
 
     private void writeLegacyParticipantRecords(
-            tools.jackson.databind.node.ObjectNode participant,
-            java.util.List<LegacyField> fields,
-            java.util.List<LinkedHashMap<String, String>> records
+            ObjectNode participant,
+            List<LegacyField> fields,
+            List<LinkedHashMap<String, String>> records
     ) {
-        var primaryAttributes = objectMapper.createObjectNode();
-        var attributeValues = objectMapper.createObjectNode();
-        for (var field : fields) {
-            var values = records.stream()
+        ObjectNode primaryAttributes = objectMapper.createObjectNode();
+        ObjectNode attributeValues = objectMapper.createObjectNode();
+        for (LegacyField field : fields) {
+            List<String> values = records.stream()
                     .map(record -> record.get(field.label()))
                     .filter(value -> value != null && !value.isBlank())
                     .distinct()
@@ -404,17 +419,17 @@ public class PlanVersionService {
                 continue;
             }
             primaryAttributes.put(field.label(), values.getFirst());
-            var valueArray = objectMapper.createArrayNode();
+            ArrayNode valueArray = objectMapper.createArrayNode();
             values.forEach(valueArray::add);
             attributeValues.set(field.label(), valueArray);
         }
-        var recordNodes = objectMapper.createArrayNode();
-        var participantId = text(participant.path("id"));
-        for (var index = 0; index < records.size(); index++) {
-            var recordNode = objectMapper.createObjectNode();
+        ArrayNode recordNodes = objectMapper.createArrayNode();
+        String participantId = text(participant.path("id"));
+        for (int index = 0; index < records.size(); index++) {
+            ObjectNode recordNode = objectMapper.createObjectNode();
             recordNode.put("id", "legacy-" + participantId + "-" + (index + 1));
             recordNode.put("recordOrder", index + 1);
-            var attributes = objectMapper.createObjectNode();
+            ObjectNode attributes = objectMapper.createObjectNode();
             records.get(index).forEach(attributes::put);
             recordNode.set("attributes", attributes);
             recordNodes.add(recordNode);
@@ -425,7 +440,7 @@ public class PlanVersionService {
     }
 
     private void putNonBlank(
-            java.util.Map<String, String> attributes,
+            Map<String, String> attributes,
             String fieldName,
             String value
     ) {
@@ -434,7 +449,7 @@ public class PlanVersionService {
         }
     }
 
-    private String text(tools.jackson.databind.JsonNode value) {
+    private String text(JsonNode value) {
         return value == null || value.isNull() || value.isMissingNode()
                 ? ""
                 : value.asText();
@@ -443,25 +458,25 @@ public class PlanVersionService {
     private void restoreFieldDefinitions(
             String meetingId,
             WorkspaceResponse snapshot,
-            java.util.List<ParticipantEntity> currentParticipants
+            List<ParticipantEntity> currentParticipants
     ) {
         if (snapshot.fieldDefinitions() == null) {
             return;
         }
-        var currentFields = fieldRepository
+        List<MeetingParticipantFieldEntity> currentFields = fieldRepository
                 .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
-        var snapshotEmployeeNumbers = snapshot.participants() == null
-                ? java.util.Set.<String>of()
+        Set<String> snapshotEmployeeNumbers = snapshot.participants() == null
+                ? Set.<String>of()
                 : snapshot.participants().stream()
                         .map(value -> normalize(value.employeeNo()))
-                        .collect(java.util.stream.Collectors.toSet());
-        var laterParticipantIds = currentParticipants.stream()
+                        .collect(Collectors.toSet());
+        List<String> laterParticipantIds = currentParticipants.stream()
                 .filter(value -> !snapshotEmployeeNumbers.contains(
                         normalize(value.getEmployeeNo())
                 ))
                 .map(ParticipantEntity::getId)
                 .toList();
-        var laterFieldNames = new java.util.LinkedHashSet<String>();
+        LinkedHashSet<String> laterFieldNames = new LinkedHashSet<String>();
         if (!laterParticipantIds.isEmpty()) {
             recordRepository
                     .findAllByParticipantIdInAndDeletedFalseOrderByParticipantIdAscRecordOrderAsc(
@@ -474,31 +489,31 @@ public class PlanVersionService {
         fieldRepository.deleteAll(currentFields);
         fieldRepository.flush();
 
-        var restoredNames = new java.util.LinkedHashSet<String>();
-        var sortOrder = 0;
-        for (var source : snapshot.fieldDefinitions()) {
+        LinkedHashSet<String> restoredNames = new LinkedHashSet<String>();
+        int sortOrder = 0;
+        for (FieldDefinitionView source : snapshot.fieldDefinitions()) {
             if ("name".equals(source.code()) || "employeeNo".equals(source.code())) {
                 continue;
             }
-            var fieldName = source.label() == null || source.label().isBlank()
+            String fieldName = source.label() == null || source.label().isBlank()
                     ? source.code()
                     : source.label();
             if (fieldName == null || fieldName.isBlank()
                     || !restoredNames.add(normalize(fieldName))) {
                 continue;
             }
-            var field = new MeetingParticipantFieldEntity();
+            MeetingParticipantFieldEntity field = new MeetingParticipantFieldEntity();
             field.setMeetingId(meetingId);
             field.setFieldName(fieldName);
             field.setSortOrder(++sortOrder);
             fieldRepository.save(field);
         }
-        for (var source : currentFields) {
+        for (MeetingParticipantFieldEntity source : currentFields) {
             if (!laterFieldNames.contains(normalize(source.getFieldName()))
                     || !restoredNames.add(normalize(source.getFieldName()))) {
                 continue;
             }
-            var field = new MeetingParticipantFieldEntity();
+            MeetingParticipantFieldEntity field = new MeetingParticipantFieldEntity();
             field.setMeetingId(meetingId);
             field.setFieldName(source.getFieldName());
             field.setSortOrder(++sortOrder);
@@ -507,14 +522,14 @@ public class PlanVersionService {
         fieldRepository.flush();
     }
 
-    private java.util.Map<String, String> readRecordAttributes(String json) {
+    private Map<String, String> readRecordAttributes(String json) {
         if (json == null || json.isBlank()) {
-            return java.util.Map.of();
+            return Map.of();
         }
         try {
             return objectMapper.readValue(
                     json,
-                    new tools.jackson.core.type.TypeReference<java.util.Map<String, String>>() {
+                    new TypeReference<Map<String, String>>() {
                     }
             );
         } catch (Exception exception) {
@@ -527,22 +542,22 @@ public class PlanVersionService {
 
     private LinkedHashMap<String, String> restoreParticipants(
             String meetingId,
-            java.util.List<ParticipantEntity> currentParticipants,
+            List<ParticipantEntity> currentParticipants,
             WorkspaceResponse snapshot
     ) {
-        var participantByEmployeeNo = new LinkedHashMap<String, ParticipantEntity>();
+        LinkedHashMap<String,ParticipantEntity> participantByEmployeeNo = new LinkedHashMap<String, ParticipantEntity>();
         currentParticipants.forEach(participant -> participantByEmployeeNo.putIfAbsent(
                 normalize(participant.getEmployeeNo()),
                 participant
         ));
-        var participantIdsBySnapshotId = new LinkedHashMap<String, String>();
-        var restoredParticipants = new ArrayList<ParticipantEntity>();
-        var recordsToDelete = new ArrayList<ParticipantRecordEntity>();
-        var snapshotParticipants = snapshot.participants() == null
-                ? java.util.List.<WorkspaceResponse.ParticipantView>of()
+        LinkedHashMap<String,String> participantIdsBySnapshotId = new LinkedHashMap<String, String>();
+        ArrayList<ParticipantEntity> restoredParticipants = new ArrayList<ParticipantEntity>();
+        ArrayList<ParticipantRecordEntity> recordsToDelete = new ArrayList<ParticipantRecordEntity>();
+        List<ParticipantView> snapshotParticipants = snapshot.participants() == null
+                ? List.<WorkspaceResponse.ParticipantView>of()
                 : snapshot.participants();
-        for (var source : snapshotParticipants) {
-            var participant = participantByEmployeeNo.get(normalize(source.employeeNo()));
+        for (ParticipantView source : snapshotParticipants) {
+            ParticipantEntity participant = participantByEmployeeNo.get(normalize(source.employeeNo()));
             if (participant == null) {
                 participant = new ParticipantEntity();
                 participant.setMeetingId(meetingId);
@@ -563,7 +578,7 @@ public class PlanVersionService {
         participantRepository.saveAll(restoredParticipants);
         participantRepository.flush();
         restoredParticipants.forEach(participant -> {
-            var source = snapshotParticipants.stream()
+            ParticipantView source = snapshotParticipants.stream()
                     .filter(value -> normalize(value.employeeNo())
                             .equals(normalize(participant.getEmployeeNo())))
                     .findFirst()
@@ -573,24 +588,24 @@ public class PlanVersionService {
 
         recordRepository.deleteAll(recordsToDelete);
         recordRepository.flush();
-        for (var source : snapshotParticipants) {
+        for (ParticipantView source : snapshotParticipants) {
             if (source.records() == null) {
                 continue;
             }
-            var participantId = participantIdsBySnapshotId.get(source.id());
-            var recordOrder = 0;
-            for (var sourceRecord : source.records().stream()
-                    .sorted(java.util.Comparator.comparingInt(
+            String participantId = participantIdsBySnapshotId.get(source.id());
+            int recordOrder = 0;
+            for (ParticipantRecordView sourceRecord : source.records().stream()
+                    .sorted(Comparator.comparingInt(
                             WorkspaceResponse.ParticipantRecordView::recordOrder
                     ))
                     .toList()) {
-                var record = new ParticipantRecordEntity();
+                ParticipantRecordEntity record = new ParticipantRecordEntity();
                 record.setParticipantId(participantId);
                 record.setRecordOrder(++recordOrder);
                 try {
                     record.setAttributesJson(objectMapper.writeValueAsString(
                             sourceRecord.attributes() == null
-                                    ? java.util.Map.of()
+                                    ? Map.of()
                                     : sourceRecord.attributes()
                     ));
                 } catch (Exception exception) {
