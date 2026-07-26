@@ -1,26 +1,48 @@
 package com.company.meetinghelper.meeting.repository;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.company.meetinghelper.common.repository.AbstractMyBatisRepository;
 import com.company.meetinghelper.meeting.entity.MeetingElementEntity;
-import org.springframework.data.jpa.repository.JpaRepository;
-
+import com.company.meetinghelper.meeting.mapper.MeetingElementMapper;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.stereotype.Repository;
 
-public interface MeetingElementRepository extends JpaRepository<MeetingElementEntity, String> {
+@Repository
+public class MeetingElementRepository extends AbstractMyBatisRepository<MeetingElementEntity> {
+    private final MeetingElementMapper elementMapper;
+
+    public MeetingElementRepository(MeetingElementMapper elementMapper) {
+        super(elementMapper);
+        this.elementMapper = elementMapper;
+    }
+
     /**
      * 查询会议快照中的全部有效元素。
      *
      * @param meetingId 会议ID
      * @return 按网格位置排列的会议元素
      */
-    List<MeetingElementEntity> findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(String meetingId);
+    public List<MeetingElementEntity> findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(
+            String meetingId
+    ) {
+        return elementMapper.selectList(new LambdaQueryWrapper<MeetingElementEntity>()
+                .eq(MeetingElementEntity::getMeetingId, meetingId)
+                .orderByAsc(MeetingElementEntity::getGridRow)
+                .orderByAsc(MeetingElementEntity::getGridColumn));
+    }
 
     /**
      * 按元素ID和会议ID查询有效会议元素。
      *
      * @param id 会议元素ID
      * @param meetingId 会议ID
-     * @return 属于指定会议的有效会议元素，不存在时返回空
+     * @return 属于指定会议的有效会议元素
      */
-    Optional<MeetingElementEntity> findByIdAndMeetingIdAndDeletedFalse(String id, String meetingId);
+    public Optional<MeetingElementEntity> findByIdAndMeetingIdAndDeletedFalse(String id, String meetingId) {
+        return Optional.ofNullable(elementMapper.selectOne(new LambdaQueryWrapper<MeetingElementEntity>()
+                .eq(MeetingElementEntity::getId, id)
+                .eq(MeetingElementEntity::getMeetingId, meetingId)
+                .last("limit 1")));
+    }
 }

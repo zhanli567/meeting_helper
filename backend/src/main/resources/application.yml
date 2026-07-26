@@ -6,13 +6,6 @@ spring:
     username: postgres
     password: 123456
     driver-class-name: org.postgresql.Driver
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    open-in-view: false
-    properties:
-      hibernate:
-        format_sql: true
   servlet:
     multipart:
       max-file-size: 20MB

@@ -73,6 +73,8 @@
 
 ### 变更
 
+- 2026-07-26 23:22  将场馆、会议、人员、动态字段、排座和版本的数据访问完整迁移为 MyBatis-Plus Mapper 与具体 Repository，保留逻辑删除、版本恢复物理清理和座位交换语义。
+- 2026-07-26 23:22  移除 Spring Data JPA、Hibernate、JPA 实体注解和演示会议初始化器；身份读取改为公司框架 `CurrentUserHolder`，未绑定用户时使用匿名空字符串空间。
 - 2026-07-26 22:49  引入 MyBatis-Plus 3.5.10.1，完成 11 个持久化实体与现有 `t_` 表、审计字段和逻辑删除字段的显式映射。
 - 2026-07-26 22:46  后端基线降至 Spring Boot 3.3.5，自动化测试改用专用 PostgreSQL 数据库 `meeting_helper_test` 并通过根目录 DDL 安全重建。
 - 2026-07-26 22:28  编制公司技术栈迁移实施计划，按 PostgreSQL 测试基线、MyBatis-Plus 分域迁移、统一响应与 GET/POST 接口、Aurora 请求封装和全量回归拆分执行步骤。

@@ -1,6 +1,7 @@
 package com.company.meetinghelper;
 
-import com.company.meetinghelper.bootstrap.DemoDataInitializer;
+import com.company.meetinghelper.common.context.CurrentUserHolder;
+import com.company.meetinghelper.common.security.CurrentUser;
 import com.company.meetinghelper.support.PostgreSqlTestDatabaseInitializer;
 import com.company.meetinghelper.export.service.ExportService;
 import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
@@ -37,21 +38,24 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.filter.OncePerRequestFilter;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -75,7 +79,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-@Import(MeetingHelperIntegrationTests.OptimisticLockTestController.class)
+@Import(MeetingHelperIntegrationTests.TestUserConfiguration.class)
 @ContextConfiguration(initializers = PostgreSqlTestDatabaseInitializer.class)
 class MeetingHelperIntegrationTests {
     private static final String USER_HEADER = "X-User-Id";
@@ -86,9 +90,6 @@ class MeetingHelperIntegrationTests {
 
     @Autowired
     private MeetingRepository meetingRepository;
-
-    @Autowired
-    private DemoDataInitializer demoDataInitializer;
 
     @Autowired
     private WorkspaceService workspaceService;
@@ -131,14 +132,12 @@ class MeetingHelperIntegrationTests {
 
     @BeforeEach
     void bindDefaultUserToDirectServiceCalls() {
-        var request = new MockHttpServletRequest();
-        request.addHeader(USER_HEADER, DEFAULT_USER);
-        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        CurrentUserHolder.set(new CurrentUser(DEFAULT_USER, DEFAULT_USER, java.util.Set.of()));
     }
 
     @AfterEach
     void clearDirectServiceUser() {
-        RequestContextHolder.resetRequestAttributes();
+        CurrentUserHolder.clear();
     }
 
     @Test
@@ -155,110 +154,24 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
-    void demoMeetingInitializesGenericFieldsAndSeparateSecondAndThirdBatchRecords() {
+    void presetVenueCatalogRemainsAvailableWithoutInitializingDemoMeetings() {
         assertThat(venueService.list().getFirst())
                 .satisfies(value -> {
                     assertThat(value.id()).isEqualTo("preset-auditorium-hall");
                     assertThat(value.name()).isEqualTo("多功能礼堂");
                 });
-        var demoMeeting = meetingRepository
-                .findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(DEFAULT_USER)
-                .stream()
-                .filter(value -> value.getName().equals("2026年度荣誉表彰大会"))
-                .findFirst()
-                .orElseThrow();
-
-        assertThat(fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(demoMeeting.getId()))
-                .extracting(MeetingParticipantFieldEntity::getFieldName)
-                .containsExactly("部门", "人员类型", "职级", "批次", "奖项名称");
-
-        var repeatedParticipant = participantRepository
-                .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(demoMeeting.getId())
-                .stream()
-                .filter(participant -> recordRepository
-                        .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(
-                                participant.getId()
-                        )
-                        .stream()
-                        .map(record -> readAttributes(record.getAttributesJson()).get("批次"))
-                        .toList()
-                        .equals(java.util.List.of("第二批", "第三批")))
-                .findFirst()
-                .orElseThrow();
-
-        assertThat(recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(
-                        repeatedParticipant.getId()
-                ))
-                .extracting(value -> readAttributes(value.getAttributesJson()))
-                .containsExactly(
-                        Map.of(
-                                "部门", "平台研发部",
-                                "人员类型", "特邀嘉宾",
-                                "职级", "20",
-                                "批次", "第二批",
-                                "奖项名称", "卓越创新奖"
-                        ),
-                        Map.of(
-                                "部门", "平台研发部",
-                                "人员类型", "特邀嘉宾",
-                                "职级", "20",
-                                "批次", "第三批",
-                                "奖项名称", "特别贡献奖"
-                        )
-                );
-    }
-
-    @Test
-    void demoMeetingInitializationIsIdempotentAndGivesEveryParticipantARecord() {
-        var demoMeetings = meetingRepository
-                .findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(DEFAULT_USER)
-                .stream()
-                .filter(value -> value.getName().equals("2026年度荣誉表彰大会"))
-                .toList();
-        var demoMeeting = demoMeetings.getFirst();
-        var participants = participantRepository
-                .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(demoMeeting.getId());
-        var participantIds = participants.stream().map(ParticipantEntity::getId).toList();
-        var records = recordRepository
-                .findAllByParticipantIdInAndDeletedFalseOrderByParticipantIdAscRecordOrderAsc(
-                        participantIds
-                );
-
-        assertThat(demoMeetings).hasSize(1);
-        assertThat(participants).hasSize(28);
-        assertThat(records).hasSize(33);
-        assertThat(participants).allSatisfy(participant -> assertThat(records)
-                .anySatisfy(record -> assertThat(record.getParticipantId())
-                        .isEqualTo(participant.getId())));
-
-        demoDataInitializer.run(null);
-
         assertThat(meetingRepository
-                .findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(DEFAULT_USER)
-                .stream()
-                .filter(value -> value.getName().equals("2026年度荣誉表彰大会")))
-                .hasSize(1);
-        assertThat(fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(demoMeeting.getId()))
-                .hasSize(5);
-        assertThat(participantRepository
-                .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(demoMeeting.getId()))
-                .hasSize(28);
-        assertThat(recordRepository
-                .findAllByParticipantIdInAndDeletedFalseOrderByParticipantIdAscRecordOrderAsc(
-                        participantIds
-                ))
-                .hasSize(33);
+                .findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(DEFAULT_USER))
+                .isEmpty();
     }
 
     @Test
-    void meetingApisRequireANonBlankCurrentUserHeader() throws Exception {
+    void meetingApisAllowAnonymousDemoSpaceWithoutRequestHeaders() throws Exception {
+        CurrentUserHolder.clear();
         mockMvc.perform(get("/meetings"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isOk());
         mockMvc.perform(get("/meetings").header(USER_HEADER, "   "))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -484,14 +397,6 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
-    void optimisticLockFailuresReturnAFriendlyConflict() throws Exception {
-        mockMvc.perform(get("/test/optimistic-lock"))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.title").value("数据已更新"))
-                .andExpect(jsonPath("$.detail").value("数据已发生变化，请刷新后重试"));
-    }
-
-    @Test
     void temporarilyAbsentParticipantReleasesSeatAndDoesNotBlockPublishing() {
         var venue = venueService.list().getFirst();
         var meeting = meetingService.create(new CreateMeetingRequest(
@@ -698,27 +603,23 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
-    void workspaceContainsRealisticDemoLayoutAndParticipants() {
-        var meeting = meetingRepository
-                .findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(DEFAULT_USER)
-                .getFirst();
-        var workspace = workspaceService.getWorkspace(meeting.getId());
+    void workspaceContainsPresetLayoutAndExplicitlyCreatedParticipants() {
+        String meetingId = createSeatingScenario(4, 2);
+        var workspace = workspaceService.getWorkspace(meetingId);
 
         assertThat(workspace.layout().gridRows()).isEqualTo(18);
         assertThat(workspace.layout().gridColumns()).isEqualTo(43);
         assertThat(workspace.layout().elements()).hasSizeGreaterThan(290);
-        assertThat(workspace.participants()).hasSize(28);
+        assertThat(workspace.participants()).hasSize(4);
         assertThat(workspace.participants().stream()
                 .filter(participant -> participant.assignedElementId() != null)
-                .count()).isEqualTo(12);
+                .count()).isEqualTo(2);
     }
 
     @Test
     void unassignedParticipantCanBeMovedIntoAnEmptySeat() {
-        var meeting = meetingRepository
-                .findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(DEFAULT_USER)
-                .getFirst();
-        var before = workspaceService.getWorkspace(meeting.getId());
+        String meetingId = createSeatingScenario(3, 2);
+        var before = workspaceService.getWorkspace(meetingId);
         var participant = before.participants().stream()
                 .filter(value -> value.assignedElementId() == null)
                 .findFirst().orElseThrow();
@@ -731,7 +632,7 @@ class MeetingHelperIntegrationTests {
 
         seatingService.assign(before.plan().id(), new AssignmentRequest(participant.id(), seat.id()));
 
-        var after = workspaceService.getWorkspace(meeting.getId());
+        var after = workspaceService.getWorkspace(meetingId);
         assertThat(after.participants().stream()
                 .filter(value -> value.id().equals(participant.id()))
                 .findFirst().orElseThrow().assignedElementId()).isEqualTo(seat.id());
@@ -739,10 +640,8 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void twoAssignedParticipantsCanSwapSeatsWithoutViolatingUniqueConstraint() {
-        var meeting = meetingRepository
-                .findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(DEFAULT_USER)
-                .getFirst();
-        var before = workspaceService.getWorkspace(meeting.getId());
+        String meetingId = createSeatingScenario(2, 2);
+        var before = workspaceService.getWorkspace(meetingId);
         var assigned = before.participants().stream()
                 .filter(value -> value.assignedElementId() != null && !value.locked())
                 .limit(2)
@@ -755,7 +654,7 @@ class MeetingHelperIntegrationTests {
                 new AssignmentRequest(first.id(), second.assignedElementId())
         );
 
-        var after = workspaceService.getWorkspace(meeting.getId());
+        var after = workspaceService.getWorkspace(meetingId);
         var participantById = after.participants().stream()
                 .collect(java.util.stream.Collectors.toMap(value -> value.id(), value -> value));
         assertThat(participantById.get(first.id()).assignedElementId())
@@ -766,10 +665,8 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void completeAssignmentSetCanBeSavedInOneBatch() {
-        var meeting = meetingRepository
-                .findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(DEFAULT_USER)
-                .getFirst();
-        var before = workspaceService.getWorkspace(meeting.getId());
+        String meetingId = createSeatingScenario(2, 2);
+        var before = workspaceService.getWorkspace(meetingId);
         var assigned = before.participants().stream()
                 .filter(value -> value.assignedElementId() != null && !value.locked())
                 .limit(2)
@@ -794,7 +691,7 @@ class MeetingHelperIntegrationTests {
                 new SaveAssignmentsRequest(assignments)
         );
 
-        var after = workspaceService.getWorkspace(meeting.getId());
+        var after = workspaceService.getWorkspace(meetingId);
         var participantById = after.participants().stream()
                 .collect(java.util.stream.Collectors.toMap(value -> value.id(), value -> value));
         assertThat(participantById.get(first.id()).assignedElementId())
@@ -805,10 +702,8 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void savedVersionCanRestorePreviousSeatingState() {
-        var meeting = meetingRepository
-                .findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(DEFAULT_USER)
-                .getFirst();
-        var before = workspaceService.getWorkspace(meeting.getId());
+        String meetingId = createSeatingScenario(3, 2);
+        var before = workspaceService.getWorkspace(meetingId);
 
         assertThatThrownBy(() -> planVersionService.create(before.plan().id(),
                 new CreateVersionRequest("未完成版本", "仍有待排人员", false)))
@@ -827,31 +722,31 @@ class MeetingHelperIntegrationTests {
                         new AssignmentRequest(participant.id(), emptySeats.next().id())
                 ));
 
-        var readyToPublish = workspaceService.getWorkspace(meeting.getId());
+        var readyToPublish = workspaceService.getWorkspace(meetingId);
         var saved = planVersionService.create(before.plan().id(),
                 new CreateVersionRequest("恢复测试版本", "全部人员已完成排座", false));
         var immutableSnapshot = planVersionService.getSnapshot(before.plan().id(), saved.id());
         assertThat(immutableSnapshot.participants().stream()
                 .filter(value -> value.assignedElementId() != null)
-                .count()).isEqualTo(28);
+                .count()).isEqualTo(3);
 
         var participant = readyToPublish.participants().getFirst();
         seatingService.unassign(before.plan().id(), participant.id());
-        assertThat(workspaceService.getWorkspace(meeting.getId()).participants().stream()
+        assertThat(workspaceService.getWorkspace(meetingId).participants().stream()
                 .filter(value -> value.assignedElementId() != null)
-                .count()).isEqualTo(27);
+                .count()).isEqualTo(2);
         assertThat(planVersionService.getSnapshot(before.plan().id(), saved.id()).participants().stream()
                 .filter(value -> value.assignedElementId() != null)
-                .count()).isEqualTo(28);
-        assertThat(exportService.exportExcel(meeting.getId(), saved.id()).length).isGreaterThan(5_000);
+                .count()).isEqualTo(3);
+        assertThat(exportService.exportExcel(meetingId, saved.id()).length).isGreaterThan(5_000);
 
         planVersionService.restore(before.plan().id(), saved.id());
 
-        var restored = workspaceService.getWorkspace(meeting.getId());
+        var restored = workspaceService.getWorkspace(meetingId);
         assertThat(restored.plan().currentVersionNo()).isEqualTo(saved.versionNo());
         assertThat(restored.participants().stream()
                 .filter(value -> value.assignedElementId() != null)
-                .count()).isEqualTo(28);
+                .count()).isEqualTo(3);
     }
 
     @Test
@@ -1776,6 +1671,37 @@ class MeetingHelperIntegrationTests {
                 .hasMessage("会议名称已存在");
     }
 
+    private String createSeatingScenario(int participantCount, int assignedCount) {
+        var venue = venueService.list().getFirst();
+        var meeting = meetingService.create(new CreateMeetingRequest(
+                "排座场景测试-" + java.util.UUID.randomUUID(),
+                venue.id()
+        ));
+        for (int index = 1; index <= participantCount; index++) {
+            participantService.create(
+                    meeting.id(),
+                    new CreateParticipantRequest(
+                            "a%08d".formatted(index),
+                            "测试人员" + index,
+                            Map.of(),
+                            null
+                    )
+            );
+        }
+        var workspace = workspaceService.getWorkspace(meeting.id());
+        var seats = workspace.layout().elements().stream()
+                .filter(value -> value.assignable() && value.capacity() == 1)
+                .limit(assignedCount)
+                .toList();
+        for (int index = 0; index < assignedCount; index++) {
+            seatingService.assign(
+                    workspace.plan().id(),
+                    new AssignmentRequest(workspace.participants().get(index).id(), seats.get(index).id())
+            );
+        }
+        return meeting.id();
+    }
+
     private String createImportMeeting() {
         var venue = venueService.list().getFirst();
         return meetingService.create(new CreateMeetingRequest(
@@ -2014,11 +1940,37 @@ class MeetingHelperIntegrationTests {
         return result;
     }
 
-    @RestController
-    static class OptimisticLockTestController {
-        @GetMapping("/test/optimistic-lock")
-        void failWithOptimisticLock() {
-            throw new ObjectOptimisticLockingFailureException("Meeting", "test-id");
+    @TestConfiguration
+    static class TestUserConfiguration {
+        @Bean
+        OncePerRequestFilter testCurrentUserFilter() {
+            return new OncePerRequestFilter() {
+                @Override
+                protected void doFilterInternal(
+                        HttpServletRequest request,
+                        HttpServletResponse response,
+                        FilterChain filterChain
+                ) throws ServletException, java.io.IOException {
+                    CurrentUser previous = CurrentUserHolder.get();
+                    String userId = request.getHeader(USER_HEADER);
+                    if (userId != null) {
+                        String normalizedUserId = userId.trim();
+                        CurrentUserHolder.set(new CurrentUser(
+                                normalizedUserId,
+                                normalizedUserId,
+                                java.util.Set.of()
+                        ));
+                    }
+                    try {
+                        filterChain.doFilter(request, response);
+                    } finally {
+                        CurrentUserHolder.clear();
+                        if (previous != null) {
+                            CurrentUserHolder.set(previous);
+                        }
+                    }
+                }
+            };
         }
     }
 }

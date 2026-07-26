@@ -3,10 +3,6 @@ package com.company.meetinghelper.venue.entity;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.company.meetinghelper.common.entity.AuditedEntity;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -14,14 +10,11 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@Entity
-@Table(name = "t_venue_elements")
 @TableName("t_venue_elements")
 public class VenueElementEntity extends AuditedEntity {
     @TableField("venue_template_id")
     private String venueTemplateId;
 
-    @Enumerated(EnumType.STRING)
     @TableField("element_type")
     private ElementType elementType;
 

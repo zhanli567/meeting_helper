@@ -1,35 +1,30 @@
 package com.company.meetinghelper.common.user;
 
-import com.company.meetinghelper.common.exception.ApiException;
-import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.http.HttpStatus;
+import com.company.meetinghelper.common.context.CurrentUserHolder;
+import com.company.meetinghelper.common.security.CurrentUser;
+import java.util.Objects;
 import org.springframework.stereotype.Component;
 
 @Component
 public class CurrentUserProvider {
-    private static final String HEADER = "X-User-Id";
-
-    private final HttpServletRequest request;
 
     /**
-     * 创建当前用户提供器。
+     * 从公司框架的线程上下文获取当前用户ID。
      *
-     * @param request 当前HTTP请求
+     * @return 当前用户ID；演示阶段尚未绑定用户时返回空字符串
      */
-    public CurrentUserProvider(HttpServletRequest request) {
-        this.request = request;
+    public String requireUserId() {
+        CurrentUser user = CurrentUserHolder.get();
+        return user == null ? "" : Objects.toString(user.userId(), "");
     }
 
     /**
-     * 获取当前请求中的用户ID。
+     * 从公司框架的线程上下文获取当前用户显示名称。
      *
-     * @return 去除首尾空白后的用户ID
+     * @return 当前用户显示名称；演示阶段尚未绑定用户时返回空字符串
      */
-    public String requireUserId() {
-        var userId = request.getHeader(HEADER);
-        if (userId == null || userId.isBlank()) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "缺少当前用户信息");
-        }
-        return userId.trim();
+    public String currentUserName() {
+        CurrentUser user = CurrentUserHolder.get();
+        return user == null ? "" : Objects.toString(user.displayName(), "");
     }
 }
