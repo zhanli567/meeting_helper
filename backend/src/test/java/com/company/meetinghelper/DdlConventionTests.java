@@ -145,6 +145,7 @@ class DdlConventionTests {
         for (Path part : relativePath) {
             String name = part.toString();
             if (name.equals(".git")
+                    || name.equals(".worktrees")
                     || name.equals("target")
                     || name.equals("node_modules")
                     || name.equals("dist")) {
