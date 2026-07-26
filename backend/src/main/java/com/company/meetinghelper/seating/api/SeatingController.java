@@ -1,5 +1,6 @@
 package com.company.meetinghelper.seating.api;
 
+import com.company.meetinghelper.common.api.ApiResponse;
 import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
 import com.company.meetinghelper.seating.api.dto.request.CreateVersionRequest;
 import com.company.meetinghelper.seating.api.dto.request.SaveAssignmentsRequest;
@@ -9,12 +10,9 @@ import com.company.meetinghelper.seating.service.PlanVersionService;
 import com.company.meetinghelper.seating.service.SeatingService;
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse;
 import jakarta.validation.Valid;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -45,12 +43,12 @@ public class SeatingController {
      * @return 空响应
      */
     @PostMapping("/{planId}/assignments")
-    public ResponseEntity<Void> assign(
+    public ApiResponse<Void> assign(
             @PathVariable String planId,
             @Valid @RequestBody AssignmentRequest request
     ) {
         seatingService.assign(planId, request);
-        return ResponseEntity.noContent().build();
+        return ApiResponse.success(null);
     }
 
     /**
@@ -60,13 +58,13 @@ public class SeatingController {
      * @param request 完整人员座位关系
      * @return 空响应
      */
-    @PutMapping("/{planId}/assignments")
-    public ResponseEntity<Void> replaceAssignments(
+    @PostMapping("/{planId}/assignments/save")
+    public ApiResponse<Void> replaceAssignments(
             @PathVariable String planId,
             @Valid @RequestBody SaveAssignmentsRequest request
     ) {
         seatingService.replaceAssignments(planId, request);
-        return ResponseEntity.noContent().build();
+        return ApiResponse.success(null);
     }
 
     /**
@@ -76,10 +74,10 @@ public class SeatingController {
      * @param participantId 参会人员ID
      * @return 空响应
      */
-    @DeleteMapping("/{planId}/participants/{participantId}/assignment")
-    public ResponseEntity<Void> unassign(@PathVariable String planId, @PathVariable String participantId) {
+    @PostMapping("/{planId}/participants/{participantId}/assignment/remove")
+    public ApiResponse<Void> unassign(@PathVariable String planId, @PathVariable String participantId) {
         seatingService.unassign(planId, participantId);
-        return ResponseEntity.noContent().build();
+        return ApiResponse.success(null);
     }
 
     /**
@@ -90,14 +88,14 @@ public class SeatingController {
      * @param locked 是否锁定
      * @return 空响应
      */
-    @PutMapping("/{planId}/participants/{participantId}/lock")
-    public ResponseEntity<Void> lock(
+    @PostMapping("/{planId}/participants/{participantId}/lock")
+    public ApiResponse<Void> lock(
             @PathVariable String planId,
             @PathVariable String participantId,
             @RequestParam boolean locked
     ) {
         seatingService.setLocked(planId, participantId, locked);
-        return ResponseEntity.noContent().build();
+        return ApiResponse.success(null);
     }
 
     /**

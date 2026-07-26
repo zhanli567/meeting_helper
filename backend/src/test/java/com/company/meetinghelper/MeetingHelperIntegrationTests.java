@@ -66,12 +66,10 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -231,7 +229,7 @@ class MeetingHelperIntegrationTests {
                                 {"employeeNo":"a00000001","name":"越权新增","attributes":{}}
                                 """))
                 .andExpect(status().isNotFound());
-        mockMvc.perform(put(
+        mockMvc.perform(post(
                         "/meetings/{meetingId}/participants/{participantId}/attendance",
                         userBMeetingId,
                         participantId
@@ -239,8 +237,8 @@ class MeetingHelperIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"attendanceStatus\":\"TEMPORARILY_ABSENT\"}"))
                 .andExpect(status().isNotFound());
-        mockMvc.perform(delete(
-                        "/meetings/{meetingId}/participants/{participantId}",
+        mockMvc.perform(post(
+                        "/meetings/{meetingId}/participants/{participantId}/delete",
                         userBMeetingId,
                         participantId
                 ).header(USER_HEADER, "user-a"))
@@ -283,21 +281,21 @@ class MeetingHelperIntegrationTests {
                         .header(USER_HEADER, "user-b")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(assignmentJson))
-                .andExpect(status().isNoContent());
-        mockMvc.perform(put("/plans/{planId}/assignments", planId)
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/plans/{planId}/assignments/save", planId)
                         .header(USER_HEADER, "user-a")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"assignments":[%s]}
                                 """.formatted(assignmentJson)))
                 .andExpect(status().isNotFound());
-        mockMvc.perform(delete(
-                        "/plans/{planId}/participants/{participantId}/assignment",
+        mockMvc.perform(post(
+                        "/plans/{planId}/participants/{participantId}/assignment/remove",
                         planId,
                         participantId
                 ).header(USER_HEADER, "user-a"))
                 .andExpect(status().isNotFound());
-        mockMvc.perform(put(
+        mockMvc.perform(post(
                         "/plans/{planId}/participants/{participantId}/lock",
                         planId,
                         participantId
@@ -381,12 +379,12 @@ class MeetingHelperIntegrationTests {
                         .content(assignmentJson(userAParticipantId, missingId)))
                 .andExpect(status().isNotFound());
 
-        mockMvc.perform(put("/plans/{planId}/assignments", userAPlanId)
+        mockMvc.perform(post("/plans/{planId}/assignments/save", userAPlanId)
                         .header(USER_HEADER, "user-a")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(assignmentsJson(userBParticipantId, userAElementId)))
                 .andExpect(status().isNotFound());
-        mockMvc.perform(put("/plans/{planId}/assignments", userAPlanId)
+        mockMvc.perform(post("/plans/{planId}/assignments/save", userAPlanId)
                         .header(USER_HEADER, "user-a")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(assignmentsJson(userAParticipantId, userBElementId)))
@@ -1805,7 +1803,10 @@ class MeetingHelperIntegrationTests {
 
     private JsonNode responseJson(org.springframework.test.web.servlet.MvcResult result) {
         try {
-            return objectMapper.readTree(result.getResponse().getContentAsByteArray());
+            JsonNode envelope = objectMapper.readTree(result.getResponse().getContentAsByteArray());
+            assertThat(envelope.path("code").asInt()).isZero();
+            assertThat(envelope.path("msg").asText()).isEqualTo("success");
+            return envelope.path("data");
         } catch (java.io.IOException exception) {
             throw new IllegalStateException("无法解析测试响应", exception);
         }
@@ -1878,7 +1879,7 @@ class MeetingHelperIntegrationTests {
                 ).file(file).header(USER_HEADER, DEFAULT_USER))
                 .andExpect(status().isOk())
                 .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsByteArray());
+        return responseJson(result);
     }
 
     private JsonNode commit(String meetingId, String token) throws Exception {
@@ -1889,7 +1890,7 @@ class MeetingHelperIntegrationTests {
                 ).header(USER_HEADER, DEFAULT_USER))
                 .andExpect(status().isOk())
                 .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsByteArray());
+        return responseJson(result);
     }
 
     private byte[] workbook(String csv) throws Exception {

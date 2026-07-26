@@ -1,7 +1,8 @@
 package com.company.meetinghelper.common.exception;
 
-import org.springframework.http.ProblemDetail;
+import com.company.meetinghelper.common.api.ApiResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -10,20 +11,18 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
-    ProblemDetail handleApiException(ApiException exception) {
-        ProblemDetail detail = ProblemDetail.forStatusAndDetail(exception.getStatus(), exception.getMessage());
-        detail.setTitle("操作未完成");
-        return detail;
+    ResponseEntity<ApiResponse<Void>> handleApiException(ApiException exception) {
+        return ResponseEntity.status(exception.getStatus())
+                .body(ApiResponse.failure(exception.getStatus().value(), exception.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    ProblemDetail handleValidationException(MethodArgumentNotValidException exception) {
+    ResponseEntity<ApiResponse<Void>> handleValidationException(MethodArgumentNotValidException exception) {
         String message = exception.getBindingResult().getFieldErrors().stream()
                 .findFirst()
                 .map(error -> error.getField() + "：" + error.getDefaultMessage())
                 .orElse("请求参数不正确");
-        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, message);
-        detail.setTitle("数据校验失败");
-        return detail;
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.failure(HttpStatus.BAD_REQUEST.value(), message));
     }
 }
