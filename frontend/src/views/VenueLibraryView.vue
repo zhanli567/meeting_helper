@@ -206,7 +206,7 @@ async function deleteVenue(venue) {
 }
 
 .back-button {
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--muted);
 }
 
 .venue-content {
@@ -214,7 +214,7 @@ async function deleteVenue(venue) {
   flex: 1;
   min-height: 0;
   margin: 0 auto;
-  padding: 38px 0 0;
+  padding: 30px 0 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -244,7 +244,7 @@ async function deleteVenue(venue) {
 .venue-intro p {
   max-width: 720px;
   margin: 0;
-  color: #667085;
+  color: var(--muted);
 }
 
 .venue-count {
@@ -257,7 +257,7 @@ async function deleteVenue(venue) {
 }
 
 .venue-count span {
-  color: #718096;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -272,8 +272,8 @@ async function deleteVenue(venue) {
   min-height: 390px;
   overflow: hidden;
   background: #fff;
-  border: 1px solid #dde4ed;
-  border-radius: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow);
 }
 
@@ -285,9 +285,9 @@ async function deleteVenue(venue) {
   gap: 20px;
   padding: 28px 34px;
   background:
-    linear-gradient(rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.7)),
-    linear-gradient(#dce4ef 1px, transparent 1px),
-    linear-gradient(90deg, #dce4ef 1px, transparent 1px), #eef3f8;
+    linear-gradient(rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.82)),
+    linear-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.06) 1px, transparent 1px), #f1f3f5;
   background-size:
     auto,
     18px 18px,
@@ -304,8 +304,9 @@ async function deleteVenue(venue) {
 
 .mini-stage {
   padding: 9px;
-  color: #fff;
-  background: #293a55;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
   border-radius: 0 0 8px 8px;
   font-size: 10px;
   text-align: center;
@@ -319,7 +320,7 @@ async function deleteVenue(venue) {
 
 .mini-seats i {
   height: 11px;
-  background: #8ca7ce;
+  background: rgba(10, 89, 247, 0.22);
   border-radius: 2px;
 }
 
@@ -342,7 +343,7 @@ async function deleteVenue(venue) {
   height: 38px;
   margin: 0;
   overflow: hidden;
-  color: #718096;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -369,7 +370,7 @@ async function deleteVenue(venue) {
   display: grid;
   gap: 4px;
   padding: 8px;
-  border-left: 1px solid #e6ebf1;
+  border-left: 1px solid var(--line);
 }
 
 .venue-card-body dl div:first-child {
@@ -377,7 +378,7 @@ async function deleteVenue(venue) {
 }
 
 .venue-card-body dt {
-  color: #8a94a5;
+  color: var(--tertiary);
   font-size: 10px;
 }
 
@@ -393,14 +394,14 @@ async function deleteVenue(venue) {
   align-content: center;
   gap: 12px;
   padding: 40px;
-  color: #53657c;
+  color: var(--muted);
   border-style: dashed;
   cursor: pointer;
 }
 
 .create-card:hover {
-  color: #285596;
-  border-color: #6b8bbb;
+  color: var(--brand);
+  border-color: rgba(10, 89, 247, 0.34);
 }
 
 .create-card > span {
@@ -408,9 +409,9 @@ async function deleteVenue(venue) {
   height: 54px;
   display: grid;
   place-items: center;
-  color: #2f5f9f;
-  background: #eaf1fb;
-  border-radius: 16px;
+  color: var(--brand);
+  background: var(--brand-soft);
+  border-radius: var(--radius-md);
 }
 
 .create-card svg {

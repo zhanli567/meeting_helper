@@ -123,31 +123,33 @@ function leavePanel(event) {
       </button>
     </div>
 
-    <el-input
-      v-model="search"
-      clearable
-      placeholder="姓名模糊搜索 / 8或9位工号精确搜索"
-      aria-label="搜索参会人员"
-    >
-      <template #prefix>
-        <el-icon><Search /></el-icon>
-      </template>
-    </el-input>
+    <div class="panel-tools">
+      <el-input
+        v-model="search"
+        clearable
+        placeholder="姓名模糊搜索 / 8或9位工号精确搜索"
+        aria-label="搜索参会人员"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
 
-    <el-select
-      v-model="groupField"
-      clearable
-      placeholder="不分组"
-      class="group-select"
-      aria-label="人员分组方式"
-    >
-      <el-option
-        v-for="field in groupFields"
-        :key="field.code"
-        :label="`按${field.label}分组`"
-        :value="field.code"
-      />
-    </el-select>
+      <el-select
+        v-model="groupField"
+        clearable
+        placeholder="不分组"
+        class="group-select"
+        aria-label="人员分组方式"
+      >
+        <el-option
+          v-for="field in groupFields"
+          :key="field.code"
+          :label="`按${field.label}分组`"
+          :value="field.code"
+        />
+      </el-select>
+    </div>
 
     <div class="participant-list" :class="{ saving }">
       <template v-if="filtered.length">
@@ -243,19 +245,23 @@ function leavePanel(event) {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 11px;
-  padding: 18px 16px 14px;
+  gap: 12px;
+  padding: 16px;
   overflow: hidden;
   background: #fff;
-  border-left: 1px solid var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
   transition:
     background-color 0.15s,
     box-shadow 0.15s;
 }
 
 .participant-panel.drop-active {
-  background: #f2f7ff;
-  box-shadow: inset 0 0 0 2px #5b91da;
+  background: #f8fbff;
+  box-shadow:
+    var(--shadow),
+    inset 0 0 0 2px var(--brand);
 }
 
 .panel-heading {
@@ -270,8 +276,9 @@ function leavePanel(event) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   padding: 3px;
-  background: #eff3f8;
-  border-radius: 9px;
+  background: var(--workspace);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
 }
 
 .panel-tabs.single {
@@ -280,17 +287,17 @@ function leavePanel(event) {
 
 .panel-tabs button {
   padding: 7px 10px;
-  color: #667085;
+  color: var(--muted);
   background: transparent;
   border: 0;
-  border-radius: 7px;
+  border-radius: 8px;
   cursor: pointer;
 }
 
 .panel-tabs button.active {
-  color: #1e3a66;
+  color: var(--brand);
   background: #fff;
-  box-shadow: 0 1px 4px rgba(30, 58, 102, 0.12);
+  box-shadow: var(--shadow-soft);
 }
 
 .panel-tabs b {
@@ -300,8 +307,18 @@ function leavePanel(event) {
 
 .panel-tabs small {
   margin-left: 6px;
-  color: #8794a7;
+  color: var(--tertiary);
   font-size: 9px;
+}
+
+.panel-tools {
+  flex: none;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  background: #fbfcfd;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
 }
 
 .group-select {
@@ -330,7 +347,7 @@ function leavePanel(event) {
   display: flex;
   justify-content: space-between;
   padding: 7px 3px 5px;
-  color: #667085;
+  color: var(--muted);
   background: #fff;
   font-size: 11px;
   font-weight: 700;
@@ -344,8 +361,8 @@ function leavePanel(event) {
   align-items: stretch;
   overflow: hidden;
   background: #fff;
-  border: 1px solid #e1e6ee;
-  border-radius: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
   cursor: grab;
   transition:
     border-color 0.15s,
@@ -355,18 +372,17 @@ function leavePanel(event) {
 
 .person-card:hover,
 .person-card.selected {
-  border-color: #5e82b8;
-  box-shadow: 0 5px 14px rgba(39, 79, 147, 0.1);
-  transform: translateY(-1px);
+  border-color: rgba(10, 89, 247, 0.34);
+  box-shadow: 0 0 0 3px var(--brand-soft);
 }
 
 .person-card.assigned {
-  background: #fbfcfe;
+  background: #fbfcfd;
 }
 
 .person-card.absent {
-  background: #f4f6f8;
-  border-color: #d9dee6;
+  background: #f6f7f8;
+  border-color: var(--line);
   cursor: default;
   filter: grayscale(0.35);
 }
@@ -401,7 +417,7 @@ function leavePanel(event) {
   justify-items: start;
   gap: 2px;
   padding: 5px 6px 5px 0;
-  border-left: 1px solid #edf0f4;
+  border-left: 1px solid var(--line);
 }
 
 .person-actions .el-button {
@@ -424,7 +440,7 @@ function leavePanel(event) {
 .person-main > span,
 .person-main small {
   overflow: hidden;
-  color: #64748b;
+  color: var(--muted);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -436,7 +452,7 @@ function leavePanel(event) {
   position: absolute;
   top: 9px;
   right: 9px;
-  background: #22a06b;
+  background: var(--success);
   border-radius: 50%;
 }
 
@@ -445,7 +461,7 @@ function leavePanel(event) {
   display: grid;
   place-content: center;
   justify-items: center;
-  color: #7b8798;
+  color: var(--tertiary);
 }
 
 .pagination-row {
@@ -455,7 +471,7 @@ function leavePanel(event) {
   justify-content: space-between;
   align-items: center;
   gap: 6px;
-  color: #7a899d;
+  color: var(--tertiary);
   font-size: 10px;
 }
 

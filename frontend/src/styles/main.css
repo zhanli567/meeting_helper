@@ -1,27 +1,37 @@
 :root {
   color-scheme: light;
   font-family:
-    Inter,
+    'HarmonyOS Sans SC',
+    'HarmonyOS Sans',
     'PingFang SC',
     'Microsoft YaHei',
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
+    ui-sans-serif,
     sans-serif;
-  color: #172033;
-  background: #edf1f6;
+  color: rgba(0, 0, 0, 0.9);
+  background: #f1f3f5;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --ink: #172033;
-  --muted: #667085;
-  --line: #d7e3f2;
-  --brand: #2563eb;
-  --brand-hover: #1d4ed8;
-  --brand-soft: #eaf2ff;
+  --ink: rgba(0, 0, 0, 0.9);
+  --muted: rgba(0, 0, 0, 0.6);
+  --tertiary: rgba(0, 0, 0, 0.4);
+  --line: rgba(0, 0, 0, 0.1);
+  --line-strong: rgba(0, 0, 0, 0.18);
+  --brand: #0a59f7;
+  --brand-hover: #084bd8;
+  --brand-soft: rgba(10, 89, 247, 0.12);
+  --workspace: #f1f3f5;
   --surface: #ffffff;
-  --canvas: #f7f9fc;
-  --danger: #c53e3e;
-  --shadow: 0 12px 28px rgba(28, 39, 58, 0.08);
+  --canvas: #f7f8fa;
+  --danger: #b42318;
+  --warning: #9a4d14;
+  --success: #2f7d32;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --shadow: 0 4px 18px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --shadow-hover: 0 8px 28px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --shadow-soft: 0 2px 10px rgba(0, 0, 0, 0.05);
+  --motion: 0.16s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -38,56 +48,63 @@ body,
   overflow: hidden;
 }
 
+body {
+  background: var(--workspace);
+}
+
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
 .app-page {
   height: 100%;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 10% -10%, rgba(96, 165, 250, 0.16), transparent 34%), #eef5fc;
+  background: var(--workspace);
 }
 
 .app-header {
-  height: 66px;
-  padding: 0 22px;
+  height: 60px;
+  padding: 0 24px 0 16px;
   display: flex;
   align-items: center;
-  gap: 18px;
-  color: #fff;
-  background: linear-gradient(112deg, #2f6fca 0%, #347bd6 58%, #5797e8 100%);
-  box-shadow: 0 3px 16px rgba(37, 99, 235, 0.18);
+  gap: 14px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  backdrop-filter: blur(12px);
 }
 
 .brand-mark {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.1);
-  font-weight: 750;
-  letter-spacing: -1px;
+  color: var(--brand);
+  border: 1px solid rgba(10, 89, 247, 0.18);
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft);
+  font-weight: 800;
 }
 
 .brand-copy {
-  min-width: 178px;
+  min-width: 160px;
 }
 
 .brand-copy strong {
   display: block;
+  color: var(--ink);
   font-size: 16px;
-  letter-spacing: 0.03em;
+  letter-spacing: 0;
 }
 
 .header-divider {
   width: 1px;
-  height: 30px;
-  background: rgba(255, 255, 255, 0.18);
+  height: 28px;
+  background: var(--line);
 }
 
 .header-spacer {
@@ -100,14 +117,24 @@ select {
 
 .panel-title {
   margin: 2px 0 0;
+  color: var(--ink);
   font-size: 16px;
   font-weight: 700;
 }
 
 .empty-copy {
-  padding: 36px 20px;
-  color: var(--muted);
+  padding: 32px 20px;
+  color: var(--tertiary);
   text-align: center;
+}
+
+.el-button {
+  --el-button-border-color: var(--line);
+  --el-button-hover-border-color: var(--line-strong);
+  --el-button-hover-bg-color: rgba(0, 0, 0, 0.05);
+  --el-button-active-bg-color: rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
 }
 
 .el-button--primary {
@@ -115,12 +142,64 @@ select {
   --el-button-border-color: var(--brand);
   --el-button-hover-bg-color: var(--brand-hover);
   --el-button-hover-border-color: var(--brand-hover);
+  box-shadow: 0 4px 14px rgba(10, 89, 247, 0.2);
+}
+
+.el-button.is-plain {
+  box-shadow: none;
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner {
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 1px var(--line) inset;
+}
+
+.el-input__wrapper:hover,
+.el-select__wrapper:hover,
+.el-textarea__inner:hover {
+  box-shadow: 0 0 0 1px var(--line-strong) inset;
+}
+
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused,
+.el-textarea__inner:focus {
+  box-shadow:
+    0 0 0 1px var(--brand) inset,
+    0 0 0 3px var(--brand-soft);
 }
 
 .el-dialog {
-  border-radius: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.14);
+}
+
+.el-dialog__header {
+  padding: 22px 24px 10px;
+}
+
+.el-dialog__title {
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.el-dialog__body {
+  padding: 14px 24px 18px;
+}
+
+.el-dialog__footer {
+  padding: 14px 24px 22px;
+}
+
+.el-overlay {
+  background-color: rgba(17, 32, 48, 0.45);
+  backdrop-filter: blur(6px);
 }
 
 .el-tag {
-  border-radius: 999px;
+  border-radius: 6px;
+  font-weight: 700;
 }

@@ -136,7 +136,7 @@ function formatTime(value) {
 }
 
 .user-context small {
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
   font-size: 10px;
 }
 
@@ -145,9 +145,10 @@ function formatTime(value) {
   height: 32px;
   display: grid;
   place-items: center;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 50%;
+  color: var(--brand);
+  background: var(--brand-soft);
+  border: 1px solid rgba(10, 89, 247, 0.16);
+  border-radius: var(--radius-sm);
 }
 
 .user-avatar svg {
@@ -163,23 +164,21 @@ function formatTime(value) {
 .home-content {
   width: min(1280px, calc(100% - 64px));
   margin: 0 auto;
-  padding: 54px 0 72px;
+  padding: 32px 0 64px;
 }
 
 .home-hero {
-  min-height: 245px;
+  min-height: 220px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 48px;
   padding: 48px 52px;
-  color: #12325f;
-  background:
-    radial-gradient(circle at 86% 15%, rgba(96, 165, 250, 0.28), transparent 30%),
-    linear-gradient(135deg, #ffffff, #eaf3ff);
-  border: 1px solid #cfe1f8;
-  border-radius: 24px;
-  box-shadow: 0 20px 48px rgba(37, 99, 235, 0.1);
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
 }
 
 .home-hero h1 {
@@ -190,7 +189,7 @@ function formatTime(value) {
 .home-hero p {
   max-width: 700px;
   margin: 0;
-  color: #5d718e;
+  color: var(--muted);
   line-height: 1.8;
 }
 
@@ -228,17 +227,16 @@ function formatTime(value) {
   gap: 14px;
   padding: 22px;
   background: #fff;
-  border: 1px solid #d9e5f4;
-  border-radius: 16px;
-  box-shadow: 0 9px 26px rgba(30, 80, 150, 0.07);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
   cursor: pointer;
   transition: 0.18s ease;
 }
 
 .meeting-card:hover {
-  border-color: #87afe4;
-  box-shadow: 0 14px 32px rgba(30, 80, 150, 0.13);
-  transform: translateY(-2px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-hover);
 }
 
 .meeting-icon {
@@ -247,9 +245,9 @@ function formatTime(value) {
   flex: none;
   display: grid;
   place-items: center;
-  color: #2563eb;
-  background: #eaf2ff;
-  border-radius: 12px;
+  color: var(--brand);
+  background: var(--brand-soft);
+  border-radius: var(--radius-sm);
 }
 
 .meeting-icon svg {
@@ -271,21 +269,21 @@ function formatTime(value) {
 
 .meeting-copy p {
   margin: 0 0 18px;
-  color: #5f718a;
+  color: var(--muted);
   font-size: 12px;
 }
 
 .meeting-copy > span {
-  color: #8a98aa;
+  color: var(--tertiary);
   font-size: 10px;
 }
 
 .home-empty {
   padding: 56px;
-  color: #6b7c93;
+  color: var(--muted);
   background: #fff;
-  border: 1px dashed #b9cce5;
-  border-radius: 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
   text-align: center;
 }
 
