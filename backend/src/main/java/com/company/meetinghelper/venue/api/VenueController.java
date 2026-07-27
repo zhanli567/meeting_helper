@@ -3,12 +3,15 @@ package com.company.meetinghelper.venue.api;
 import com.company.meetinghelper.venue.api.dto.request.CreateVenueRequest;
 import com.company.meetinghelper.venue.api.dto.request.UpdateVenueInfoRequest;
 import com.company.meetinghelper.venue.api.dto.request.UpdateVenueLayoutRequest;
+import com.company.meetinghelper.venue.api.dto.response.LocationAvailability;
 import com.company.meetinghelper.venue.api.dto.response.VenueDetail;
 import com.company.meetinghelper.venue.api.dto.response.VenueLayout;
 import com.company.meetinghelper.venue.api.dto.response.VenuePage;
 import com.company.meetinghelper.venue.service.VenueService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -52,6 +55,26 @@ public class VenueController {
             @Min(value = 1, message = "必须大于等于1") int pageSize
     ) {
         return venueService.list(keyword, campus, pageNum, pageSize);
+    }
+
+    /**
+     * 按地点精确检查场馆模板是否可用。
+     *
+     * @param location 待检查地点
+     * @param excludeId 编辑时排除的场馆模板ID
+     * @return 地点可用性
+     */
+    @GetMapping("/location-availability")
+    public LocationAvailability locationAvailability(
+            @RequestParam
+            @NotBlank(message = "请输入地点")
+            @Size(max = 200, message = "地点不能超过 200 个字符")
+            String location,
+            @RequestParam(defaultValue = "") String excludeId
+    ) {
+        return new LocationAvailability(
+                venueService.isLocationAvailable(location, excludeId)
+        );
     }
 
     /**

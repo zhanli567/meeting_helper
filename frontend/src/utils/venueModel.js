@@ -69,6 +69,21 @@ function blankToNull(value) {
   return normalized || null
 }
 
+export function safeHttpUrl(value) {
+  const source = String(value ?? '')
+  if (/[\u0000-\u001f\u007f-\u009f]/u.test(source)) return null
+  const normalized = source.trim()
+  if (!normalized) return null
+  if (!/^https?:\/\//iu.test(normalized)) return null
+  try {
+    const url = new URL(normalized)
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) return null
+    return normalized
+  } catch {
+    return null
+  }
+}
+
 export function normalizeVenueInfo(form) {
   return {
     location: String(form.location ?? '').trim(),

@@ -70,6 +70,7 @@ function updateForm(value) {
       <VenueInfoForm
         ref="formRef"
         :model-value="form"
+        :exclude-venue-id="venue?.id || ''"
         @update:model-value="updateForm"
       />
     </div>

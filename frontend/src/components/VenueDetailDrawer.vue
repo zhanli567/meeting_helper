@@ -1,7 +1,11 @@
 <script setup>
+import { computed } from 'vue'
+
+import { safeHttpUrl } from '@/utils/venueModel'
+
 const visible = defineModel({ required: true })
 
-defineProps({
+const props = defineProps({
   venue: {
     type: Object,
     default: undefined,
@@ -11,6 +15,8 @@ defineProps({
     default: false,
   },
 })
+
+const bookingLink = computed(() => safeHttpUrl(props.venue?.bookingUrl))
 
 function display(value) {
   return value === null || value === undefined || value === '' ? '未填写' : value
@@ -48,14 +54,16 @@ function formatTime(value) {
             </el-descriptions-item>
             <el-descriptions-item label="预定链接">
               <el-link
-                v-if="venue.bookingUrl"
-                :href="venue.bookingUrl"
+                v-if="bookingLink"
+                :href="bookingLink"
                 target="_blank"
+                rel="noopener noreferrer"
                 type="primary"
                 :underline="false"
               >
                 打开链接
               </el-link>
+              <span v-else-if="venue.bookingUrl">{{ display(venue.bookingUrl) }}</span>
               <span v-else>未填写</span>
             </el-descriptions-item>
           </el-descriptions>

@@ -67,6 +67,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  manualCapacity: {
+    type: Number,
+    default: null,
+  },
   showBack: {
     type: Boolean,
     default: true,
@@ -92,6 +96,7 @@ const pickerDocked = ref(false)
 const manipulation = ref()
 const canvasResizeSession = ref()
 const conflictElementIds = ref([])
+const pickerConflictElementIds = ref([])
 const panelCollapsed = ref(false)
 const panelDock = ref('right')
 const canvasOffsetX = ref(0)
@@ -191,6 +196,7 @@ function closePicker() {
   pickerVisible.value = false
   pickerDocked.value = false
   pendingRect.value = undefined
+  pickerConflictElementIds.value = []
 }
 
 function closeElementPanel() {
@@ -258,6 +264,15 @@ const displayColumns = computed(() =>
     ? canvasResizeSession.value.candidate.columns
     : gridColumns.value,
 )
+const seatCount = computed(
+  () =>
+    elements.value.filter(
+      (element) => renderedElement(element).kind === ELEMENT_KINDS.SEAT,
+    ).length,
+)
+const capacityMismatch = computed(
+  () => props.manualCapacity !== null && seatCount.value !== props.manualCapacity,
+)
 const stageStyle = computed(() => ({
   width: `${displayColumns.value * CELL_SIZE * zoom.value}px`,
   height: `${displayRows.value * CELL_SIZE * zoom.value}px`,
@@ -317,6 +332,7 @@ function elementStyle(element) {
 function isElementConflict(element) {
   return (
     conflictElementIds.value.includes(element.editorId) ||
+    pickerConflictElementIds.value.includes(element.editorId) ||
     (manipulation.value?.editorId === element.editorId && !manipulation.value.valid)
   )
 }
@@ -448,7 +464,7 @@ function chooseElement(choice) {
     )
   })
   if (occupied) {
-    conflictElementIds.value = [
+    pickerConflictElementIds.value = [
       ...new Set(
         candidates.flatMap((candidate) => conflictingIds(candidate)),
       ),
@@ -855,6 +871,17 @@ onBeforeUnmount(() => {
       <span v-if="showBack" class="toolbar-divider" />
       <strong>{{ title }}</strong>
       <span class="canvas-size">{{ displayRows }} × {{ displayColumns }}</span>
+      <span class="capacity-summary">
+        布局座位数 {{ seatCount }} · 人工容纳人数 {{ manualCapacity ?? '未填写' }}
+      </span>
+      <el-tag
+        v-if="capacityMismatch"
+        class="capacity-warning"
+        type="warning"
+        effect="plain"
+      >
+        容量不一致
+      </el-tag>
       <span class="toolbar-spacer" />
       <el-button-group>
         <el-button :icon="RefreshLeft" :disabled="!undoStack.length" @click="undo">
@@ -1026,6 +1053,12 @@ onBeforeUnmount(() => {
   padding: 0 16px;
   background: #fff;
   border-bottom: 1px solid #dbe4f0;
+}
+
+.capacity-summary {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .editor-toolbar > strong {

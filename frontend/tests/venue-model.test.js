@@ -182,6 +182,10 @@ test('场馆 API 使用约定的 GET 和 POST 路径', async () => {
 
   try {
     assert.equal(await venueApi.list({ pageNum: 2 }), '/venues')
+    assert.equal(
+      await venueApi.locationAvailability('A101', 'v1'),
+      '/venues/location-availability',
+    )
     assert.equal(await venueApi.detail('v1'), '/venues/v1')
     assert.equal(await venueApi.layout('v1'), '/venues/v1/layout')
     assert.equal(await venueApi.create({ location: 'A101' }), '/venues/create')
@@ -190,6 +194,11 @@ test('场馆 API 使用约定的 GET 和 POST 路径', async () => {
     assert.equal(await venueApi.remove('v1'), '/venues/v1/delete')
     assert.deepEqual(calls, [
       { method: 'get', path: '/venues', config: { params: { pageNum: 2 } } },
+      {
+        method: 'get',
+        path: '/venues/location-availability',
+        config: { params: { location: 'A101', excludeId: 'v1' } },
+      },
       { method: 'get', path: '/venues/v1', config: undefined },
       { method: 'get', path: '/venues/v1/layout', config: undefined },
       { method: 'post', path: '/venues/create', data: { location: 'A101' }, config: undefined },

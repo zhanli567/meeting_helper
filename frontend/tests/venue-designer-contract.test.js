@@ -80,6 +80,7 @@ test('新建流程复用编辑器并通过统一创建载荷完成保存', async
   const source = await readSource('src/views/VenueCreateView.vue')
 
   assert.match(source, /<VenueLayoutEditor/)
+  assert.match(source, /:manual-capacity="info\.manualCapacity"/)
   assert.match(source, /venueApi\.create\(toCreateVenuePayload\(info,\s*layout\)\)/)
   assert.match(source, /@update:model-value="updateLayout"/)
 })
@@ -96,6 +97,7 @@ test('现有模板编辑保留本地布局并携带行版本保存', async () =>
   assert.match(source, /loadFailed/)
   assert.match(source, /v-if="!loading && !loadFailed"/)
   assert.match(source, /<VenueLayoutEditor/)
+  assert.match(source, /:manual-capacity="venue\?\.manualCapacity"/)
 })
 
 test('旧设计器已由可复用编辑器取代', async () => {

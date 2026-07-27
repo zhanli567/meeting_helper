@@ -115,6 +115,7 @@ onBeforeRouteLeave(() => {
           :model-value="layout"
           :venue-name="info.location"
           :venue-description="info.description || ''"
+          :manual-capacity="info.manualCapacity"
           title="新建场馆布局"
           save-label="创建场馆模板"
           :saving="saving"

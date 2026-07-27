@@ -1,67 +1,85 @@
 # 会议排座助手
 
-面向多种会议场景的通用人工排座系统。当前首个落地场景为颁奖会议，系统核心保持场馆、人员、排座方案、导入模板和版本管理的通用抽象。
+面向公司内部会议组织场景的单体应用。系统以全局场馆模板库为基础创建会议，并在创建时复制独立的会场布局快照，避免模板后续变化影响历史会议。
 
 ## 工程结构
 
-- `frontend`：Vue 3 + JavaScript 前端。
-- `backend`：Spring Boot 后端，采用业务模块优先、模块内 `api/dto`、`entity`、`repository`、`service` 分层的包结构。
-- `DDL`：数据库初始化建表脚本的唯一存放目录。
-- `docs/architecture.md`：领域边界、数据关系和扩展点说明。
-- `CHANGELOG.md`：持续变更记录。
+- `frontend/`：Vue 3 + JavaScript + Element Plus 2.8 前端。
+- `backend/`：Java 21 + Spring Boot + MyBatis-Plus 后端。
+- `backend/src/main/resources/db/ddl.sql`：PostgreSQL 正式建表脚本。
+- `docs/architecture.md`：当前架构与关键设计决策。
+- `CHANGELOG.md`：版本变更记录。
 
-## 当前可演示能力
+## 当前能力
 
-- 从首页进入“我的会议”、场馆库或排座工作台；前端已预留当前用户与租户会话边界，便于后续接入公司统一认证。
-- 从预置场馆创建会议，或用二维网格设计自定义场馆。
-- 下载通用会议/颁奖会议导入模板，预检重复工号后提交导入。
-- 搜索、筛选、按导入字段排序、分组及分页浏览待排人员，并保存常用筛选方案。
-- 将人员拖入座位、换座、移到空座、撤回待排名单、锁定座位及会话内撤销/重做；拖动时显示可放置和可交换目标，编辑结果支持手动保存或按所选周期自动保存。
-- 保存不可变的排座版本快照，在版本管理中查看和恢复历史状态，导出 Excel 工作簿或 PDF 场馆图。
-- 在固定视口中缩放画布或按住鼠标右键拖动画布；人员列表、场馆画布和侧栏分别独立滚动。
-- 在场馆设计器中拖动绘制成片元素、框选擦除，并通过元素旁的浮动属性框调整类型、位置、尺寸和颜色。
+- 在“我的会议”“场馆模板”“参会工作台”之间导航。
+- 浏览、搜索、分页和按园区分组查看所有用户共享的场馆模板。
+- 通过“基础信息 + 布局编辑”两步流程新建场馆模板，也可继续编辑或物理删除已有模板。
+- 在二维布局编辑器中放置座位与通用元素，支持点击/框选、拖动、八方向缩放、画布边缘与角点扩展、右键平移、滚轮缩放、撤销/重做、属性编辑与冲突提示。
+- 对布局座位数与人工容纳人数不一致给出软提示，不阻止保存。
+- 从场馆模板创建会议时复制独立快照；之后编辑或删除模板不会改变已创建会议的布局。
+- 管理参会人、座位分配、临时占座、锁座、提案与提交冲突。
 
 ## 本地开发
 
-环境要求：Java 21、Node.js 20+、PostgreSQL。
+### 前置条件
 
-先启动后端：
+- Java 21
+- Maven 3.9+
+- Node.js 20+
+- PostgreSQL 14+，本地默认连接为 `localhost:5432`
 
-```powershell
+### 建立开发数据库
+
+1. 创建数据库 `meeting_helper`。
+2. 使用 PostgreSQL 账号 `postgres`、密码 `123456`，执行 `backend/src/main/resources/db/ddl.sql`。
+
+项目不包含代码内置场馆、演示数据或启动时写库逻辑；正式 DDL 也不包含种子数据、外键和软删除列。需要不同连接信息时，请通过 Spring 配置覆盖默认值。
+
+### 启动后端
+
+```bash
 cd backend
 mvn spring-boot:run
 ```
 
-再启动前端：
+后端默认监听 `http://localhost:8080`。
 
-```powershell
+### 启动前端
+
+```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-浏览器访问 `http://localhost:5173`。前端开发服务器会把 `/api` 请求转发到
-`http://localhost:8080`。
+前端默认监听 `http://localhost:5173`，并将 `/api` 请求代理到后端。
 
-### 前端
-
-```powershell
-cd frontend
-npm run build
-```
+## 验证
 
 ### 后端
 
-```powershell
+后端测试仅使用 PostgreSQL。请先确保本机 PostgreSQL 已启动，并保证 `postgres` / `123456` 账号具有创建测试数据库和重建 schema 的权限。
+
+```bash
 cd backend
 mvn test
 ```
 
-后端本地配置位于 `backend/src/main/resources/application.yml`，默认连接
-`localhost:5432/meeting_helper`，用户名为 `postgres`，密码为 `123456`。
-这是当前本地开发约定，不依赖数据库环境变量。首次建立数据库时需手工执行根目录
-`DDL/meeting_helper.sql`，应用启动仅校验表结构，不会自动执行或修改 DDL。
-SQL 源文件只允许包含 `CREATE TABLE` 和 PostgreSQL `COMMENT ON` 元数据注释，
-所有表名统一使用 `t_` 前缀。预置场馆由后端代码目录维护，首次启动会自动创建颁奖会议演示数据。
+测试会按需创建专用数据库 `meeting_helper_test`，并重建其中的 `public` schema。不要将真实数据放入该测试数据库。
 
-自动化测试继续使用内存 H2，不依赖本机 PostgreSQL。
+### 前端
+
+```bash
+cd frontend
+npm test
+npm run build
+```
+
+## 数据与隔离约束
+
+- 场馆模板是全局共享资源，不按用户隔离。
+- 会议、参会人和操作工作台按当前用户隔离。
+- 会议保存模板信息与布局的独立快照。
+- 数据采用物理删除；关联清理由应用事务显式完成。
+- 数据库不声明外键，业务一致性由服务层校验、事务和并发控制保证。

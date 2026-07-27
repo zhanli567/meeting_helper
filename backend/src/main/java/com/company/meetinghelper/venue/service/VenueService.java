@@ -17,6 +17,8 @@ import com.company.meetinghelper.venue.entity.VenueTemplateEntity;
 import com.company.meetinghelper.venue.repository.VenueElementRepository;
 import com.company.meetinghelper.venue.repository.VenueTemplateRepository;
 import com.company.meetinghelper.venue.validation.VenueLayoutValidator;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.dao.DuplicateKeyException;
@@ -68,6 +70,22 @@ public class VenueService {
                 .map(this::toSummary)
                 .toList();
         return new VenuePage(records, page.getTotal(), pageNum, pageSize);
+    }
+
+    /**
+     * 按规范化地点精确检查场馆模板可用性。
+     *
+     * @param location 待检查地点
+     * @param excludeId 编辑时排除的场馆模板ID
+     * @return 地点未被其他模板占用时返回true
+     */
+    @Transactional(readOnly = true)
+    public boolean isLocationAvailable(String location, String excludeId) {
+        String locationKey = location.trim().toLowerCase(Locale.ROOT);
+        if (excludeId == null || excludeId.isBlank()) {
+            return !templateRepository.existsByLocationKey(locationKey);
+        }
+        return !templateRepository.existsByLocationKeyAndIdNot(locationKey, excludeId.trim());
     }
 
     /**
@@ -225,29 +243,61 @@ public class VenueService {
     }
 
     private void applyInfo(CreateVenueRequest source, VenueTemplateEntity target) {
-        target.setCampus(source.campus());
-        target.setMainScreenResolution(source.mainScreenResolution());
-        target.setStageDimensions(source.stageDimensions());
+        target.setCampus(blankToNull(source.campus()));
+        target.setMainScreenResolution(blankToNull(source.mainScreenResolution()));
+        target.setStageDimensions(blankToNull(source.stageDimensions()));
         target.setManualCapacity(source.manualCapacity());
-        target.setContactInfo(source.contactInfo());
-        target.setBookingUrl(source.bookingUrl());
-        target.setMeetingRoomFunctions(source.meetingRoomFunctions());
-        target.setServicesProvided(source.servicesProvided());
-        target.setDescription(source.description());
-        target.setRemarks(source.remarks());
+        target.setContactInfo(blankToNull(source.contactInfo()));
+        target.setBookingUrl(normalizeBookingUrl(source.bookingUrl()));
+        target.setMeetingRoomFunctions(blankToNull(source.meetingRoomFunctions()));
+        target.setServicesProvided(blankToNull(source.servicesProvided()));
+        target.setDescription(blankToNull(source.description()));
+        target.setRemarks(blankToNull(source.remarks()));
     }
 
     private void applyInfo(UpdateVenueInfoRequest source, VenueTemplateEntity target) {
-        target.setCampus(source.campus());
-        target.setMainScreenResolution(source.mainScreenResolution());
-        target.setStageDimensions(source.stageDimensions());
+        target.setCampus(blankToNull(source.campus()));
+        target.setMainScreenResolution(blankToNull(source.mainScreenResolution()));
+        target.setStageDimensions(blankToNull(source.stageDimensions()));
         target.setManualCapacity(source.manualCapacity());
-        target.setContactInfo(source.contactInfo());
-        target.setBookingUrl(source.bookingUrl());
-        target.setMeetingRoomFunctions(source.meetingRoomFunctions());
-        target.setServicesProvided(source.servicesProvided());
-        target.setDescription(source.description());
-        target.setRemarks(source.remarks());
+        target.setContactInfo(blankToNull(source.contactInfo()));
+        target.setBookingUrl(normalizeBookingUrl(source.bookingUrl()));
+        target.setMeetingRoomFunctions(blankToNull(source.meetingRoomFunctions()));
+        target.setServicesProvided(blankToNull(source.servicesProvided()));
+        target.setDescription(blankToNull(source.description()));
+        target.setRemarks(blankToNull(source.remarks()));
+    }
+
+    private String blankToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private String normalizeBookingUrl(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        if (value.codePoints().anyMatch(Character::isISOControl)) {
+            throw invalidBookingUrl();
+        }
+        String normalized = value.trim();
+        try {
+            URI uri = new URI(normalized);
+            String scheme = uri.getScheme();
+            if (!uri.isAbsolute()
+                    || scheme == null
+                    || (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https"))
+                    || uri.getHost() == null
+                    || uri.getHost().isBlank()) {
+                throw invalidBookingUrl();
+            }
+            return normalized;
+        } catch (URISyntaxException exception) {
+            throw invalidBookingUrl();
+        }
     }
 
     private VenueSummary toSummary(VenueTemplateEntity source) {
@@ -281,5 +331,9 @@ public class VenueService {
 
     private ApiException duplicateLocation() {
         return new ApiException(HttpStatus.CONFLICT, "场馆地点已存在");
+    }
+
+    private ApiException invalidBookingUrl() {
+        return new ApiException(HttpStatus.BAD_REQUEST, "预定链接必须是绝对 http/https URL");
     }
 }

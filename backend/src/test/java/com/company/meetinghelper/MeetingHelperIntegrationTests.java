@@ -1768,6 +1768,164 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
+    void venueCreateTrimsAndPersistsAbsoluteHttpsBookingUrl() {
+        CreateVenueRequest request = createVenueRequest(
+                "安全链接场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of()
+        );
+
+        VenueDetail created = venueService.create(
+                createVenueRequestWithBookingUrl(request, "  https://example.test/booking?q=1  ")
+        );
+
+        assertThat(created.bookingUrl()).isEqualTo("https://example.test/booking?q=1");
+        assertThat(venueService.get(created.id()).bookingUrl())
+                .isEqualTo("https://example.test/booking?q=1");
+    }
+
+    @Test
+    void venueCreateRejectsUnsafeBookingUrls() {
+        List<String> unsafeUrls = List.of(
+                "javascript:alert(1)",
+                "data:text/html,unsafe",
+                "file:///tmp/unsafe",
+                "//example.test/booking",
+                "https:/missing-host",
+                "https://",
+                "https://example.test/\nunsafe"
+        );
+
+        for (String unsafeUrl : unsafeUrls) {
+            CreateVenueRequest request = createVenueRequest(
+                    "危险链接场馆-" + UUID.randomUUID(),
+                    "主校区",
+                    List.of()
+            );
+            assertThatThrownBy(() -> venueService.create(
+                    createVenueRequestWithBookingUrl(request, unsafeUrl)
+            )).hasMessage("预定链接必须是绝对 http/https URL");
+        }
+    }
+
+    @Test
+    void venueUpdateTrimsAndPersistsAbsoluteHttpBookingUrl() {
+        VenueDetail created = createVenueWithElements(
+                "更新安全链接场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of()
+        );
+
+        VenueDetail updated = venueService.updateInfo(
+                created.id(),
+                updateInfoRequestWithBookingUrl(
+                        created,
+                        "  http://example.test/updated-booking  "
+                )
+        );
+
+        assertThat(updated.bookingUrl()).isEqualTo("http://example.test/updated-booking");
+        assertThat(venueService.get(created.id()).bookingUrl())
+                .isEqualTo("http://example.test/updated-booking");
+    }
+
+    @Test
+    void venueUpdateRejectsUnsafeBookingUrlThroughApiAndKeepsPersistedValue()
+            throws Exception {
+        VenueDetail created = createVenueWithElements(
+                "更新危险链接场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of()
+        );
+
+        mockMvc.perform(post("/venues/{id}/info/update", created.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(
+                                updateInfoRequestWithBookingUrl(created, "javascript:alert(1)")
+                        )))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.msg")
+                        .value("预定链接必须是绝对 http/https URL"));
+
+        assertThat(venueService.get(created.id()).bookingUrl())
+                .isEqualTo("https://example.test/booking");
+    }
+
+    @Test
+    void venueCreateNormalizesOptionalTextsBeforePersistence() {
+        CreateVenueRequest source = createVenueRequest(
+                "创建文本规范化场馆-" + UUID.randomUUID(),
+                "  北区  ",
+                List.of()
+        );
+        CreateVenueRequest request = new CreateVenueRequest(
+                source.location(),
+                source.campus(),
+                "  3840×2160  ",
+                "   ",
+                source.manualCapacity(),
+                "  张三  ",
+                "  https://example.test/normalized  ",
+                "\t",
+                "  会务支持  ",
+                " ",
+                "  靠近东门  ",
+                source.gridRows(),
+                source.gridColumns(),
+                source.elements()
+        );
+
+        VenueDetail persisted = venueService.get(venueService.create(request).id());
+
+        assertThat(persisted.campus()).isEqualTo("北区");
+        assertThat(persisted.mainScreenResolution()).isEqualTo("3840×2160");
+        assertThat(persisted.stageDimensions()).isNull();
+        assertThat(persisted.contactInfo()).isEqualTo("张三");
+        assertThat(persisted.bookingUrl()).isEqualTo("https://example.test/normalized");
+        assertThat(persisted.meetingRoomFunctions()).isNull();
+        assertThat(persisted.servicesProvided()).isEqualTo("会务支持");
+        assertThat(persisted.description()).isNull();
+        assertThat(persisted.remarks()).isEqualTo("靠近东门");
+    }
+
+    @Test
+    void venueUpdateNormalizesOptionalTextsBeforePersistence() {
+        VenueDetail created = createVenueWithElements(
+                "更新文本规范化场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of()
+        );
+        UpdateVenueInfoRequest request = new UpdateVenueInfoRequest(
+                created.location(),
+                "   ",
+                "  1920×1080  ",
+                "\t",
+                created.manualCapacity(),
+                "  李四  ",
+                " ",
+                "  视频会议  ",
+                "\n",
+                "  更新说明  ",
+                "   ",
+                created.rowVersion()
+        );
+
+        venueService.updateInfo(created.id(), request);
+        VenueDetail persisted = venueService.get(created.id());
+
+        assertThat(persisted.campus()).isNull();
+        assertThat(persisted.mainScreenResolution()).isEqualTo("1920×1080");
+        assertThat(persisted.stageDimensions()).isNull();
+        assertThat(persisted.contactInfo()).isEqualTo("李四");
+        assertThat(persisted.bookingUrl()).isNull();
+        assertThat(persisted.meetingRoomFunctions()).isEqualTo("视频会议");
+        assertThat(persisted.servicesProvided()).isNull();
+        assertThat(persisted.description()).isEqualTo("更新说明");
+        assertThat(persisted.remarks()).isNull();
+    }
+
+    @Test
     void venueListRejectsPageNumberBelowOne() throws Exception {
         mockMvc.perform(get("/venues")
                         .param("pageNum", "0")
@@ -1812,6 +1970,26 @@ class MeetingHelperIntegrationTests {
                 .andExpect(jsonPath("$.data.records[0].id").value(created.id()))
                 .andExpect(jsonPath("$.data.records[0].seatCount").value(0))
                 .andExpect(jsonPath("$.data.records[0].usable").value(false));
+    }
+
+    @Test
+    void venueLocationAvailabilityIsExactAndCanExcludeCurrentTemplate() throws Exception {
+        String location = "精确判重-" + UUID.randomUUID();
+        VenueDetail created = createVenueWithElements(location, "主校区", List.of());
+
+        mockMvc.perform(get("/venues/location-availability")
+                        .param("location", "  " + location.toUpperCase(ROOT) + "  "))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.available").value(false));
+        mockMvc.perform(get("/venues/location-availability")
+                        .param("location", "  " + location.toUpperCase(ROOT) + "  ")
+                        .param("excludeId", created.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.available").value(true));
+        mockMvc.perform(get("/venues/location-availability")
+                        .param("location", location + "-其他"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.available").value(true));
     }
 
     @Test
@@ -2103,6 +2281,48 @@ class MeetingHelperIntegrationTests {
                 source.manualCapacity(),
                 source.contactInfo(),
                 source.bookingUrl(),
+                source.meetingRoomFunctions(),
+                source.servicesProvided(),
+                source.description(),
+                source.remarks(),
+                source.rowVersion()
+        );
+    }
+
+    private CreateVenueRequest createVenueRequestWithBookingUrl(
+            CreateVenueRequest source,
+            String bookingUrl
+    ) {
+        return new CreateVenueRequest(
+                source.location(),
+                source.campus(),
+                source.mainScreenResolution(),
+                source.stageDimensions(),
+                source.manualCapacity(),
+                source.contactInfo(),
+                bookingUrl,
+                source.meetingRoomFunctions(),
+                source.servicesProvided(),
+                source.description(),
+                source.remarks(),
+                source.gridRows(),
+                source.gridColumns(),
+                source.elements()
+        );
+    }
+
+    private UpdateVenueInfoRequest updateInfoRequestWithBookingUrl(
+            VenueDetail source,
+            String bookingUrl
+    ) {
+        return new UpdateVenueInfoRequest(
+                source.location(),
+                source.campus(),
+                source.mainScreenResolution(),
+                source.stageDimensions(),
+                source.manualCapacity(),
+                source.contactInfo(),
+                bookingUrl,
                 source.meetingRoomFunctions(),
                 source.servicesProvided(),
                 source.description(),

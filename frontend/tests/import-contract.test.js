@@ -29,6 +29,7 @@ test('场馆请求层作为独立模块暴露完整场馆操作', () => {
     'detail',
     'layout',
     'list',
+    'locationAvailability',
     'remove',
     'updateInfo',
     'updateLayout',

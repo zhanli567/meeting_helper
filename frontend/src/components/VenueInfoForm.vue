@@ -1,5 +1,6 @@
 <script setup>
 import { reactive, ref, watch } from 'vue'
+import { venueApi } from '@/api/venue'
 import { emptyVenueInfo, normalizeVenueInfo } from '@/utils/venueModel'
 
 const props = defineProps({
@@ -11,16 +12,36 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  excludeVenueId: {
+    type: String,
+    default: '',
+  },
 })
 
 const emit = defineEmits(['update:modelValue'])
 
 const formRef = ref()
 const form = reactive(emptyVenueInfo())
+
+async function validateLocationAvailability(_rule, value, callback) {
+  const location = String(value ?? '').trim()
+  if (!location || location.length > 200) {
+    callback()
+    return
+  }
+  try {
+    const result = await venueApi.locationAvailability(location, props.excludeVenueId || undefined)
+    callback(result.available ? undefined : new Error('该地点已存在场馆模板'))
+  } catch {
+    callback(new Error('地点可用性校验失败，请稍后重试'))
+  }
+}
+
 const rules = {
   location: [
     { required: true, message: '请输入地点', trigger: ['blur', 'change'] },
     { max: 200, message: '地点不能超过 200 个字符', trigger: 'blur' },
+    { validator: validateLocationAvailability, trigger: 'blur' },
   ],
   campus: [{ max: 120, message: '园区不能超过 120 个字符', trigger: 'blur' }],
   mainScreenResolution: [

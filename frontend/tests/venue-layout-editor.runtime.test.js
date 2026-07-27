@@ -22,7 +22,7 @@ async function loadEditor(t) {
   const server = await createServer({
     root: frontendRoot,
     appType: 'custom',
-    server: { middlewareMode: true },
+    server: { middlewareMode: true, hmr: false },
   })
   t.after(() => server.close())
   const componentPaths = [
@@ -260,11 +260,13 @@ async function settle() {
   await nextTick()
 }
 
-async function mountEditor(t, Editor) {
+async function mountEditor(t, Editor, propOverrides = {}) {
   const previousWindow = globalThis.window
   const previousElement = globalThis.Element
+  const previousDocument = globalThis.document
   const listeners = new Map()
   globalThis.Element = HostElement
+  globalThis.document = { body: {} }
   globalThis.window = {
     addEventListener(type, listener) {
       const current = listeners.get(type) || new Set()
@@ -280,6 +282,7 @@ async function mountEditor(t, Editor) {
   }
   const root = new HostElement('root')
   const updates = []
+  const saves = []
   const renderer = createHostRenderer()
   const app = renderer.createApp(Editor, {
     modelValue: reactive({
@@ -312,6 +315,8 @@ async function mountEditor(t, Editor) {
     }),
     showBack: false,
     'onUpdate:modelValue': (layout) => updates.push(layout),
+    onSave: () => saves.push(true),
+    ...propOverrides,
   })
   app.config.warnHandler = () => {}
   app.provide(Vue.ssrContextKey, { modules: new Set() })
@@ -334,9 +339,10 @@ async function mountEditor(t, Editor) {
     app.unmount()
     globalThis.window = previousWindow
     globalThis.Element = previousElement
+    globalThis.document = previousDocument
   })
   await settle()
-  return { root, updates, window: globalThis.window }
+  return { root, updates, saves, window: globalThis.window }
 }
 
 function selectedNameInput(root) {
@@ -403,6 +409,54 @@ test('挂载已有响应式布局不会因克隆 Proxy 崩溃', async (t) => {
   app.config.warnHandler = () => {}
 
   await assert.doesNotReject(() => renderToString(app))
+})
+
+test('编辑器实时显示座位与人工容量差异且警告不阻止保存', async (t) => {
+  const VenueLayoutEditor = await loadEditor(t)
+  const mounted = await mountEditor(t, VenueLayoutEditor, { manualCapacity: 1 })
+
+  assert.match(nodeText(mounted.root), /布局座位数\s*1/)
+  assert.match(nodeText(mounted.root), /人工容纳人数\s*1/)
+  assert.equal(byClass(mounted.root, 'capacity-warning').length, 0)
+
+  byClass(mounted.root, 'layout-element')[0].props.onDblclick({ stopPropagation() {} })
+  await settle()
+
+  assert.match(nodeText(mounted.root), /布局座位数\s*0/)
+  assert.equal(byClass(mounted.root, 'capacity-warning').length, 1)
+  assert.match(nodeText(byClass(mounted.root, 'capacity-warning')[0]), /不一致/)
+
+  byText(mounted.root, '保存布局').props.onClick()
+  assert.equal(mounted.saves.length, 1)
+})
+
+test('取消重叠元素选择后清除该选择器来源的红显和错误缩小提示', async (t) => {
+  const VenueLayoutEditor = await loadEditor(t)
+  const mounted = await mountEditor(t, VenueLayoutEditor)
+  const canvas = byClass(mounted.root, 'designer-canvas')[0]
+  const overlapPoint = pointerEvent(canvas, {
+    clientX: 158,
+    clientY: 102,
+    currentTarget: canvas,
+    target: canvas,
+  })
+
+  canvas.props.onPointerdown(overlapPoint)
+  mounted.window.dispatch('pointerup', overlapPoint)
+  await settle()
+  byText(mounted.root, '座位').props.onClick()
+  await settle()
+
+  assert.equal(byClass(mounted.root, 'layout-element')[0].props.class.includes('conflict'), true)
+  assert.equal(byClass(mounted.root, 'conflict-banner').length, 0)
+
+  allNodes(mounted.root)
+    .find((node) => node.props?.['aria-label'] === '关闭元素选择')
+    .props.onClick()
+  await settle()
+
+  assert.equal(byClass(mounted.root, 'layout-element')[0].props.class.includes('conflict'), false)
+  assert.equal(byClass(mounted.root, 'conflict-banner').length, 0)
 })
 
 test('真实组件运行时保持属性预览并支持移动缩放与撤销重做', async (t) => {
