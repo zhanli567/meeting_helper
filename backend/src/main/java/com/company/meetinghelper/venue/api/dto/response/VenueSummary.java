@@ -1,13 +1,16 @@
 package com.company.meetinghelper.venue.api.dto.response;
 
+import java.time.OffsetDateTime;
+
 public record VenueSummary(
         String id,
-        String name,
-        String description,
-        int gridRows,
-        int gridColumns,
-        int versionNo,
-        boolean preset,
-        long seatCount
+        String location,
+        String campus,
+        Integer manualCapacity,
+        int seatCount,
+        boolean usable,
+        String updatedByName,
+        OffsetDateTime updatedAt,
+        long rowVersion
 ) {
 }

@@ -48,8 +48,8 @@ public class MeetingController {
      * @param request 会议创建请求
      * @return 新建会议信息
      */
-    @PostMapping
-    public MeetingSummary create(@Valid @RequestBody CreateMeetingRequest request) {
+    @PostMapping("/create-from-venue")
+    public MeetingSummary createFromVenue(@Valid @RequestBody CreateMeetingRequest request) {
         return meetingService.create(request);
     }
 

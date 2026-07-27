@@ -28,26 +28,18 @@ public record WorkspaceResponse(
     public record PlanView(String id, String name, String status, int currentVersionNo) {
     }
 
-    public record LayoutView(int gridRows, int gridColumns, int cellSize, List<ElementView> elements) {
+    public record LayoutView(int gridRows, int gridColumns, List<ElementView> elements) {
     }
 
     public record ElementView(
             String id,
-            String type,
-            String code,
-            String label,
+            String kind,
+            String name,
             int row,
             int column,
             int rowSpan,
             int columnSpan,
-            int rotation,
-            int capacity,
-            boolean assignable,
-            boolean walkable,
-            String groupCode,
-            String groupLabel,
-            Integer sequenceNo,
-            String backgroundColor,
+            String fillColor,
             String borderColor
     ) {
     }

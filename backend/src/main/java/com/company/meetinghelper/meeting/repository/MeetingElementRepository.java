@@ -23,13 +23,13 @@ public class MeetingElementRepository extends AbstractMyBatisRepository<MeetingE
      * @param meetingId 会议ID
      * @return 按网格位置排列的会议元素
      */
-    public List<MeetingElementEntity> findAllByMeetingIdOrderByGridRowAscGridColumnAsc(
+    public List<MeetingElementEntity> findAllByMeetingIdOrderByStartRowAscStartColumnAsc(
             String meetingId
     ) {
         return elementMapper.selectList(new LambdaQueryWrapper<MeetingElementEntity>()
                 .eq(MeetingElementEntity::getMeetingId, meetingId)
-                .orderByAsc(MeetingElementEntity::getGridRow)
-                .orderByAsc(MeetingElementEntity::getGridColumn));
+                .orderByAsc(MeetingElementEntity::getStartRow)
+                .orderByAsc(MeetingElementEntity::getStartColumn));
     }
 
     /**

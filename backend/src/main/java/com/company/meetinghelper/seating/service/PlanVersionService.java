@@ -185,7 +185,7 @@ public class PlanVersionService {
         List<ParticipantEntity> currentParticipants = participantRepository
                 .findAllByMeetingIdOrderByNameAsc(plan.getMeetingId());
         Set<String> elementIds = elementRepository
-                .findAllByMeetingIdOrderByGridRowAscGridColumnAsc(plan.getMeetingId())
+                .findAllByMeetingIdOrderByStartRowAscStartColumnAsc(plan.getMeetingId())
                 .stream()
                 .map(value -> value.getId())
                 .collect(Collectors.toSet());

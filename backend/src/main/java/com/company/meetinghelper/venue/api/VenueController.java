@@ -1,48 +1,62 @@
 package com.company.meetinghelper.venue.api;
 
 import com.company.meetinghelper.venue.api.dto.request.CreateVenueRequest;
+import com.company.meetinghelper.venue.api.dto.request.UpdateVenueInfoRequest;
+import com.company.meetinghelper.venue.api.dto.request.UpdateVenueLayoutRequest;
 import com.company.meetinghelper.venue.api.dto.response.VenueDetail;
-import com.company.meetinghelper.venue.api.dto.response.VenueSummary;
+import com.company.meetinghelper.venue.api.dto.response.VenueLayout;
+import com.company.meetinghelper.venue.api.dto.response.VenuePage;
 import com.company.meetinghelper.venue.service.VenueService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
+@Validated
 @RestController
 @RequestMapping("/venues")
 public class VenueController {
     private final VenueService venueService;
 
     /**
-     * 创建场馆模板接口控制器。
+     * 创建公共场馆接口控制器。
      *
-     * @param venueService 场馆模板服务
+     * @param venueService 公共场馆服务
      */
     public VenueController(VenueService venueService) {
         this.venueService = venueService;
     }
 
     /**
-     * 查询全部可用场馆模板。
+     * 分页查询公共场馆模板。
      *
-     * @return 场馆模板列表
+     * @param keyword 全字段搜索关键字
+     * @param campus 校区筛选值
+     * @param pageNum 页码
+     * @param pageSize 每页数量
+     * @return 场馆模板分页
      */
     @GetMapping
-    public List<VenueSummary> list() {
-        return venueService.list();
+    public VenuePage list(
+            @RequestParam(defaultValue = "") String keyword,
+            @RequestParam(defaultValue = "") String campus,
+            @RequestParam(defaultValue = "1") @Min(1) int pageNum,
+            @RequestParam(defaultValue = "10") @Min(1) int pageSize
+    ) {
+        return venueService.list(keyword, campus, pageNum, pageSize);
     }
 
     /**
-     * 查询场馆模板详情。
+     * 查询场馆固定信息。
      *
      * @param id 场馆模板ID
-     * @return 场馆模板详情
+     * @return 场馆详情
      */
     @GetMapping("/{id}")
     public VenueDetail get(@PathVariable String id) {
@@ -50,33 +64,59 @@ public class VenueController {
     }
 
     /**
-     * 创建自定义场馆模板。
+     * 查询场馆布局。
      *
-     * @param request 场馆模板请求
-     * @return 新建场馆模板详情
+     * @param id 场馆模板ID
+     * @return 场馆布局
      */
-    @PostMapping
+    @GetMapping("/{id}/layout")
+    public VenueLayout getLayout(@PathVariable String id) {
+        return venueService.getLayout(id);
+    }
+
+    /**
+     * 创建公共场馆模板。
+     *
+     * @param request 场馆创建请求
+     * @return 新建场馆详情
+     */
+    @PostMapping("/create")
     public VenueDetail create(@Valid @RequestBody CreateVenueRequest request) {
         return venueService.create(request);
     }
 
     /**
-     * 更新自定义场馆模板。
+     * 更新场馆固定信息。
      *
      * @param id 场馆模板ID
-     * @param request 场馆模板请求
-     * @return 更新后的场馆模板详情
+     * @param request 固定信息更新请求
+     * @return 更新后的场馆详情
      */
-    @PostMapping("/{id}/update")
-    public VenueDetail update(
+    @PostMapping("/{id}/info/update")
+    public VenueDetail updateInfo(
             @PathVariable String id,
-            @Valid @RequestBody CreateVenueRequest request
+            @Valid @RequestBody UpdateVenueInfoRequest request
     ) {
-        return venueService.update(id, request);
+        return venueService.updateInfo(id, request);
     }
 
     /**
-     * 删除自定义场馆模板。
+     * 更新场馆布局。
+     *
+     * @param id 场馆模板ID
+     * @param request 布局更新请求
+     * @return 更新后的场馆布局
+     */
+    @PostMapping("/{id}/layout/update")
+    public VenueLayout updateLayout(
+            @PathVariable String id,
+            @Valid @RequestBody UpdateVenueLayoutRequest request
+    ) {
+        return venueService.updateLayout(id, request);
+    }
+
+    /**
+     * 物理删除公共场馆模板。
      *
      * @param id 场馆模板ID
      */

@@ -65,4 +65,13 @@ public class MeetingRepository extends AbstractMyBatisRepository<MeetingEntity> 
                 .eq(MeetingEntity::getCreatedById, createdById)
                 .apply("lower(name) = lower({0})", name)) > 0;
     }
+
+    /**
+     * 清除引用指定场馆模板的会议逻辑关联。
+     *
+     * @param venueTemplateId 场馆模板ID
+     */
+    public void clearVenueTemplateId(String venueTemplateId) {
+        meetingMapper.clearVenueTemplateId(venueTemplateId);
+    }
 }

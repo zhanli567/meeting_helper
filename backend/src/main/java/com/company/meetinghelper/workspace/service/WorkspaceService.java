@@ -99,7 +99,8 @@ public class WorkspaceService {
         MeetingEntity meeting = meetingAccessService.requireOwnedMeeting(meetingId);
         SeatingPlanEntity plan = planRepository.findFirstByMeetingIdOrderByCreatedAtAsc(meetingId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议尚未建立排座方案"));
-        List<MeetingElementEntity> elements = elementRepository.findAllByMeetingIdOrderByGridRowAscGridColumnAsc(meetingId);
+        List<MeetingElementEntity> elements =
+                elementRepository.findAllByMeetingIdOrderByStartRowAscStartColumnAsc(meetingId);
         List<ParticipantEntity> participants = participantRepository.findAllByMeetingIdOrderByNameAsc(meetingId);
         List<String> participantIds = participants.stream().map(ParticipantEntity::getId).toList();
         List<MeetingParticipantFieldEntity> participantFields = fieldRepository
@@ -168,7 +169,7 @@ public class WorkspaceService {
                         meeting.getLayoutVersion(), meeting.getUpdatedAt(), meeting.getUpdatedByName()),
                 new WorkspaceResponse.PlanView(plan.getId(), plan.getName(), plan.getStatus(), plan.getCurrentVersionNo()),
                 new WorkspaceResponse.LayoutView(
-                        meeting.getGridRows(), meeting.getGridColumns(), meeting.getCellSize(),
+                        meeting.getGridRows(), meeting.getGridColumns(),
                         elements.stream().map(this::toElementView).toList()),
                 participantViews,
                 itemViews,
@@ -185,11 +186,9 @@ public class WorkspaceService {
 
     private WorkspaceResponse.ElementView toElementView(MeetingElementEntity element) {
         return new WorkspaceResponse.ElementView(
-                element.getId(), element.getElementType().name(), element.getCode(), element.getLabel(),
-                element.getGridRow(), element.getGridColumn(), element.getRowSpan(), element.getColumnSpan(),
-                element.getRotation(), element.getCapacity(), element.isAssignable(), element.isWalkable(),
-                element.getGroupCode(), element.getGroupLabel(), element.getSequenceNo(),
-                element.getBackgroundColor(), element.getBorderColor()
+                element.getId(), element.getElementKind().name(), element.getElementName(),
+                element.getStartRow(), element.getStartColumn(), element.getRowSpan(),
+                element.getColumnSpan(), element.getFillColor(), element.getBorderColor()
         );
     }
 

@@ -1,19 +1,27 @@
 package com.company.meetinghelper.venue.api.dto.response;
 
-import com.company.meetinghelper.venue.api.dto.ElementInput;
-
-import java.util.List;
+import java.time.OffsetDateTime;
 
 public record VenueDetail(
         String id,
-        String name,
+        String location,
+        String campus,
+        String mainScreenResolution,
+        String stageDimensions,
+        Integer manualCapacity,
+        int seatCount,
+        String contactInfo,
+        String bookingUrl,
+        String meetingRoomFunctions,
+        String servicesProvided,
         String description,
+        String remarks,
         int gridRows,
         int gridColumns,
-        int cellSize,
-        int versionNo,
-        boolean preset,
-        String frontDirection,
-        List<ElementInput> elements
+        String createdByName,
+        OffsetDateTime createdAt,
+        String updatedByName,
+        OffsetDateTime updatedAt,
+        long rowVersion
 ) {
 }

@@ -17,6 +17,7 @@ import com.company.meetinghelper.seating.entity.SeatingPlanEntity;
 import com.company.meetinghelper.seating.repository.PlanItemRepository;
 import com.company.meetinghelper.seating.repository.PlanItemTargetRepository;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
+import com.company.meetinghelper.venue.entity.ElementKind;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -85,9 +86,8 @@ public class SeatingService {
                         plan.getMeetingId()
                 )
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "目标座位不存在"));
-        if (!targetElement.isAssignable()
-                || targetElement.getCapacity() != 1) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "目标位置不是可用的单人座席");
+        if (targetElement.getElementKind() != ElementKind.SEAT) {
+            throw new ApiException(HttpStatus.CONFLICT, "目标元素不是可排座座位");
         }
 
         PlanItemEntity currentItem = itemRepository.findByPlanIdAndParticipantIdAndItemType(
@@ -158,7 +158,7 @@ public class SeatingService {
                 .stream()
                 .collect(Collectors.toMap(value -> value.getId(), Function.identity()));
         Map<String,MeetingElementEntity> elements = elementRepository
-                .findAllByMeetingIdOrderByGridRowAscGridColumnAsc(plan.getMeetingId())
+                .findAllByMeetingIdOrderByStartRowAscStartColumnAsc(plan.getMeetingId())
                 .stream()
                 .collect(Collectors.toMap(value -> value.getId(), Function.identity()));
 
@@ -182,8 +182,8 @@ public class SeatingService {
             if (element == null) {
                 throw new ApiException(HttpStatus.NOT_FOUND, "目标座位不存在");
             }
-            if (!element.isAssignable() || element.getCapacity() != 1) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "提交的目标位置不是可用的单人座席");
+            if (element.getElementKind() != ElementKind.SEAT) {
+                throw new ApiException(HttpStatus.CONFLICT, "目标元素不是可排座座位");
             }
         }
 
