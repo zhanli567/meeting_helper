@@ -1,90 +1,84 @@
 create table if not exists t_venue_templates (
     id varchar(36) primary key,
-    name varchar(120) not null,
-    description varchar(500),
-    grid_rows integer not null,
-    grid_columns integer not null,
-    cell_size integer not null,
-    version_no integer not null,
-    preset boolean not null,
-    front_direction varchar(20) not null,
+    location varchar(200) not null,
+    location_key varchar(200) not null unique,
+    campus varchar(120),
+    main_screen_resolution varchar(80),
+    stage_dimensions varchar(80),
+    manual_capacity integer,
+    contact_info varchar(500),
+    booking_url varchar(1000),
+    meeting_room_functions varchar(2000),
+    services_provided varchar(2000),
+    description varchar(2000),
+    remarks varchar(2000),
+    seat_count integer not null default 0,
+    grid_rows integer not null default 5,
+    grid_columns integer not null default 5,
     created_by_id varchar(64) not null,
     created_by_name varchar(80) not null,
     created_at timestamp with time zone not null,
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
     row_version bigint not null
 );
 
-comment on table t_venue_templates is '场馆布局模板';
+comment on table t_venue_templates is '公共场馆模板';
 comment on column t_venue_templates.id is '场馆模板主键';
-comment on column t_venue_templates.name is '场馆模板名称';
-comment on column t_venue_templates.description is '场馆模板说明';
+comment on column t_venue_templates.location is '场馆地点显示值';
+comment on column t_venue_templates.location_key is '场馆地点去空格小写唯一键';
+comment on column t_venue_templates.campus is '所属校区';
+comment on column t_venue_templates.main_screen_resolution is '主屏幕分辨率';
+comment on column t_venue_templates.stage_dimensions is '舞台尺寸';
+comment on column t_venue_templates.manual_capacity is '人工填写的场馆容量';
+comment on column t_venue_templates.contact_info is '场馆联系方式';
+comment on column t_venue_templates.booking_url is '场馆预订链接';
+comment on column t_venue_templates.meeting_room_functions is '会议室功能';
+comment on column t_venue_templates.services_provided is '可提供服务';
+comment on column t_venue_templates.description is '场馆说明';
+comment on column t_venue_templates.remarks is '场馆备注';
+comment on column t_venue_templates.seat_count is '布局中的座位元素数量';
 comment on column t_venue_templates.grid_rows is '布局网格总行数';
 comment on column t_venue_templates.grid_columns is '布局网格总列数';
-comment on column t_venue_templates.cell_size is '单个网格的基准像素尺寸';
-comment on column t_venue_templates.version_no is '场馆模板版本号';
-comment on column t_venue_templates.preset is '是否为系统预置模板';
-comment on column t_venue_templates.front_direction is '参会人员面向舞台的方向';
 comment on column t_venue_templates.created_by_id is '创建人标识';
 comment on column t_venue_templates.created_by_name is '创建人姓名';
 comment on column t_venue_templates.created_at is '创建时间';
 comment on column t_venue_templates.updated_by_id is '最后更新人标识';
 comment on column t_venue_templates.updated_by_name is '最后更新人姓名';
 comment on column t_venue_templates.updated_at is '最后更新时间';
-comment on column t_venue_templates.deleted is '逻辑删除标记';
 comment on column t_venue_templates.row_version is '乐观锁版本号';
 
 create table if not exists t_venue_elements (
     id varchar(36) primary key,
     venue_template_id varchar(36) not null,
-    element_type varchar(30) not null,
-    code varchar(80),
-    label varchar(120),
-    grid_row integer not null,
-    grid_column integer not null,
+    element_kind varchar(20) not null,
+    element_name varchar(80) not null,
+    start_row integer not null,
+    start_column integer not null,
     row_span integer not null,
     column_span integer not null,
-    rotation integer not null,
-    capacity integer not null,
-    assignable boolean not null,
-    walkable boolean not null,
-    group_code varchar(80),
-    group_label varchar(80),
-    sequence_no integer,
-    background_color varchar(20),
-    border_color varchar(20),
+    fill_color varchar(20) not null,
+    border_color varchar(20) not null,
     created_by_id varchar(64) not null,
     created_by_name varchar(80) not null,
     created_at timestamp with time zone not null,
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
-    row_version bigint not null,
-    constraint fk_t_venue_element_template foreign key (venue_template_id) references t_venue_templates(id)
+    row_version bigint not null
 );
 
 comment on table t_venue_elements is '场馆模板中的布局元素';
 comment on column t_venue_elements.id is '场馆元素主键';
 comment on column t_venue_elements.venue_template_id is '所属场馆模板标识';
-comment on column t_venue_elements.element_type is '元素类型，如座位、舞台、走廊、墙、门或桌子';
-comment on column t_venue_elements.code is '元素显示编号';
-comment on column t_venue_elements.label is '元素显示名称';
-comment on column t_venue_elements.grid_row is '元素起始网格行';
-comment on column t_venue_elements.grid_column is '元素起始网格列';
+comment on column t_venue_elements.element_kind is '元素种类：SEAT座位或GENERIC通用元素';
+comment on column t_venue_elements.element_name is '元素显示名称';
+comment on column t_venue_elements.start_row is '元素起始网格行';
+comment on column t_venue_elements.start_column is '元素起始网格列';
 comment on column t_venue_elements.row_span is '元素占用的网格行数';
 comment on column t_venue_elements.column_span is '元素占用的网格列数';
-comment on column t_venue_elements.rotation is '元素顺时针旋转角度';
-comment on column t_venue_elements.capacity is '元素可容纳人数';
-comment on column t_venue_elements.assignable is '是否允许安排参会人员';
-comment on column t_venue_elements.walkable is '是否可作为通行路径';
-comment on column t_venue_elements.group_code is '元素所属区域编码';
-comment on column t_venue_elements.group_label is '元素所属区域名称';
-comment on column t_venue_elements.sequence_no is '元素在区域内的排序号';
-comment on column t_venue_elements.background_color is '元素背景颜色';
+comment on column t_venue_elements.fill_color is '元素填充颜色';
 comment on column t_venue_elements.border_color is '元素边框颜色';
 comment on column t_venue_elements.created_by_id is '创建人标识';
 comment on column t_venue_elements.created_by_name is '创建人姓名';
@@ -92,7 +86,6 @@ comment on column t_venue_elements.created_at is '创建时间';
 comment on column t_venue_elements.updated_by_id is '最后更新人标识';
 comment on column t_venue_elements.updated_by_name is '最后更新人姓名';
 comment on column t_venue_elements.updated_at is '最后更新时间';
-comment on column t_venue_elements.deleted is '逻辑删除标记';
 comment on column t_venue_elements.row_version is '乐观锁版本号';
 
 create table if not exists t_meetings (
@@ -100,10 +93,9 @@ create table if not exists t_meetings (
     name varchar(160) not null,
     status varchar(30) not null,
     venue_template_id varchar(36),
-    layout_name varchar(120) not null,
+    layout_name varchar(200) not null,
     grid_rows integer not null,
     grid_columns integer not null,
-    cell_size integer not null,
     layout_version integer not null,
     created_by_id varchar(64) not null,
     created_by_name varchar(80) not null,
@@ -111,9 +103,7 @@ create table if not exists t_meetings (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
-    row_version bigint not null,
-    constraint fk_t_meeting_template foreign key (venue_template_id) references t_venue_templates(id)
+    row_version bigint not null
 );
 
 comment on table t_meetings is '会议及其场馆布局快照';
@@ -124,7 +114,6 @@ comment on column t_meetings.venue_template_id is '创建会议时使用的场�
 comment on column t_meetings.layout_name is '会议场馆快照名称';
 comment on column t_meetings.grid_rows is '会议布局网格总行数';
 comment on column t_meetings.grid_columns is '会议布局网格总列数';
-comment on column t_meetings.cell_size is '单个网格的基准像素尺寸';
 comment on column t_meetings.layout_version is '会议布局快照版本号';
 comment on column t_meetings.created_by_id is '创建人标识';
 comment on column t_meetings.created_by_name is '创建人姓名';
@@ -132,59 +121,40 @@ comment on column t_meetings.created_at is '创建时间';
 comment on column t_meetings.updated_by_id is '最后更新人标识';
 comment on column t_meetings.updated_by_name is '最后更新人姓名';
 comment on column t_meetings.updated_at is '最后更新时间';
-comment on column t_meetings.deleted is '逻辑删除标记';
 comment on column t_meetings.row_version is '乐观锁版本号';
 
 create table if not exists t_meeting_elements (
     id varchar(36) primary key,
     meeting_id varchar(36) not null,
     source_element_id varchar(36),
-    element_type varchar(30) not null,
-    code varchar(80),
-    label varchar(120),
-    grid_row integer not null,
-    grid_column integer not null,
+    element_kind varchar(20) not null,
+    element_name varchar(80) not null,
+    start_row integer not null,
+    start_column integer not null,
     row_span integer not null,
     column_span integer not null,
-    rotation integer not null,
-    capacity integer not null,
-    assignable boolean not null,
-    walkable boolean not null,
-    group_code varchar(80),
-    group_label varchar(80),
-    sequence_no integer,
-    background_color varchar(20),
-    border_color varchar(20),
+    fill_color varchar(20) not null,
+    border_color varchar(20) not null,
     created_by_id varchar(64) not null,
     created_by_name varchar(80) not null,
     created_at timestamp with time zone not null,
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
-    row_version bigint not null,
-    constraint fk_t_meeting_element_meeting foreign key (meeting_id) references t_meetings(id)
+    row_version bigint not null
 );
 
 comment on table t_meeting_elements is '会议创建时复制的布局元素快照';
 comment on column t_meeting_elements.id is '会议布局元素主键';
 comment on column t_meeting_elements.meeting_id is '所属会议标识';
 comment on column t_meeting_elements.source_element_id is '来源场馆模板元素标识';
-comment on column t_meeting_elements.element_type is '元素类型，如座位、舞台、走廊、墙、门或桌子';
-comment on column t_meeting_elements.code is '元素显示编号';
-comment on column t_meeting_elements.label is '元素显示名称';
-comment on column t_meeting_elements.grid_row is '元素起始网格行';
-comment on column t_meeting_elements.grid_column is '元素起始网格列';
+comment on column t_meeting_elements.element_kind is '快照元素种类：SEAT座位或GENERIC通用元素';
+comment on column t_meeting_elements.element_name is '快照元素显示名称';
+comment on column t_meeting_elements.start_row is '元素起始网格行';
+comment on column t_meeting_elements.start_column is '元素起始网格列';
 comment on column t_meeting_elements.row_span is '元素占用的网格行数';
 comment on column t_meeting_elements.column_span is '元素占用的网格列数';
-comment on column t_meeting_elements.rotation is '元素顺时针旋转角度';
-comment on column t_meeting_elements.capacity is '元素可容纳人数';
-comment on column t_meeting_elements.assignable is '是否允许安排参会人员';
-comment on column t_meeting_elements.walkable is '是否可作为通行路径';
-comment on column t_meeting_elements.group_code is '元素所属区域编码';
-comment on column t_meeting_elements.group_label is '元素所属区域名称';
-comment on column t_meeting_elements.sequence_no is '元素在区域内的排序号';
-comment on column t_meeting_elements.background_color is '元素背景颜色';
+comment on column t_meeting_elements.fill_color is '元素填充颜色';
 comment on column t_meeting_elements.border_color is '元素边框颜色';
 comment on column t_meeting_elements.created_by_id is '创建人标识';
 comment on column t_meeting_elements.created_by_name is '创建人姓名';
@@ -192,7 +162,6 @@ comment on column t_meeting_elements.created_at is '创建时间';
 comment on column t_meeting_elements.updated_by_id is '最后更新人标识';
 comment on column t_meeting_elements.updated_by_name is '最后更新人姓名';
 comment on column t_meeting_elements.updated_at is '最后更新时间';
-comment on column t_meeting_elements.deleted is '逻辑删除标记';
 comment on column t_meeting_elements.row_version is '乐观锁版本号';
 
 create table if not exists t_participants (
@@ -208,9 +177,7 @@ create table if not exists t_participants (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
     row_version bigint not null,
-    constraint fk_t_participant_meeting foreign key (meeting_id) references t_meetings(id),
     constraint uk_t_participant_employee unique (meeting_id, employee_no)
 );
 
@@ -227,7 +194,6 @@ comment on column t_participants.created_at is '创建时间';
 comment on column t_participants.updated_by_id is '最后更新人标识';
 comment on column t_participants.updated_by_name is '最后更新人姓名';
 comment on column t_participants.updated_at is '最后更新时间';
-comment on column t_participants.deleted is '逻辑删除标记';
 comment on column t_participants.row_version is '乐观锁版本号';
 
 create table if not exists t_meeting_participant_fields (
@@ -241,9 +207,7 @@ create table if not exists t_meeting_participant_fields (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
     row_version bigint not null,
-    constraint fk_t_participant_field_meeting foreign key (meeting_id) references t_meetings(id),
     constraint uk_t_participant_field_name unique (meeting_id, field_name)
 );
 
@@ -258,7 +222,6 @@ comment on column t_meeting_participant_fields.created_at is '创建时间';
 comment on column t_meeting_participant_fields.updated_by_id is '最后更新人标识';
 comment on column t_meeting_participant_fields.updated_by_name is '最后更新人姓名';
 comment on column t_meeting_participant_fields.updated_at is '最后更新时间';
-comment on column t_meeting_participant_fields.deleted is '逻辑删除标记';
 comment on column t_meeting_participant_fields.row_version is '乐观锁版本号';
 
 create table if not exists t_participant_records (
@@ -272,9 +235,7 @@ create table if not exists t_participant_records (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
     row_version bigint not null,
-    constraint fk_t_participant_record_person foreign key (participant_id) references t_participants(id),
     constraint uk_t_participant_record_order unique (participant_id, record_order)
 );
 
@@ -289,7 +250,6 @@ comment on column t_participant_records.created_at is '创建时间';
 comment on column t_participant_records.updated_by_id is '最后更新人标识';
 comment on column t_participant_records.updated_by_name is '最后更新人姓名';
 comment on column t_participant_records.updated_at is '最后更新时间';
-comment on column t_participant_records.deleted is '逻辑删除标记';
 comment on column t_participant_records.row_version is '乐观锁版本号';
 
 create table if not exists t_seating_plans (
@@ -304,9 +264,7 @@ create table if not exists t_seating_plans (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
-    row_version bigint not null,
-    constraint fk_t_plan_meeting foreign key (meeting_id) references t_meetings(id)
+    row_version bigint not null
 );
 
 comment on table t_seating_plans is '会议当前可编辑的排座方案';
@@ -321,7 +279,6 @@ comment on column t_seating_plans.created_at is '创建时间';
 comment on column t_seating_plans.updated_by_id is '最后更新人标识';
 comment on column t_seating_plans.updated_by_name is '最后更新人姓名';
 comment on column t_seating_plans.updated_at is '最后更新时间';
-comment on column t_seating_plans.deleted is '逻辑删除标记';
 comment on column t_seating_plans.row_version is '乐观锁版本号';
 
 create table if not exists t_plan_items (
@@ -340,10 +297,7 @@ create table if not exists t_plan_items (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
-    row_version bigint not null,
-    constraint fk_t_item_plan foreign key (plan_id) references t_seating_plans(id),
-    constraint fk_t_item_participant foreign key (participant_id) references t_participants(id)
+    row_version bigint not null
 );
 
 comment on table t_plan_items is '排座方案中的人员、设备、预留或禁用占用项';
@@ -362,7 +316,6 @@ comment on column t_plan_items.created_at is '创建时间';
 comment on column t_plan_items.updated_by_id is '最后更新人标识';
 comment on column t_plan_items.updated_by_name is '最后更新人姓名';
 comment on column t_plan_items.updated_at is '最后更新时间';
-comment on column t_plan_items.deleted is '逻辑删除标记';
 comment on column t_plan_items.row_version is '乐观锁版本号';
 
 create table if not exists t_plan_item_targets (
@@ -375,10 +328,7 @@ create table if not exists t_plan_item_targets (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
     row_version bigint not null,
-    constraint fk_t_target_item foreign key (plan_item_id) references t_plan_items(id),
-    constraint fk_t_target_element foreign key (meeting_element_id) references t_meeting_elements(id),
     constraint uk_t_target_element unique (meeting_element_id)
 );
 
@@ -392,7 +342,6 @@ comment on column t_plan_item_targets.created_at is '创建时间';
 comment on column t_plan_item_targets.updated_by_id is '最后更新人标识';
 comment on column t_plan_item_targets.updated_by_name is '最后更新人姓名';
 comment on column t_plan_item_targets.updated_at is '最后更新时间';
-comment on column t_plan_item_targets.deleted is '逻辑删除标记';
 comment on column t_plan_item_targets.row_version is '乐观锁版本号';
 
 create table if not exists t_plan_versions (
@@ -411,9 +360,7 @@ create table if not exists t_plan_versions (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
     row_version bigint not null,
-    constraint fk_t_version_plan foreign key (plan_id) references t_seating_plans(id),
     constraint uk_t_plan_version unique (plan_id, version_no)
 );
 
@@ -433,5 +380,4 @@ comment on column t_plan_versions.created_at is '创建时间';
 comment on column t_plan_versions.updated_by_id is '最后更新人标识';
 comment on column t_plan_versions.updated_by_name is '最后更新人姓名';
 comment on column t_plan_versions.updated_at is '最后更新时间';
-comment on column t_plan_versions.deleted is '逻辑删除标记';
 comment on column t_plan_versions.row_version is '乐观锁版本号';

@@ -111,6 +111,17 @@ class DdlConventionTests {
         }
     }
 
+    @Test
+    void ddlUsesPhysicalDeletionAndContainsNoForeignKeys() throws IOException {
+        Path repositoryRoot = findRepositoryRoot();
+        String ddl = Files.readString(repositoryRoot.resolve("DDL/meeting_helper.sql"))
+                .toLowerCase(Locale.ROOT);
+
+        assertFalse(Pattern.compile("\\bdeleted\\b").matcher(ddl).find());
+        assertFalse(Pattern.compile("\\bforeign\\s+key\\b").matcher(ddl).find());
+        assertFalse(Pattern.compile("\\breferences\\b").matcher(ddl).find());
+    }
+
     private void collectExpectedColumnComments(
             String createStatement,
             String tableName,

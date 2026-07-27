@@ -25,7 +25,7 @@ public class MeetingParticipantFieldRepository
      * @param meetingId 会议ID
      * @return 按字段排序号升序排列的字段定义
      */
-    public List<MeetingParticipantFieldEntity> findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(
+    public List<MeetingParticipantFieldEntity> findAllByMeetingIdOrderBySortOrderAsc(
             String meetingId
     ) {
         return fieldMapper.selectList(new LambdaQueryWrapper<MeetingParticipantFieldEntity>()
@@ -40,7 +40,7 @@ public class MeetingParticipantFieldRepository
      * @param fieldName 字段名称
      * @return 字段定义
      */
-    public Optional<MeetingParticipantFieldEntity> findByMeetingIdAndFieldNameIgnoreCaseAndDeletedFalse(
+    public Optional<MeetingParticipantFieldEntity> findByMeetingIdAndFieldNameIgnoreCase(
             String meetingId,
             String fieldName
     ) {

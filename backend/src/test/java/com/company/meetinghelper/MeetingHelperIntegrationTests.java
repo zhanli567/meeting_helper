@@ -2,6 +2,7 @@ package com.company.meetinghelper;
 
 import static java.util.Locale.ROOT;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hamcrest.Matchers.nullValue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -37,14 +38,20 @@ import com.company.meetinghelper.seating.api.dto.request.CreateVersionRequest;
 import com.company.meetinghelper.seating.api.dto.request.SaveAssignmentsRequest;
 import com.company.meetinghelper.seating.api.dto.response.VersionResult;
 import com.company.meetinghelper.seating.entity.PlanVersionEntity;
+import com.company.meetinghelper.seating.entity.PlanItemType;
+import com.company.meetinghelper.seating.repository.PlanItemRepository;
 import com.company.meetinghelper.seating.repository.PlanVersionRepository;
 import com.company.meetinghelper.seating.service.PlanVersionService;
 import com.company.meetinghelper.seating.service.SeatingService;
 import com.company.meetinghelper.support.PostgreSqlTestDatabaseInitializer;
 import com.company.meetinghelper.venue.api.dto.ElementInput;
 import com.company.meetinghelper.venue.api.dto.request.CreateVenueRequest;
+import com.company.meetinghelper.venue.api.dto.request.UpdateVenueInfoRequest;
+import com.company.meetinghelper.venue.api.dto.request.UpdateVenueLayoutRequest;
 import com.company.meetinghelper.venue.api.dto.response.VenueDetail;
+import com.company.meetinghelper.venue.api.dto.response.VenueLayout;
 import com.company.meetinghelper.venue.api.dto.response.VenueSummary;
+import com.company.meetinghelper.venue.repository.VenueElementRepository;
 import com.company.meetinghelper.venue.service.VenueService;
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse;
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.ElementView;
@@ -62,6 +69,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -72,6 +81,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
@@ -109,6 +119,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.filter.OncePerRequestFilter;
+import javax.sql.DataSource;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -145,6 +156,9 @@ class MeetingHelperIntegrationTests {
     private VenueService venueService;
 
     @Autowired
+    private VenueElementRepository venueElementRepository;
+
+    @Autowired
     private MeetingService meetingService;
 
     @Autowired
@@ -160,10 +174,16 @@ class MeetingHelperIntegrationTests {
     private ParticipantRecordRepository recordRepository;
 
     @Autowired
+    private PlanItemRepository itemRepository;
+
+    @Autowired
     private MeetingParticipantFieldRepository fieldRepository;
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private DataSource dataSource;
 
     @BeforeEach
     void bindDefaultUserToDirectServiceCalls() {
@@ -189,14 +209,11 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
-    void presetVenueCatalogRemainsAvailableWithoutInitializingDemoMeetings() {
-        assertThat(venueService.list().getFirst())
-                .satisfies(value -> {
-                    assertThat(value.id()).isEqualTo("preset-auditorium-hall");
-                    assertThat(value.name()).isEqualTo("多功能礼堂");
-                });
+    void venueCatalogDoesNotInitializePresetVenuesOrDemoMeetings() {
+        assertThat(venueService.list("preset-auditorium-hall", "", 1, 10).records())
+                .isEmpty();
         assertThat(meetingRepository
-                .findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(DEFAULT_USER))
+                .findAllByCreatedByIdOrderByUpdatedAtDesc(DEFAULT_USER))
                 .isEmpty();
     }
 
@@ -280,8 +297,7 @@ class MeetingHelperIntegrationTests {
                         workspace.path("layout").path("elements").spliterator(),
                         false
                 )
-                .filter(element -> element.path("assignable").asBoolean()
-                        && element.path("capacity").asInt() == 1)
+                .filter(element -> "SEAT".equals(element.path("kind").asText()))
                 .findFirst()
                 .orElseThrow()
                 .path("id")
@@ -461,7 +477,7 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void temporarilyAbsentParticipantReleasesSeatAndDoesNotBlockPublishing() {
-        VenueSummary venue = venueService.list().getFirst();
+        VenueSummary venue = defaultVenue();
         MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
                 "临时不出席测试-" + UUID.randomUUID(),
                 venue.id()
@@ -474,7 +490,7 @@ class MeetingHelperIntegrationTests {
         );
         WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
         ElementView seat = workspace.layout().elements().stream()
-                .filter(value -> value.assignable() && value.capacity() == 1)
+                .filter(value -> "SEAT".equals(value.kind()))
                 .findFirst()
                 .orElseThrow();
         seatingService.assign(
@@ -500,14 +516,14 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void creatingParticipantFromEmptySeatAssignsTheNewParticipantAtomically() throws Exception {
-        VenueSummary venue = venueService.list().getFirst();
+        VenueSummary venue = defaultVenue();
         MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
                 "空座新增人员测试-" + UUID.randomUUID(),
                 venue.id()
         ));
         WorkspaceResponse before = workspaceService.getWorkspace(meeting.id());
         ElementView seat = before.layout().elements().stream()
-                .filter(value -> value.assignable() && value.capacity() == 1)
+                .filter(value -> "SEAT".equals(value.kind()))
                 .findFirst()
                 .orElseThrow();
 
@@ -538,7 +554,7 @@ class MeetingHelperIntegrationTests {
                 .containsEntry("批次", "第一批");
         assertThat(participant.records()).hasSize(1);
         assertThat(participant.records().getFirst().recordOrder()).isEqualTo(1);
-        assertThat(fieldRepository.findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meeting.id()))
+        assertThat(fieldRepository.findAllByMeetingIdOrderBySortOrderAsc(meeting.id()))
                 .extracting(value -> value.getFieldName())
                 .containsExactly("活动角色", "批次");
         assertThat(after.items().stream()
@@ -604,7 +620,7 @@ class MeetingHelperIntegrationTests {
                 "a12345678,张三,第二批,创新奖"
         );
         ParticipantEntity participant = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         ParticipantRecordEntity blankRecord = new ParticipantRecordEntity();
         blankRecord.setParticipantId(participant.getId());
@@ -633,7 +649,7 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void legacyParticipantLockDoesNotBlockAssignmentWithoutLockedPlanItem() {
-        VenueSummary venue = venueService.list().getFirst();
+        VenueSummary venue = defaultVenue();
         MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
                 "旧人员锁兼容测试-" + UUID.randomUUID(),
                 venue.id()
@@ -649,7 +665,7 @@ class MeetingHelperIntegrationTests {
         participantRepository.saveAndFlush(entity);
         WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
         ElementView seat = workspace.layout().elements().stream()
-                .filter(value -> value.assignable() && value.capacity() == 1)
+                .filter(value -> "SEAT".equals(value.kind()))
                 .findFirst()
                 .orElseThrow();
 
@@ -666,13 +682,13 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
-    void workspaceContainsPresetLayoutAndExplicitlyCreatedParticipants() {
+    void workspaceContainsVenueSnapshotAndExplicitlyCreatedParticipants() {
         String meetingId = createSeatingScenario(4, 2);
         WorkspaceResponse workspace = workspaceService.getWorkspace(meetingId);
 
-        assertThat(workspace.layout().gridRows()).isEqualTo(18);
-        assertThat(workspace.layout().gridColumns()).isEqualTo(43);
-        assertThat(workspace.layout().elements()).hasSizeGreaterThan(290);
+        assertThat(workspace.layout().gridRows()).isEqualTo(5);
+        assertThat(workspace.layout().gridColumns()).isEqualTo(5);
+        assertThat(workspace.layout().elements()).hasSize(25);
         assertThat(workspace.participants()).hasSize(4);
         assertThat(workspace.participants().stream()
                 .filter(participant -> participant.assignedElementId() != null)
@@ -690,7 +706,7 @@ class MeetingHelperIntegrationTests {
                 .flatMap(item -> item.targetElementIds().stream())
                 .collect(Collectors.toSet());
         ElementView seat = before.layout().elements().stream()
-                .filter(value -> value.assignable() && !occupied.contains(value.id()))
+                .filter(value -> "SEAT".equals(value.kind()) && !occupied.contains(value.id()))
                 .findFirst().orElseThrow();
 
         seatingService.assign(before.plan().id(), new AssignmentRequest(participant.id(), seat.id()));
@@ -776,7 +792,7 @@ class MeetingHelperIntegrationTests {
                 .flatMap(item -> item.targetElementIds().stream())
                 .collect(Collectors.toSet());
         Iterator<ElementView> emptySeats = before.layout().elements().stream()
-                .filter(value -> value.assignable() && !occupied.contains(value.id()))
+                .filter(value -> "SEAT".equals(value.kind()) && !occupied.contains(value.id()))
                 .iterator();
         before.participants().stream()
                 .filter(value -> value.assignedElementId() == null)
@@ -826,11 +842,11 @@ class MeetingHelperIntegrationTests {
                 "a12345678,张三,第三批,创新奖"
         );
         ParticipantEntity original = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         WorkspaceResponse before = workspaceService.getWorkspace(meetingId);
         ElementView seat = before.layout().elements().stream()
-                .filter(value -> value.assignable() && value.capacity() == 1)
+                .filter(value -> "SEAT".equals(value.kind()))
                 .findFirst()
                 .orElseThrow();
         seatingService.assign(
@@ -865,7 +881,7 @@ class MeetingHelperIntegrationTests {
         saveRecord(replacement.getId(), 8, Map.of("批次", "残留批次"));
 
         List<MeetingParticipantFieldEntity> draftFields = fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId);
         draftFields.get(0).setSortOrder(20);
         draftFields.get(1).setSortOrder(10);
         fieldRepository.saveAll(draftFields);
@@ -930,7 +946,7 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
-    void publishedVersionReactivatesSoftDeletedParticipantWithOriginalIdentityRecordsAndSeat()
+    void deletingParticipantPhysicallyRemovesIdentityRecordsAndAssignment()
             throws Exception {
         String meetingId = createImportMeeting();
         previewAndCommit(
@@ -939,52 +955,62 @@ class MeetingHelperIntegrationTests {
                 "a12345678,张三,第二批,优秀项目奖"
         );
         ParticipantEntity original = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         WorkspaceResponse before = workspaceService.getWorkspace(meetingId);
         ElementView seat = before.layout().elements().stream()
-                .filter(value -> value.assignable() && value.capacity() == 1)
+                .filter(value -> "SEAT".equals(value.kind()))
                 .findFirst()
                 .orElseThrow();
         seatingService.assign(
                 before.plan().id(),
                 new AssignmentRequest(original.getId(), seat.id())
         );
-        VersionResult version = planVersionService.create(
-                before.plan().id(),
-                new CreateVersionRequest("软删除人员恢复版", "", false)
-        );
-
         participantService.delete(meetingId, original.getId());
 
-        assertThat(participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678"))
+        assertThat(participantRepository.findById(original.getId())).isEmpty();
+        assertThat(recordRepository.findAllByParticipantIdOrderByRecordOrderAsc(original.getId()))
                 .isEmpty();
-        assertThat(participantRepository.findById(original.getId()))
-                .get()
-                .extracting(ParticipantEntity::isDeleted)
-                .isEqualTo(true);
+        assertThat(itemRepository.findByPlanIdAndParticipantIdAndItemType(
+                before.plan().id(), original.getId(), PlanItemType.PERSON)).isEmpty();
+    }
+
+    @Test
+    void restoringPublishedVersionDoesNotRecreatePhysicallyDeletedParticipant()
+            throws Exception {
+        String meetingId = createImportMeeting();
+        previewAndCommit(
+                meetingId,
+                "工号,姓名,批次",
+                "a12345678,张三,第二批"
+        );
+        ParticipantEntity participant = participantRepository
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
+                .orElseThrow();
+        WorkspaceResponse before = workspaceService.getWorkspace(meetingId);
+        ElementView seat = before.layout().elements().stream()
+                .filter(value -> "SEAT".equals(value.kind()))
+                .findFirst()
+                .orElseThrow();
+        seatingService.assign(
+                before.plan().id(),
+                new AssignmentRequest(participant.getId(), seat.id())
+        );
+        VersionResult version = planVersionService.create(
+                before.plan().id(),
+                new CreateVersionRequest("已删除人员恢复保护版", "", false)
+        );
+
+        participantService.delete(meetingId, participant.getId());
 
         planVersionService.restore(before.plan().id(), version.id());
 
         WorkspaceResponse restored = workspaceService.getWorkspace(meetingId);
-        ParticipantView restoredPerson = restored.participants().stream()
-                .filter(value -> value.employeeNo().equalsIgnoreCase("a12345678"))
-                .findFirst()
-                .orElseThrow();
-        assertThat(restored.participants().stream()
-                .filter(value -> value.employeeNo().equalsIgnoreCase("a12345678")))
-                .hasSize(1);
-        assertThat(restoredPerson.id()).isEqualTo(original.getId());
-        assertThat(restoredPerson.name()).isEqualTo("张三");
-        assertThat(restoredPerson.records())
-                .extracting(value -> value.attributes().get("批次"))
-                .containsExactly("第二批");
-        assertThat(restoredPerson.assignedElementId()).isEqualTo(seat.id());
-        assertThat(restored.items().stream()
-                .filter(value -> original.getId().equals(value.participantId()))
-                .flatMap(value -> value.targetElementIds().stream()))
-                .containsExactly(seat.id());
+        assertThat(restored.participants()).isEmpty();
+        assertThat(recordRepository.findAllByParticipantIdOrderByRecordOrderAsc(participant.getId()))
+                .isEmpty();
+        assertThat(itemRepository.findByPlanIdAndParticipantIdAndItemType(
+                before.plan().id(), participant.getId(), PlanItemType.PERSON)).isEmpty();
     }
 
     @Test
@@ -1002,7 +1028,7 @@ class MeetingHelperIntegrationTests {
         );
         WorkspaceResponse before = workspaceService.getWorkspace(meetingId);
         ElementView seat = before.layout().elements().stream()
-                .filter(value -> value.assignable() && value.capacity() == 1)
+                .filter(value -> "SEAT".equals(value.kind()))
                 .findFirst()
                 .orElseThrow();
         seatingService.assign(
@@ -1049,11 +1075,11 @@ class MeetingHelperIntegrationTests {
         planVersionService.restore(before.plan().id(), version.id());
 
         assertThat(fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId))
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId))
                 .extracting(value -> value.getFieldName())
                 .containsExactly("部门", "备注");
         assertThat(recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.id()))
+                .findAllByParticipantIdOrderByRecordOrderAsc(participant.id()))
                 .extracting(value -> readAttributes(value.getAttributesJson()))
                 .singleElement()
                 .satisfies(attributes -> assertThat(attributes)
@@ -1063,7 +1089,7 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void publishedVersionNamesAreUniqueWithinASeatingPlan() {
-        VenueSummary venue = venueService.list().getFirst();
+        VenueSummary venue = defaultVenue();
         MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
                 "版本名称判重测试-" + UUID.randomUUID(),
                 venue.id()
@@ -1085,7 +1111,7 @@ class MeetingHelperIntegrationTests {
 
     @Test
     void draftWorkspaceCannotBeExported() throws Exception {
-        VenueSummary venue = venueService.list().getFirst();
+        VenueSummary venue = defaultVenue();
         MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
                 "草稿导出限制测试-" + UUID.randomUUID(),
                 venue.id()
@@ -1110,7 +1136,7 @@ class MeetingHelperIntegrationTests {
             assertThat(workbook.getNumberOfSheets()).isEqualTo(1);
         }
 
-        VenueSummary venue = venueService.list().getFirst();
+        VenueSummary venue = defaultVenue();
         MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
                 "发布版本导出测试-" + UUID.randomUUID(),
                 venue.id()
@@ -1143,7 +1169,7 @@ class MeetingHelperIntegrationTests {
         );
         WorkspaceResponse workspace = workspaceService.getWorkspace(meetingId);
         Iterator<ElementView> seats = workspace.layout().elements().stream()
-                .filter(value -> value.assignable() && value.capacity() == 1)
+                .filter(value -> "SEAT".equals(value.kind()))
                 .iterator();
         workspace.participants().forEach(participant -> seatingService.assign(
                 workspace.plan().id(),
@@ -1188,17 +1214,17 @@ class MeetingHelperIntegrationTests {
         assertThat(importedPreview.path("errors").isEmpty()).isTrue();
         commit(importedMeetingId, importedPreview.path("token").asText());
         ParticipantEntity imported = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(
+                .findByMeetingIdAndEmployeeNoIgnoreCase(
                         importedMeetingId,
                         "a12345678"
                 )
                 .orElseThrow();
         assertThat(fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(importedMeetingId))
+                .findAllByMeetingIdOrderBySortOrderAsc(importedMeetingId))
                 .extracting(value -> value.getFieldName())
                 .containsExactly("批次", "奖项名称");
         assertThat(recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(imported.getId()))
+                .findAllByParticipantIdOrderByRecordOrderAsc(imported.getId()))
                 .extracting(value -> readAttributes(value.getAttributesJson()))
                 .containsExactly(
                         Map.of("批次", "第二批", "奖项名称", "优秀项目奖"),
@@ -1216,7 +1242,7 @@ class MeetingHelperIntegrationTests {
         );
         WorkspaceResponse workspace = workspaceService.getWorkspace(meetingId);
         ElementView seat = workspace.layout().elements().stream()
-                .filter(value -> value.assignable() && value.capacity() == 1)
+                .filter(value -> "SEAT".equals(value.kind()))
                 .findFirst()
                 .orElseThrow();
         ParticipantView participant = workspace.participants().getFirst();
@@ -1236,7 +1262,7 @@ class MeetingHelperIntegrationTests {
                     .getRow(seat.row() - 1)
                     .getCell(seat.column() - 1)
                     .getStringCellValue();
-            assertThat(cellText).isEqualTo(seat.code() + "\n导出人员\n主持人");
+            assertThat(cellText).isEqualTo(seat.name() + "\n导出人员\n主持人");
             assertThat(cellText).doesNotContain("第一批");
         }
         try (PDDocument document = Loader.loadPDF(exportService.exportPdf(meetingId, version.id()))) {
@@ -1262,11 +1288,11 @@ class MeetingHelperIntegrationTests {
         );
 
         ParticipantEntity participant = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         List<ParticipantRecordEntity> records = recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.getId());
-        List<MeetingParticipantFieldEntity> fields = fieldRepository.findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+                .findAllByParticipantIdOrderByRecordOrderAsc(participant.getId());
+        List<MeetingParticipantFieldEntity> fields = fieldRepository.findAllByMeetingIdOrderBySortOrderAsc(meetingId);
 
         assertThat(first.path("newParticipants").asInt()).isEqualTo(1);
         assertThat(first.path("appendedRecords").asInt()).isEqualTo(1);
@@ -1301,10 +1327,10 @@ class MeetingHelperIntegrationTests {
         );
 
         ParticipantEntity participant = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         List<ParticipantRecordEntity> records = recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.getId());
+                .findAllByParticipantIdOrderByRecordOrderAsc(participant.getId());
 
         assertThat(third.path("appendedRecords").asInt()).isEqualTo(1);
         assertThat(repeated.path("skippedRecords").asInt()).isEqualTo(1);
@@ -1350,13 +1376,13 @@ class MeetingHelperIntegrationTests {
         );
 
         ParticipantEntity participant = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         ParticipantRecordEntity record = recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.getId())
+                .findAllByParticipantIdOrderByRecordOrderAsc(participant.getId())
                 .getFirst();
         assertThat(fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId))
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId))
                 .extracting(value -> value.getFieldName())
                 .containsExactly("Department", "字段2");
         assertThat(readAttributes(record.getAttributesJson()))
@@ -1387,11 +1413,11 @@ class MeetingHelperIntegrationTests {
                 .andExpect(status().isConflict());
 
         ParticipantEntity participant = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         assertThat(participant.getName()).isEqualTo("张三");
         assertThat(recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.getId()))
+                .findAllByParticipantIdOrderByRecordOrderAsc(participant.getId()))
                 .isEmpty();
     }
 
@@ -1415,8 +1441,8 @@ class MeetingHelperIntegrationTests {
                 ).header(USER_HEADER, DEFAULT_USER))
                 .andExpect(status().isConflict());
 
-        assertThat(participantRepository.countByMeetingIdAndDeletedFalse(meetingId)).isZero();
-        assertThat(fieldRepository.findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId))
+        assertThat(participantRepository.countByMeetingId(meetingId)).isZero();
+        assertThat(fieldRepository.findAllByMeetingIdOrderBySortOrderAsc(meetingId))
                 .isEmpty();
     }
 
@@ -1438,10 +1464,10 @@ class MeetingHelperIntegrationTests {
         commit(meetingId, preview.path("token").asText());
 
         ParticipantEntity participant = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         List<ParticipantRecordEntity> records = recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.getId());
+                .findAllByParticipantIdOrderByRecordOrderAsc(participant.getId());
         assertThat(records).hasSize(1);
         assertThat(readAttributes(records.getFirst().getAttributesJson()))
                 .containsEntry("字段1", "值1")
@@ -1461,8 +1487,8 @@ class MeetingHelperIntegrationTests {
                 ).header(USER_HEADER, DEFAULT_USER))
                 .andExpect(status().isBadRequest());
 
-        assertThat(participantRepository.countByMeetingIdAndDeletedFalse(meetingId)).isZero();
-        assertThat(fieldRepository.findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId))
+        assertThat(participantRepository.countByMeetingId(meetingId)).isZero();
+        assertThat(fieldRepository.findAllByMeetingIdOrderBySortOrderAsc(meetingId))
                 .isEmpty();
     }
 
@@ -1492,15 +1518,15 @@ class MeetingHelperIntegrationTests {
                 .andExpect(status().isConflict());
 
         assertThat(participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "12345678"))
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "12345678"))
                 .isEmpty();
-        assertThat(fieldRepository.findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId))
+        assertThat(fieldRepository.findAllByMeetingIdOrderBySortOrderAsc(meetingId))
                 .isEmpty();
         ParticipantEntity existing = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         assertThat(recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(existing.getId()))
+                .findAllByParticipantIdOrderByRecordOrderAsc(existing.getId()))
                 .isEmpty();
     }
 
@@ -1515,7 +1541,7 @@ class MeetingHelperIntegrationTests {
         );
         WorkspaceResponse workspace = workspaceService.getWorkspace(meetingId);
         ElementView seat = workspace.layout().elements().stream()
-                .filter(value -> value.assignable() && value.capacity() == 1)
+                .filter(value -> "SEAT".equals(value.kind()))
                 .findFirst()
                 .orElseThrow();
         seatingService.assign(
@@ -1526,7 +1552,7 @@ class MeetingHelperIntegrationTests {
         previewAndCommit(meetingId, "工号,姓名,字段1", "a12345678,张三,值1");
 
         ParticipantEntity imported = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         WorkspaceResponse refreshedWorkspace = workspaceService.getWorkspace(meetingId);
         assertThat(imported.getId()).isEqualTo(participant.id());
@@ -1580,7 +1606,7 @@ class MeetingHelperIntegrationTests {
         }
 
         List<MeetingParticipantFieldEntity> fields = fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId);
         assertThat(fields)
                 .extracting(value -> value.getFieldName().toLowerCase(ROOT))
                 .containsExactlyInAnyOrder("sharedfield", "importfield", "participantfield");
@@ -1664,14 +1690,14 @@ class MeetingHelperIntegrationTests {
         assertThat(List.of(importStatus, participantStatus))
                 .containsExactlyInAnyOrder(200, 409);
         List<ParticipantEntity> participants = participantRepository
-                .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(meetingId)
+                .findAllByMeetingIdOrderByNameAsc(meetingId)
                 .stream()
                 .filter(value -> value.getEmployeeNo().equalsIgnoreCase("a22222222"))
                 .toList();
         assertThat(participants).hasSize(1);
 
         List<MeetingParticipantFieldEntity> fields = fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId);
         List<String> normalizedFieldNames = fields.stream()
                 .map(value -> value.getFieldName().toLowerCase(ROOT))
                 .toList();
@@ -1688,43 +1714,524 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
-    void customVenueSupportsDuplicateCheckUpdateAndSoftDelete() {
-        String name = "测试场馆-" + UUID.randomUUID();
+    void venueTemplatesArePagedAndGloballySearchable() throws Exception {
+        String marker = "R10-" + UUID.randomUUID();
+        for (int index = 0; index < 12; index++) {
+            createVenueWithElements(
+                    marker + "-" + index,
+                    index % 2 == 0 ? "东校区" : "西校区",
+                    List.of(seat("座位" + index, 1, 1, 1, 1))
+            );
+        }
+
+        mockMvc.perform(get("/venues")
+                        .param("keyword", marker)
+                        .param("pageNum", "1")
+                        .param("pageSize", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records.length()").value(10))
+                .andExpect(jsonPath("$.data.total").value(12));
+    }
+
+    @Test
+    void venueTemplatesAreSearchableByBookingUrl() throws Exception {
+        String marker = "booking-" + UUID.randomUUID();
+        CreateVenueRequest base = createVenueRequest(
+                "预约链接搜索-" + UUID.randomUUID(),
+                "主校区",
+                List.of(seat("座位", 1, 1, 1, 1))
+        );
+        VenueDetail created = venueService.create(new CreateVenueRequest(
+                base.location(),
+                base.campus(),
+                base.mainScreenResolution(),
+                base.stageDimensions(),
+                base.manualCapacity(),
+                base.contactInfo(),
+                "https://example.test/" + marker,
+                base.meetingRoomFunctions(),
+                base.servicesProvided(),
+                base.description(),
+                base.remarks(),
+                base.gridRows(),
+                base.gridColumns(),
+                base.elements()
+        ));
+
+        mockMvc.perform(get("/venues")
+                        .param("keyword", marker)
+                        .param("pageNum", "1")
+                        .param("pageSize", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].id").value(created.id()))
+                .andExpect(jsonPath("$.data.total").value(1));
+    }
+
+    @Test
+    void venueCreateTrimsAndPersistsAbsoluteHttpsBookingUrl() {
+        CreateVenueRequest request = createVenueRequest(
+                "安全链接场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of()
+        );
+
+        VenueDetail created = venueService.create(
+                createVenueRequestWithBookingUrl(request, "  https://example.test/booking?q=1  ")
+        );
+
+        assertThat(created.bookingUrl()).isEqualTo("https://example.test/booking?q=1");
+        assertThat(venueService.get(created.id()).bookingUrl())
+                .isEqualTo("https://example.test/booking?q=1");
+    }
+
+    @Test
+    void venueCreateRejectsUnsafeBookingUrls() {
+        List<String> unsafeUrls = List.of(
+                "javascript:alert(1)",
+                "data:text/html,unsafe",
+                "file:///tmp/unsafe",
+                "//example.test/booking",
+                "https:/missing-host",
+                "https://",
+                "https://example.test/\nunsafe"
+        );
+
+        for (String unsafeUrl : unsafeUrls) {
+            CreateVenueRequest request = createVenueRequest(
+                    "危险链接场馆-" + UUID.randomUUID(),
+                    "主校区",
+                    List.of()
+            );
+            assertThatThrownBy(() -> venueService.create(
+                    createVenueRequestWithBookingUrl(request, unsafeUrl)
+            )).hasMessage("预定链接必须是绝对 http/https URL");
+        }
+    }
+
+    @Test
+    void venueUpdateTrimsAndPersistsAbsoluteHttpBookingUrl() {
+        VenueDetail created = createVenueWithElements(
+                "更新安全链接场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of()
+        );
+
+        VenueDetail updated = venueService.updateInfo(
+                created.id(),
+                updateInfoRequestWithBookingUrl(
+                        created,
+                        "  http://example.test/updated-booking  "
+                )
+        );
+
+        assertThat(updated.bookingUrl()).isEqualTo("http://example.test/updated-booking");
+        assertThat(venueService.get(created.id()).bookingUrl())
+                .isEqualTo("http://example.test/updated-booking");
+    }
+
+    @Test
+    void venueUpdateRejectsUnsafeBookingUrlThroughApiAndKeepsPersistedValue()
+            throws Exception {
+        VenueDetail created = createVenueWithElements(
+                "更新危险链接场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of()
+        );
+
+        mockMvc.perform(post("/venues/{id}/info/update", created.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(
+                                updateInfoRequestWithBookingUrl(created, "javascript:alert(1)")
+                        )))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.msg")
+                        .value("预定链接必须是绝对 http/https URL"));
+
+        assertThat(venueService.get(created.id()).bookingUrl())
+                .isEqualTo("https://example.test/booking");
+    }
+
+    @Test
+    void venueCreateNormalizesOptionalTextsBeforePersistence() {
+        CreateVenueRequest source = createVenueRequest(
+                "创建文本规范化场馆-" + UUID.randomUUID(),
+                "  北区  ",
+                List.of()
+        );
         CreateVenueRequest request = new CreateVenueRequest(
-                name,
-                "用于验证场馆管理",
-                5,
-                5,
-                34,
-                "TOP",
-                List.of(new ElementInput(
-                        "SEAT", "1排01", "座位", 1, 1, 1, 1, 0, 1,
-                        true, false, null, null, 1, "#ffffff", "#93b4df")));
+                source.location(),
+                source.campus(),
+                "  3840×2160  ",
+                "   ",
+                source.manualCapacity(),
+                "  张三  ",
+                "  https://example.test/normalized  ",
+                "\t",
+                "  会务支持  ",
+                " ",
+                "  靠近东门  ",
+                source.gridRows(),
+                source.gridColumns(),
+                source.elements()
+        );
 
-        VenueDetail created = venueService.create(request);
-        assertThatThrownBy(() -> venueService.create(request))
-                .hasMessage("场馆名称已存在");
+        VenueDetail persisted = venueService.get(venueService.create(request).id());
 
-        CreateVenueRequest renamed = new CreateVenueRequest(
-                name + "-修改",
-                request.description(),
-                request.gridRows(),
-                request.gridColumns(),
-                request.cellSize(),
-                request.frontDirection(),
-                request.elements());
-        VenueDetail updated = venueService.update(created.id(), renamed);
-        assertThat(updated.versionNo()).isEqualTo(2);
-        assertThat(updated.name()).isEqualTo(name + "-修改");
+        assertThat(persisted.campus()).isEqualTo("北区");
+        assertThat(persisted.mainScreenResolution()).isEqualTo("3840×2160");
+        assertThat(persisted.stageDimensions()).isNull();
+        assertThat(persisted.contactInfo()).isEqualTo("张三");
+        assertThat(persisted.bookingUrl()).isEqualTo("https://example.test/normalized");
+        assertThat(persisted.meetingRoomFunctions()).isNull();
+        assertThat(persisted.servicesProvided()).isEqualTo("会务支持");
+        assertThat(persisted.description()).isNull();
+        assertThat(persisted.remarks()).isEqualTo("靠近东门");
+    }
 
-        venueService.delete(created.id());
-        assertThat(venueService.list()).noneMatch(venue -> venue.id().equals(created.id()));
-        assertThat(venueService.create(renamed).name()).isEqualTo(name + "-修改");
+    @Test
+    void venueUpdateNormalizesOptionalTextsBeforePersistence() {
+        VenueDetail created = createVenueWithElements(
+                "更新文本规范化场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of()
+        );
+        UpdateVenueInfoRequest request = new UpdateVenueInfoRequest(
+                created.location(),
+                "   ",
+                "  1920×1080  ",
+                "\t",
+                created.manualCapacity(),
+                "  李四  ",
+                " ",
+                "  视频会议  ",
+                "\n",
+                "  更新说明  ",
+                "   ",
+                created.rowVersion()
+        );
+
+        venueService.updateInfo(created.id(), request);
+        VenueDetail persisted = venueService.get(created.id());
+
+        assertThat(persisted.campus()).isNull();
+        assertThat(persisted.mainScreenResolution()).isEqualTo("1920×1080");
+        assertThat(persisted.stageDimensions()).isNull();
+        assertThat(persisted.contactInfo()).isEqualTo("李四");
+        assertThat(persisted.bookingUrl()).isNull();
+        assertThat(persisted.meetingRoomFunctions()).isEqualTo("视频会议");
+        assertThat(persisted.servicesProvided()).isNull();
+        assertThat(persisted.description()).isEqualTo("更新说明");
+        assertThat(persisted.remarks()).isNull();
+    }
+
+    @Test
+    void venueListRejectsPageNumberBelowOne() throws Exception {
+        mockMvc.perform(get("/venues")
+                        .param("pageNum", "0")
+                        .param("pageSize", "10"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.msg").value("pageNum：必须大于等于1"));
+    }
+
+    @Test
+    void venueListRejectsPageSizeBelowOne() throws Exception {
+        mockMvc.perform(get("/venues")
+                        .param("pageNum", "1")
+                        .param("pageSize", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.msg").value("pageSize：必须大于等于1"));
+    }
+
+    @Test
+    void venueLocationIsTrimmedCaseInsensitiveUniqueAndZeroSeatVenueIsUnusable()
+            throws Exception {
+        String location = "Room-" + UUID.randomUUID();
+        VenueDetail created = createVenueWithElements(location, "主校区", List.of());
+
+        mockMvc.perform(post("/venues/create")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(createVenueRequest(
+                                "  " + location.toUpperCase(ROOT) + "  ",
+                                "主校区",
+                                List.of()
+                        ))))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(get("/venues")
+                        .param("keyword", location)
+                        .param("pageNum", "1")
+                        .param("pageSize", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].id").value(created.id()))
+                .andExpect(jsonPath("$.data.records[0].seatCount").value(0))
+                .andExpect(jsonPath("$.data.records[0].usable").value(false));
+    }
+
+    @Test
+    void venueLocationAvailabilityIsExactAndCanExcludeCurrentTemplate() throws Exception {
+        String location = "精确判重-" + UUID.randomUUID();
+        VenueDetail created = createVenueWithElements(location, "主校区", List.of());
+
+        mockMvc.perform(get("/venues/location-availability")
+                        .param("location", "  " + location.toUpperCase(ROOT) + "  "))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.available").value(false));
+        mockMvc.perform(get("/venues/location-availability")
+                        .param("location", "  " + location.toUpperCase(ROOT) + "  ")
+                        .param("excludeId", created.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.available").value(true));
+        mockMvc.perform(get("/venues/location-availability")
+                        .param("location", location + "-其他"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.available").value(true));
+    }
+
+    @Test
+    void venueTemplateRejectsStaleUpdates() throws Exception {
+        VenueDetail created = createVenueWithElements(
+                "并发场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(seat("座位", 1, 1, 1, 1))
+        );
+        VenueDetail updated = venueService.updateInfo(
+                created.id(),
+                updateInfoRequest(created, created.location() + "-更新")
+        );
+
+        assertThatThrownBy(() -> venueService.updateInfo(
+                created.id(),
+                updateInfoRequest(created, created.location() + "-过期")
+        )).hasMessage("场馆模板已被其他用户修改，请刷新后重试");
+        assertThatThrownBy(() -> venueService.updateLayout(
+                created.id(),
+                new UpdateVenueLayoutRequest(
+                        5,
+                        5,
+                        List.of(seat("过期座位", 1, 1, 1, 1)),
+                        created.rowVersion()
+                )
+        )).hasMessage("场馆模板已被其他用户修改，请刷新后重试");
+        mockMvc.perform(post("/venues/{id}/info/update", created.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(
+                                updateInfoRequest(created, created.location() + "-接口过期")
+                        )))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post("/venues/{id}/layout/update", created.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(new UpdateVenueLayoutRequest(
+                                5,
+                                5,
+                                List.of(seat("接口过期座位", 1, 1, 1, 1)),
+                                created.rowVersion()
+                        ))))
+                .andExpect(status().isConflict());
+        assertThat(updated.rowVersion()).isEqualTo(created.rowVersion() + 1);
+    }
+
+    @Test
+    void deletingVenueKeepsMeetingSnapshot() {
+        VenueDetail venue = createVenueWithElements(
+                "待删除场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(seat("座位", 1, 1, 1, 1))
+        );
+        MeetingSummary meeting = meetingService.create(
+                new CreateMeetingRequest("保留快照-" + UUID.randomUUID(), venue.id())
+        );
+
+        venueService.delete(venue.id());
+
+        assertThat(venueElementRepository
+                .findAllByVenueTemplateIdOrderByStartRowAscStartColumnAsc(venue.id()))
+                .isEmpty();
+        assertThat(meetingRepository.findById(meeting.id()).orElseThrow().getVenueTemplateId())
+                .isNull();
+        assertThat(workspaceService.getWorkspace(meeting.id()).layout().elements())
+                .extracting(ElementView::name)
+                .containsExactly("座位");
+    }
+
+    @Test
+    void venueApiResponsesDoNotContainLegacyTemplateFields() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "字段契约-" + UUID.randomUUID(),
+                "主校区",
+                List.of(seat("座位", 1, 1, 1, 1))
+        );
+
+        String detailJson = mockMvc.perform(get("/venues/{id}", venue.id()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String layoutJson = mockMvc.perform(get("/venues/{id}/layout", venue.id()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(detailJson + layoutJson)
+                .doesNotContain("preset", "versionNo", "frontDirection", "rotation");
+    }
+
+    @Test
+    void meetingCopiesVenueLayoutAndIgnoresLaterTemplateChanges() {
+        VenueDetail venue = createVenueWithElements(
+                "快照场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(
+                        seat("双连座", 2, 3, 1, 2),
+                        generic("主屏幕布", 1, 1, 1, 2)
+                )
+        );
+        MeetingSummary meeting = meetingService.create(
+                new CreateMeetingRequest("评审会-" + UUID.randomUUID(), venue.id())
+        );
+        venueService.updateLayout(
+                venue.id(),
+                new UpdateVenueLayoutRequest(
+                        5,
+                        5,
+                        List.of(generic("已修改", 1, 1, 1, 1)),
+                        venue.rowVersion()
+                )
+        );
+
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+
+        assertThat(workspace.layout().elements())
+                .extracting(ElementView::name)
+                .containsExactly("主屏幕布", "双连座");
+    }
+
+    @Test
+    void meetingSnapshotSupportsMaximumVenueLocationLength() {
+        String location = "长".repeat(200);
+        VenueDetail venue = createVenueWithElements(
+                location,
+                "主校区",
+                List.of(seat("座位", 1, 1, 1, 1))
+        );
+
+        MeetingSummary meeting = meetingService.create(
+                new CreateMeetingRequest("长地点会议-" + UUID.randomUUID(), venue.id())
+        );
+
+        assertThat(workspaceService.getWorkspace(meeting.id()).meeting().layoutName())
+                .isEqualTo(location);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void meetingSnapshotWaitsForConcurrentVenueMutationLock() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "并发快照场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(seat("座位", 1, 1, 1, 1))
+        );
+        CountDownLatch lockAcquired = new CountDownLatch(1);
+        CountDownLatch releaseLock = new CountDownLatch(1);
+        CountDownLatch creatorReady = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Void> locker = executor.submit(() -> {
+                try (Connection connection = dataSource.getConnection();
+                     PreparedStatement statement = connection.prepareStatement(
+                             "select id from t_venue_templates where id = ? for update"
+                     )) {
+                    connection.setAutoCommit(false);
+                    statement.setString(1, venue.id());
+                    statement.executeQuery();
+                    lockAcquired.countDown();
+                    if (!releaseLock.await(5, SECONDS)) {
+                        throw new IllegalStateException("未按时释放场馆模板锁");
+                    }
+                    connection.commit();
+                    return null;
+                }
+            });
+            assertThat(lockAcquired.await(5, SECONDS)).isTrue();
+            Future<MeetingSummary> creator = executor.submit(() -> {
+                CurrentUserHolder.set(new CurrentUser(DEFAULT_USER, DEFAULT_USER, Set.of()));
+                creatorReady.countDown();
+                try {
+                    return meetingService.create(new CreateMeetingRequest(
+                            "并发快照会议-" + UUID.randomUUID(),
+                            venue.id()
+                    ));
+                } finally {
+                    CurrentUserHolder.clear();
+                }
+            });
+            assertThat(creatorReady.await(5, SECONDS)).isTrue();
+
+            assertThatThrownBy(() -> creator.get(1, SECONDS))
+                    .isInstanceOf(TimeoutException.class);
+
+            releaseLock.countDown();
+            MeetingSummary meeting = creator.get(5, SECONDS);
+            assertThat(workspaceAs(DEFAULT_USER, meeting.id())
+                    .path("layout").path("elements")).hasSize(1);
+            locker.get(5, SECONDS);
+        } finally {
+            releaseLock.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(5, SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    void genericElementCannotReceiveParticipantAndMultiCellSeatCanReceiveOnlyOne() {
+        VenueDetail venue = createVenueWithElements(
+                "排座元素场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(
+                        generic("舞台", 1, 1, 1, 2),
+                        seat("双连座", 2, 1, 1, 2)
+                )
+        );
+        MeetingSummary meeting = meetingService.create(
+                new CreateMeetingRequest("元素排座-" + UUID.randomUUID(), venue.id())
+        );
+        ParticipantResult first = participantService.create(
+                meeting.id(),
+                new CreateParticipantRequest("a70000001", "第一人", Map.of(), null)
+        );
+        ParticipantResult second = participantService.create(
+                meeting.id(),
+                new CreateParticipantRequest("a70000002", "第二人", Map.of(), null)
+        );
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        ElementView genericElement = workspace.layout().elements().stream()
+                .filter(element -> element.kind().equals("GENERIC"))
+                .findFirst()
+                .orElseThrow();
+        ElementView seatElement = workspace.layout().elements().stream()
+                .filter(element -> element.kind().equals("SEAT"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThatThrownBy(() -> seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(first.id(), genericElement.id())
+        )).hasMessage("目标元素不是可排座座位");
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(first.id(), seatElement.id())
+        );
+        assertThatThrownBy(() -> seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(second.id(), seatElement.id())
+        )).isInstanceOf(com.company.meetinghelper.common.exception.ApiException.class);
     }
 
     @Test
     void meetingNameIsCheckedOnBothCreateAttempts() {
-        VenueSummary venue = venueService.list().getFirst();
+        VenueSummary venue = defaultVenue();
         String name = "测试会议-" + UUID.randomUUID();
         CreateMeetingRequest request = new CreateMeetingRequest(name, venue.id());
 
@@ -1734,8 +2241,134 @@ class MeetingHelperIntegrationTests {
                 .hasMessage("会议名称已存在");
     }
 
+    private VenueDetail createVenueWithElements(
+            String location,
+            String campus,
+            List<ElementInput> elements
+    ) {
+        return venueService.create(createVenueRequest(location, campus, elements));
+    }
+
+    private CreateVenueRequest createVenueRequest(
+            String location,
+            String campus,
+            List<ElementInput> elements
+    ) {
+        return new CreateVenueRequest(
+                location,
+                campus,
+                "3840×2160",
+                "8m×3m",
+                elements.size(),
+                "010-12345678",
+                "https://example.test/booking",
+                "视频会议、无线投屏",
+                "会务支持",
+                "集成测试场馆",
+                "自动创建",
+                5,
+                5,
+                elements
+        );
+    }
+
+    private UpdateVenueInfoRequest updateInfoRequest(VenueDetail source, String location) {
+        return new UpdateVenueInfoRequest(
+                location,
+                source.campus(),
+                source.mainScreenResolution(),
+                source.stageDimensions(),
+                source.manualCapacity(),
+                source.contactInfo(),
+                source.bookingUrl(),
+                source.meetingRoomFunctions(),
+                source.servicesProvided(),
+                source.description(),
+                source.remarks(),
+                source.rowVersion()
+        );
+    }
+
+    private CreateVenueRequest createVenueRequestWithBookingUrl(
+            CreateVenueRequest source,
+            String bookingUrl
+    ) {
+        return new CreateVenueRequest(
+                source.location(),
+                source.campus(),
+                source.mainScreenResolution(),
+                source.stageDimensions(),
+                source.manualCapacity(),
+                source.contactInfo(),
+                bookingUrl,
+                source.meetingRoomFunctions(),
+                source.servicesProvided(),
+                source.description(),
+                source.remarks(),
+                source.gridRows(),
+                source.gridColumns(),
+                source.elements()
+        );
+    }
+
+    private UpdateVenueInfoRequest updateInfoRequestWithBookingUrl(
+            VenueDetail source,
+            String bookingUrl
+    ) {
+        return new UpdateVenueInfoRequest(
+                source.location(),
+                source.campus(),
+                source.mainScreenResolution(),
+                source.stageDimensions(),
+                source.manualCapacity(),
+                source.contactInfo(),
+                bookingUrl,
+                source.meetingRoomFunctions(),
+                source.servicesProvided(),
+                source.description(),
+                source.remarks(),
+                source.rowVersion()
+        );
+    }
+
+    private ElementInput seat(
+            String name,
+            int row,
+            int column,
+            int rowSpan,
+            int columnSpan
+    ) {
+        return new ElementInput(
+                "SEAT", name, row, column, rowSpan, columnSpan, "#ffffff", "#8fb4e8"
+        );
+    }
+
+    private ElementInput generic(
+            String name,
+            int row,
+            int column,
+            int rowSpan,
+            int columnSpan
+    ) {
+        return new ElementInput(
+                "GENERIC", name, row, column, rowSpan, columnSpan, "#dbeafe", "#93c5fd"
+        );
+    }
+
+    private VenueSummary defaultVenue() {
+        String location = "默认测试场馆-" + UUID.randomUUID();
+        ArrayList<ElementInput> elements = new ArrayList<ElementInput>();
+        for (int row = 1; row <= 5; row++) {
+            for (int column = 1; column <= 5; column++) {
+                elements.add(seat("座位-" + row + "-" + column, row, column, 1, 1));
+            }
+        }
+        createVenueWithElements(location, "主校区", elements);
+        return venueService.list(location, "", 1, 10).records().getFirst();
+    }
+
     private String createSeatingScenario(int participantCount, int assignedCount) {
-        VenueSummary venue = venueService.list().getFirst();
+        VenueSummary venue = defaultVenue();
         MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
                 "排座场景测试-" + UUID.randomUUID(),
                 venue.id()
@@ -1753,7 +2386,7 @@ class MeetingHelperIntegrationTests {
         }
         WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
         List<ElementView> seats = workspace.layout().elements().stream()
-                .filter(value -> value.assignable() && value.capacity() == 1)
+                .filter(value -> "SEAT".equals(value.kind()))
                 .limit(assignedCount)
                 .toList();
         for (int index = 0; index < assignedCount; index++) {
@@ -1766,7 +2399,7 @@ class MeetingHelperIntegrationTests {
     }
 
     private String createImportMeeting() {
-        VenueSummary venue = venueService.list().getFirst();
+        VenueSummary venue = defaultVenue();
         return meetingService.create(new CreateMeetingRequest(
                 "人员导入测试-" + UUID.randomUUID(),
                 venue.id()
@@ -1821,8 +2454,8 @@ class MeetingHelperIntegrationTests {
     }
 
     private String createMeetingAs(String userId, String name) throws Exception {
-        String venueId = venueService.list().getFirst().id();
-        MvcResult result = mockMvc.perform(post("/meetings")
+        String venueId = defaultVenue().id();
+        MvcResult result = mockMvc.perform(post("/meetings/create-from-venue")
                         .header(USER_HEADER, userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsBytes(
@@ -1890,8 +2523,7 @@ class MeetingHelperIntegrationTests {
                         workspace.path("layout").path("elements").spliterator(),
                         false
                 )
-                .filter(element -> element.path("assignable").asBoolean()
-                        && element.path("capacity").asInt() == 1)
+                .filter(element -> "SEAT".equals(element.path("kind").asText()))
                 .findFirst()
                 .orElseThrow()
                 .path("id")

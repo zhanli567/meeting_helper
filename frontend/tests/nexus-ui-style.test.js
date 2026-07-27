@@ -22,6 +22,21 @@ test('工作台页面使用 Nexus 风格的静态工具栏和分层内容区', a
   assert.match(source, /class="canvas-shell"/)
   assert.match(source, /class="toolbar-card"/)
   assert.match(source, /\.app-header\s*:deep\(\.el-button--primary\)/)
+  assert.match(source, /\.workbench-page\s*\{[^}]*height:\s*100vh;[^}]*overflow:\s*hidden;/s)
+  assert.match(source, /\.canvas-body\s*\{[^}]*overflow:\s*hidden;/s)
+})
+
+test('预览和工作区读取通用元素字段且不渲染旋转', async () => {
+  const preview = await readSource('src/components/VenuePreviewDialog.vue')
+  const canvas = await readSource('src/components/VenueCanvas.vue')
+
+  assert.match(preview, /element\.name/)
+  assert.match(preview, /element\.fillColor/)
+  assert.match(canvas, /element\.kind === 'SEAT'/)
+  assert.doesNotMatch(preview, /element\.rotation/)
+  assert.doesNotMatch(canvas, /element\.assignable/)
+  assert.doesNotMatch(preview, /\.cellSize/)
+  assert.doesNotMatch(canvas, /\.cellSize/)
 })
 
 test('人员侧栏和导入弹窗使用统一的白底细边框工作台视觉', async () => {

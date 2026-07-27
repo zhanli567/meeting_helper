@@ -22,8 +22,6 @@ public class MeetingEntity extends AuditedEntity {
     private int gridRows;
     @TableField("grid_columns")
     private int gridColumns;
-    @TableField("cell_size")
-    private int cellSize;
     @TableField("layout_version")
     private int layoutVersion;
 }

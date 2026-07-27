@@ -97,17 +97,18 @@ public class WorkspaceService {
     @Transactional(readOnly = true)
     public WorkspaceResponse getWorkspace(String meetingId) {
         MeetingEntity meeting = meetingAccessService.requireOwnedMeeting(meetingId);
-        SeatingPlanEntity plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)
+        SeatingPlanEntity plan = planRepository.findFirstByMeetingIdOrderByCreatedAtAsc(meetingId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议尚未建立排座方案"));
-        List<MeetingElementEntity> elements = elementRepository.findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(meetingId);
-        List<ParticipantEntity> participants = participantRepository.findAllByMeetingIdAndDeletedFalseOrderByNameAsc(meetingId);
+        List<MeetingElementEntity> elements =
+                elementRepository.findAllByMeetingIdOrderByStartRowAscStartColumnAsc(meetingId);
+        List<ParticipantEntity> participants = participantRepository.findAllByMeetingIdOrderByNameAsc(meetingId);
         List<String> participantIds = participants.stream().map(ParticipantEntity::getId).toList();
         List<MeetingParticipantFieldEntity> participantFields = fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId);
         List<ParticipantRecordEntity> participantRecords = participantIds.isEmpty()
                 ? List.<ParticipantRecordEntity>of()
                 : recordRepository
-                        .findAllByParticipantIdInAndDeletedFalseOrderByParticipantIdAscRecordOrderAsc(
+                        .findAllByParticipantIdInOrderByParticipantIdAscRecordOrderAsc(
                                 participantIds
                         );
         LinkedHashMap<String,List<ParticipantRecordEntity>> recordsByParticipant = participantRecords.stream().collect(Collectors.groupingBy(
@@ -116,11 +117,11 @@ public class WorkspaceService {
                 Collectors.toList()
         ));
 
-        List<PlanItemEntity> items = itemRepository.findAllByPlanIdAndDeletedFalseOrderByCreatedAtAsc(plan.getId());
+        List<PlanItemEntity> items = itemRepository.findAllByPlanIdOrderByCreatedAtAsc(plan.getId());
         List<String> itemIds = items.stream().map(item -> item.getId()).toList();
         List<PlanItemTargetEntity> targets = itemIds.isEmpty()
                 ? List.<PlanItemTargetEntity>of()
-                : targetRepository.findAllByPlanItemIdInAndDeletedFalse(itemIds);
+                : targetRepository.findAllByPlanItemIdIn(itemIds);
         LinkedHashMap<String,List<String>> targetsByItem = targets.stream().collect(Collectors.groupingBy(
                 target -> target.getPlanItemId(),
                 LinkedHashMap::new,
@@ -168,11 +169,11 @@ public class WorkspaceService {
                         meeting.getLayoutVersion(), meeting.getUpdatedAt(), meeting.getUpdatedByName()),
                 new WorkspaceResponse.PlanView(plan.getId(), plan.getName(), plan.getStatus(), plan.getCurrentVersionNo()),
                 new WorkspaceResponse.LayoutView(
-                        meeting.getGridRows(), meeting.getGridColumns(), meeting.getCellSize(),
+                        meeting.getGridRows(), meeting.getGridColumns(),
                         elements.stream().map(this::toElementView).toList()),
                 participantViews,
                 itemViews,
-                versionRepository.findAllByPlanIdAndDeletedFalseOrderByVersionNoDesc(plan.getId()).stream()
+                versionRepository.findAllByPlanIdOrderByVersionNoDesc(plan.getId()).stream()
                         .map(version -> new WorkspaceResponse.VersionView(
                                 version.getId(), version.getVersionNo(), version.getVersionName(), version.getChangeNote(),
                                 version.isAutomatic(), version.getAssignedCount(), version.getUnassignedCount(),
@@ -185,11 +186,9 @@ public class WorkspaceService {
 
     private WorkspaceResponse.ElementView toElementView(MeetingElementEntity element) {
         return new WorkspaceResponse.ElementView(
-                element.getId(), element.getElementType().name(), element.getCode(), element.getLabel(),
-                element.getGridRow(), element.getGridColumn(), element.getRowSpan(), element.getColumnSpan(),
-                element.getRotation(), element.getCapacity(), element.isAssignable(), element.isWalkable(),
-                element.getGroupCode(), element.getGroupLabel(), element.getSequenceNo(),
-                element.getBackgroundColor(), element.getBorderColor()
+                element.getId(), element.getElementKind().name(), element.getElementName(),
+                element.getStartRow(), element.getStartColumn(), element.getRowSpan(),
+                element.getColumnSpan(), element.getFillColor(), element.getBorderColor()
         );
     }
 

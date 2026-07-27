@@ -95,7 +95,7 @@ public class ParticipantService {
         );
         String employeeNo = request.employeeNo().trim();
         if (participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, employeeNo)
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, employeeNo)
                 .isPresent()) {
             throw new ApiException(HttpStatus.CONFLICT, "该工号已在会议名单中");
         }
@@ -117,7 +117,7 @@ public class ParticipantService {
             recordRepository.save(record);
         }
         if (request.targetElementId() != null && !request.targetElementId().isBlank()) {
-            SeatingPlanEntity plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)
+            SeatingPlanEntity plan = planRepository.findFirstByMeetingIdOrderByCreatedAtAsc(meetingId)
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
             seatingService.assign(
                     plan.getId(),
@@ -142,7 +142,7 @@ public class ParticipantService {
     ) {
         meetingAccessService.requireOwnedMeeting(meetingId);
         ParticipantEntity participant = participantRepository.findById(participantId)
-                .filter(value -> !value.isDeleted() && value.getMeetingId().equals(meetingId))
+                .filter(value -> value.getMeetingId().equals(meetingId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "人员不存在"));
         participant.setAttendanceStatus(request.attendanceStatus());
         if (request.attendanceStatus() == AttendanceStatus.TEMPORARILY_ABSENT) {
@@ -161,19 +161,21 @@ public class ParticipantService {
     public void delete(String meetingId, String participantId) {
         meetingAccessService.requireOwnedMeeting(meetingId);
         ParticipantEntity participant = participantRepository.findById(participantId)
-                .filter(value -> !value.isDeleted() && value.getMeetingId().equals(meetingId))
+                .filter(value -> value.getMeetingId().equals(meetingId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "人员不存在"));
         removeAssignment(meetingId, participantId);
-        participant.setDeleted(true);
-        participantRepository.save(participant);
+        recordRepository.deleteAll(
+                recordRepository.findAllByParticipantIdOrderByRecordOrderAsc(participantId)
+        );
+        participantRepository.delete(participant);
     }
 
     private void removeAssignment(String meetingId, String participantId) {
-        SeatingPlanEntity plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId).orElse(null);
+        SeatingPlanEntity plan = planRepository.findFirstByMeetingIdOrderByCreatedAtAsc(meetingId).orElse(null);
         if (plan == null) {
             return;
         }
-        itemRepository.findByPlanIdAndParticipantIdAndItemTypeAndDeletedFalse(
+        itemRepository.findByPlanIdAndParticipantIdAndItemType(
                 plan.getId(), participantId, PlanItemType.PERSON).ifPresent(item -> {
             targetRepository.deleteAllByPlanItemId(item.getId());
             itemRepository.delete(item);

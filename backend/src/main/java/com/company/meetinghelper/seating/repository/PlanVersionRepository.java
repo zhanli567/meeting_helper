@@ -23,7 +23,7 @@ public class PlanVersionRepository extends AbstractMyBatisRepository<PlanVersion
      * @param planId 排座方案ID
      * @return 按版本号倒序排列的版本
      */
-    public List<PlanVersionEntity> findAllByPlanIdAndDeletedFalseOrderByVersionNoDesc(String planId) {
+    public List<PlanVersionEntity> findAllByPlanIdOrderByVersionNoDesc(String planId) {
         return versionMapper.selectList(new LambdaQueryWrapper<PlanVersionEntity>()
                 .eq(PlanVersionEntity::getPlanId, planId)
                 .orderByDesc(PlanVersionEntity::getVersionNo));
@@ -35,7 +35,7 @@ public class PlanVersionRepository extends AbstractMyBatisRepository<PlanVersion
      * @param planId 排座方案ID
      * @return 最新版本
      */
-    public Optional<PlanVersionEntity> findFirstByPlanIdAndDeletedFalseOrderByVersionNoDesc(String planId) {
+    public Optional<PlanVersionEntity> findFirstByPlanIdOrderByVersionNoDesc(String planId) {
         return Optional.ofNullable(versionMapper.selectOne(new LambdaQueryWrapper<PlanVersionEntity>()
                 .eq(PlanVersionEntity::getPlanId, planId)
                 .orderByDesc(PlanVersionEntity::getVersionNo)
@@ -49,7 +49,7 @@ public class PlanVersionRepository extends AbstractMyBatisRepository<PlanVersion
      * @param versionName 版本名称
      * @return 存在同名版本时返回true
      */
-    public boolean existsByPlanIdAndVersionNameIgnoreCaseAndDeletedFalse(String planId, String versionName) {
+    public boolean existsByPlanIdAndVersionNameIgnoreCase(String planId, String versionName) {
         return versionMapper.selectCount(new LambdaQueryWrapper<PlanVersionEntity>()
                 .eq(PlanVersionEntity::getPlanId, planId)
                 .apply("lower(version_name) = lower({0})", versionName)) > 0;

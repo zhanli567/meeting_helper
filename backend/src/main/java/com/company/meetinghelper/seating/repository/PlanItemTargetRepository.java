@@ -24,7 +24,7 @@ public class PlanItemTargetRepository extends AbstractMyBatisRepository<PlanItem
      * @param planItemIds 排座明细ID集合
      * @return 目标位置列表
      */
-    public List<PlanItemTargetEntity> findAllByPlanItemIdInAndDeletedFalse(Collection<String> planItemIds) {
+    public List<PlanItemTargetEntity> findAllByPlanItemIdIn(Collection<String> planItemIds) {
         if (planItemIds.isEmpty()) {
             return List.of();
         }
@@ -38,7 +38,7 @@ public class PlanItemTargetRepository extends AbstractMyBatisRepository<PlanItem
      * @param meetingElementId 会议元素ID
      * @return 目标位置
      */
-    public Optional<PlanItemTargetEntity> findByMeetingElementIdAndDeletedFalse(String meetingElementId) {
+    public Optional<PlanItemTargetEntity> findByMeetingElementId(String meetingElementId) {
         return Optional.ofNullable(targetMapper.selectOne(new LambdaQueryWrapper<PlanItemTargetEntity>()
                 .eq(PlanItemTargetEntity::getMeetingElementId, meetingElementId)
                 .last("limit 1")));

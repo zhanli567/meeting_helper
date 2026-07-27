@@ -38,11 +38,7 @@ public abstract class AbstractMyBatisRepository<T extends AuditedEntity> {
             return entity;
         }
         prepareUpdate(entity);
-        if (entity.isDeleted()) {
-            mapper.deleteById(entity.getId());
-        } else {
-            mapper.updateById(entity);
-        }
+        mapper.updateById(entity);
         return entity;
     }
 

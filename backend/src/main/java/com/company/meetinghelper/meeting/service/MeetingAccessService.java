@@ -42,7 +42,7 @@ public class MeetingAccessService {
     @Transactional(readOnly = true)
     public MeetingEntity requireOwnedMeeting(String meetingId) {
         String userId = currentUserProvider.requireUserId();
-        return meetingRepository.findByIdAndCreatedByIdAndDeletedFalse(meetingId, userId)
+        return meetingRepository.findByIdAndCreatedById(meetingId, userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议不存在"));
     }
 

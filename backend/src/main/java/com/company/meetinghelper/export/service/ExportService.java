@@ -3,6 +3,7 @@ package com.company.meetinghelper.export.service;
 import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.meeting.service.MeetingAccessService;
 import com.company.meetinghelper.seating.service.PlanVersionService;
+import com.company.meetinghelper.venue.entity.ElementKind;
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse;
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.ElementView;
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.FieldDefinitionView;
@@ -155,18 +156,18 @@ public class ExportService {
             WorkspaceResponse.ParticipantView participant,
             WorkspaceResponse workspace
     ) {
-        if ("SEAT".equals(element.type())) {
+        if (isSeat(element)) {
             if (participant != null) {
                 String summary = firstDynamicSummary(participant, workspace);
-                return nullToEmpty(element.code()) + "\n" + participant.name()
+                return nullToEmpty(element.name()) + "\n" + participant.name()
                         + (summary.isBlank() ? "" : "\n" + summary);
             }
             if (item != null) {
-                return nullToEmpty(element.code()) + "\n" + nullToEmpty(item.label());
+                return nullToEmpty(element.name()) + "\n" + nullToEmpty(item.label());
             }
-            return nullToEmpty(element.code());
+            return nullToEmpty(element.name());
         }
-        return nullToEmpty(element.label());
+        return nullToEmpty(element.name());
     }
 
     private XSSFCellStyle createElementStyle(
@@ -185,7 +186,7 @@ public class ExportService {
         style.setBorderRight(BorderStyle.THIN);
         String color = item != null && item.backgroundColor() != null
                 ? item.backgroundColor()
-                : element.backgroundColor();
+                : element.fillColor();
         if (color != null) {
             style.setFillForegroundColor(new XSSFColor(parseRgbBytes(color), new DefaultIndexedColorMap()));
             style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
@@ -209,12 +210,14 @@ public class ExportService {
         LinkedHashMap<String,PlanItemView> itemByElement = new LinkedHashMap<String, WorkspaceResponse.PlanItemView>();
         workspace.items().forEach(item -> item.targetElementIds().forEach(elementId -> itemByElement.put(elementId, item)));
         int rowIndex = 1;
-        for (ElementView element : workspace.layout().elements().stream().filter(WorkspaceResponse.ElementView::assignable).toList()) {
+        for (ElementView element : workspace.layout().elements().stream()
+                .filter(this::isSeat)
+                .toList()) {
             XSSFRow row = sheet.createRow(rowIndex++);
             PlanItemView item = itemByElement.get(element.id());
             ParticipantView participant = item == null || item.participantId() == null
                     ? null : participantById.get(item.participantId());
-            row.createCell(0).setCellValue(nullToEmpty(element.code()));
+            row.createCell(0).setCellValue(nullToEmpty(element.name()));
             row.createCell(1).setCellValue(item == null ? "座位" : item.type());
             row.createCell(2).setCellValue(participant == null ? "" : participant.employeeNo());
             row.createCell(3).setCellValue(participant == null ? "" : participant.name());
@@ -331,7 +334,7 @@ public class ExportService {
                     ? null : participantById.get(item.participantId());
             String color = item != null && item.backgroundColor() != null
                     ? item.backgroundColor()
-                    : element.backgroundColor();
+                    : element.fillColor();
             if (color != null) {
                 content.setNonStrokingColor(parseAwtColor(color));
                 content.addRect(x, y, width, height);
@@ -359,21 +362,21 @@ public class ExportService {
             WorkspaceResponse.ParticipantView participant,
             WorkspaceResponse workspace
     ) {
-        if ("SEAT".equals(element.type())) {
+        if (isSeat(element)) {
             if (participant != null) {
                 String summary = firstDynamicSummary(participant, workspace);
                 return truncate(
-                        element.code() + " " + participant.name()
+                        element.name() + " " + participant.name()
                                 + (summary.isBlank() ? "" : " " + summary),
                         18
                 );
             }
             if (item != null) {
-                return truncate(element.code() + " " + nullToEmpty(item.label()), 18);
+                return truncate(element.name() + " " + nullToEmpty(item.label()), 18);
             }
-            return truncate(nullToEmpty(element.code()), 12);
+            return truncate(nullToEmpty(element.name()), 12);
         }
-        return truncate(nullToEmpty(element.label()), 18);
+        return truncate(nullToEmpty(element.name()), 18);
     }
 
     private String firstDynamicSummary(
@@ -386,6 +389,10 @@ public class ExportService {
                 .filter(value -> value != null && !value.isBlank())
                 .findFirst()
                 .orElse("");
+    }
+
+    private boolean isSeat(WorkspaceResponse.ElementView element) {
+        return ElementKind.SEAT.name().equals(element.kind());
     }
 
     private List<WorkspaceResponse.FieldDefinitionView> dynamicFields(

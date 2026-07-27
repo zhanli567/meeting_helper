@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { Refresh, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { apiErrorMessage } from '@/api/http'
-import { meetingApi } from '@/api/meeting'
+import { venueApi } from '@/api/venue'
 import { displayCellUnit, elementBox, previewFitZoom } from '@/utils/venueCanvasMetrics'
 
 const visible = defineModel({ required: true })
@@ -20,7 +20,7 @@ let panStartY = 0
 let panScrollLeft = 0
 let panScrollTop = 0
 
-const unit = computed(() => displayCellUnit(venue.value?.cellSize, zoom.value))
+const unit = computed(() => displayCellUnit(zoom.value))
 const canvasStyle = computed(() => ({
   width: `${(venue.value?.gridColumns || 1) * unit.value}px`,
   height: `${(venue.value?.gridRows || 1) * unit.value}px`,
@@ -33,7 +33,7 @@ watch(
     if (!isVisible || !venueId) return
     loading.value = true
     try {
-      venue.value = await meetingApi.venue(venueId)
+      venue.value = await venueApi.layout(venueId)
       await nextTick()
       fitCanvas()
     } catch (error) {
@@ -52,11 +52,10 @@ function elementStyle(element) {
     left: `${box.left}px`,
     width: `${box.width}px`,
     height: `${box.height}px`,
-    zIndex: element.type === 'SEAT' ? 3 : 1,
-    color: readableTextColor(element.backgroundColor),
-    backgroundColor: element.backgroundColor || defaultColor(element.type),
+    zIndex: element.kind === 'SEAT' ? 3 : 1,
+    color: readableTextColor(element.fillColor),
+    backgroundColor: element.fillColor || (element.kind === 'SEAT' ? '#ffffff' : '#eef4fb'),
     borderColor: element.borderColor || '#93b4df',
-    transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
   }
 }
 
@@ -66,38 +65,6 @@ function readableTextColor(color) {
   const green = Number.parseInt(color.slice(3, 5), 16)
   const blue = Number.parseInt(color.slice(5, 7), 16)
   return red * 0.299 + green * 0.587 + blue * 0.114 < 150 ? '#ffffff' : '#23415f'
-}
-
-function defaultColor(type) {
-  return (
-    {
-      SEAT: '#ffffff',
-      STAGE: '#dceafd',
-      AISLE: '#f8fafc',
-      WALL: '#8da2bd',
-      DOOR: '#ffedd5',
-      TABLE: '#d8c4a4',
-      STAIR: '#dbe7f5',
-      LABEL: '#f8fafc',
-    }[type] || '#eef4fb'
-  )
-}
-
-function typeLabel(type) {
-  return (
-    {
-      SEAT: '座位',
-      STAGE: '舞台',
-      AISLE: '走廊',
-      WALL: '墙',
-      DOOR: '门',
-      TABLE: '桌子',
-      STAIR: '楼梯',
-      SCREEN: '屏幕',
-      PODIUM: '讲台',
-      LABEL: '文字',
-    }[type] || type
-  )
 }
 
 function changeZoom(delta, event) {
@@ -124,7 +91,6 @@ function fitCanvas() {
   const viewport = viewportRef.value
   if (!viewport || !venue.value) return
   zoom.value = previewFitZoom({
-    cellSize: venue.value.cellSize,
     gridColumns: venue.value.gridColumns,
     gridRows: venue.value.gridRows,
     viewportWidth: viewport.clientWidth,
@@ -141,7 +107,7 @@ function centerCanvas() {
 }
 
 function startPan(event) {
-  if (event.button !== 0 || !viewportRef.value) return
+  if (event.button !== 2 || !viewportRef.value) return
   panning.value = true
   panStartX = event.clientX
   panStartY = event.clientY
@@ -170,7 +136,7 @@ onBeforeUnmount(stopPan)
 <template>
   <el-dialog
     v-model="visible"
-    :title="venue ? `预览场馆：${venue.name}` : '预览场馆'"
+    :title="venue ? `预览场馆：${venue.location}` : '预览场馆'"
     width="88vw"
     top="5vh"
     append-to-body
@@ -195,19 +161,20 @@ onBeforeUnmount(stopPan)
         class="preview-viewport"
         :class="{ panning }"
         @mousedown="startPan"
+        @contextmenu.prevent
         @wheel="onWheel"
       >
         <div class="preview-content">
           <div v-if="venue" class="preview-canvas" :style="canvasStyle">
             <div
               v-for="element in venue.elements"
-              :key="`${element.row}-${element.column}-${element.code}-${element.type}`"
+              :key="`${element.row}-${element.column}-${element.name}-${element.kind}`"
               class="preview-element"
-              :class="`type-${element.type.toLowerCase()}`"
+              :class="{ seat: element.kind === 'SEAT' }"
               :style="elementStyle(element)"
-              :title="[element.code, element.label, typeLabel(element.type)].filter(Boolean).join(' · ')"
+              :title="element.name || (element.kind === 'SEAT' ? '座位' : '')"
             >
-              <span>{{ element.label || element.code || typeLabel(element.type) }}</span>
+              <span>{{ element.name || (element.kind === 'SEAT' ? '座位' : '') }}</span>
             </div>
           </div>
         </div>
@@ -305,22 +272,8 @@ onBeforeUnmount(stopPan)
   white-space: nowrap;
 }
 
-.type-aisle {
-  border-style: dashed;
-}
-
-.type-wall {
-  background-image: repeating-linear-gradient(
-    45deg,
-    rgba(255, 255, 255, 0.15) 0,
-    rgba(255, 255, 255, 0.15) 5px,
-    transparent 5px,
-    transparent 10px
-  );
-}
-
-.type-stage {
-  font-weight: 700;
-  letter-spacing: 0.2em;
+.preview-element.seat {
+  border-radius: 4px;
+  font-weight: 650;
 }
 </style>

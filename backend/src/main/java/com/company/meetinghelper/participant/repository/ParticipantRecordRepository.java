@@ -23,7 +23,7 @@ public class ParticipantRecordRepository extends AbstractMyBatisRepository<Parti
      * @param participantIds 参会人员ID集合
      * @return 按人员ID和记录排序号升序排列的扩展记录
      */
-    public List<ParticipantRecordEntity> findAllByParticipantIdInAndDeletedFalseOrderByParticipantIdAscRecordOrderAsc(
+    public List<ParticipantRecordEntity> findAllByParticipantIdInOrderByParticipantIdAscRecordOrderAsc(
             Collection<String> participantIds
     ) {
         if (participantIds.isEmpty()) {
@@ -41,7 +41,7 @@ public class ParticipantRecordRepository extends AbstractMyBatisRepository<Parti
      * @param participantId 参会人员ID
      * @return 按记录排序号升序排列的扩展记录
      */
-    public List<ParticipantRecordEntity> findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(
+    public List<ParticipantRecordEntity> findAllByParticipantIdOrderByRecordOrderAsc(
             String participantId
     ) {
         return recordMapper.selectList(new LambdaQueryWrapper<ParticipantRecordEntity>()

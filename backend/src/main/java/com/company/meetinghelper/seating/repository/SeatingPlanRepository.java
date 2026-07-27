@@ -33,7 +33,7 @@ public class SeatingPlanRepository extends AbstractMyBatisRepository<SeatingPlan
      * @param meetingId 会议ID
      * @return 排座方案
      */
-    public Optional<SeatingPlanEntity> findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(String meetingId) {
+    public Optional<SeatingPlanEntity> findFirstByMeetingIdOrderByCreatedAtAsc(String meetingId) {
         return Optional.ofNullable(planMapper.selectOne(new LambdaQueryWrapper<SeatingPlanEntity>()
                 .eq(SeatingPlanEntity::getMeetingId, meetingId)
                 .orderByAsc(SeatingPlanEntity::getCreatedAt)

@@ -3,7 +3,6 @@ package com.company.meetinghelper.common.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableLogic;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -33,10 +32,6 @@ public abstract class AuditedEntity {
 
     @TableField("updated_at")
     private OffsetDateTime updatedAt;
-
-    @TableLogic
-    @TableField("deleted")
-    private boolean deleted;
 
     @TableField("row_version")
     private long rowVersion;

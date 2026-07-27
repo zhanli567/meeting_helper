@@ -17,6 +17,7 @@ import com.company.meetinghelper.seating.entity.SeatingPlanEntity;
 import com.company.meetinghelper.seating.repository.PlanItemRepository;
 import com.company.meetinghelper.seating.repository.PlanItemTargetRepository;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
+import com.company.meetinghelper.venue.entity.ElementKind;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -72,7 +73,7 @@ public class SeatingService {
     @Transactional
     public void assign(String planId, AssignmentRequest request) {
         SeatingPlanEntity plan = requirePlan(planId);
-        ParticipantEntity participant = participantRepository.findByIdAndMeetingIdAndDeletedFalse(
+        ParticipantEntity participant = participantRepository.findByIdAndMeetingId(
                         request.participantId(),
                         plan.getMeetingId()
                 )
@@ -80,21 +81,20 @@ public class SeatingService {
         if (participant.getAttendanceStatus() == AttendanceStatus.TEMPORARILY_ABSENT) {
             throw new ApiException(HttpStatus.CONFLICT, "临时不出席人员不能安排座位");
         }
-        MeetingElementEntity targetElement = elementRepository.findByIdAndMeetingIdAndDeletedFalse(
+        MeetingElementEntity targetElement = elementRepository.findByIdAndMeetingId(
                         request.targetElementId(),
                         plan.getMeetingId()
                 )
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "目标座位不存在"));
-        if (!targetElement.isAssignable()
-                || targetElement.getCapacity() != 1) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "目标位置不是可用的单人座席");
+        if (targetElement.getElementKind() != ElementKind.SEAT) {
+            throw new ApiException(HttpStatus.CONFLICT, "目标元素不是可排座座位");
         }
 
-        PlanItemEntity currentItem = itemRepository.findByPlanIdAndParticipantIdAndItemTypeAndDeletedFalse(
+        PlanItemEntity currentItem = itemRepository.findByPlanIdAndParticipantIdAndItemType(
                 planId, participant.getId(), PlanItemType.PERSON).orElse(null);
         PlanItemTargetEntity currentTarget = currentItem == null
                 ? null
-                : targetRepository.findAllByPlanItemIdInAndDeletedFalse(List.of(currentItem.getId()))
+                : targetRepository.findAllByPlanItemIdIn(List.of(currentItem.getId()))
                 .stream().findFirst().orElse(null);
         if (currentItem != null && currentItem.isLocked()) {
             throw new ApiException(HttpStatus.CONFLICT, "当前座位已锁定，无法移动");
@@ -103,7 +103,7 @@ public class SeatingService {
             return;
         }
 
-        PlanItemTargetEntity occupiedTarget = targetRepository.findByMeetingElementIdAndDeletedFalse(targetElement.getId()).orElse(null);
+        PlanItemTargetEntity occupiedTarget = targetRepository.findByMeetingElementId(targetElement.getId()).orElse(null);
         if (occupiedTarget != null) {
             PlanItemEntity occupiedItem = itemRepository.findById(occupiedTarget.getPlanItemId())
                     .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "座位占用数据不完整"));
@@ -154,11 +154,11 @@ public class SeatingService {
     public void replaceAssignments(String planId, SaveAssignmentsRequest request) {
         SeatingPlanEntity plan = requirePlan(planId);
         Map<String,ParticipantEntity> participants = participantRepository
-                .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(plan.getMeetingId())
+                .findAllByMeetingIdOrderByNameAsc(plan.getMeetingId())
                 .stream()
                 .collect(Collectors.toMap(value -> value.getId(), Function.identity()));
         Map<String,MeetingElementEntity> elements = elementRepository
-                .findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(plan.getMeetingId())
+                .findAllByMeetingIdOrderByStartRowAscStartColumnAsc(plan.getMeetingId())
                 .stream()
                 .collect(Collectors.toMap(value -> value.getId(), Function.identity()));
 
@@ -182,16 +182,16 @@ public class SeatingService {
             if (element == null) {
                 throw new ApiException(HttpStatus.NOT_FOUND, "目标座位不存在");
             }
-            if (!element.isAssignable() || element.getCapacity() != 1) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "提交的目标位置不是可用的单人座席");
+            if (element.getElementKind() != ElementKind.SEAT) {
+                throw new ApiException(HttpStatus.CONFLICT, "目标元素不是可排座座位");
             }
         }
 
-        List<PlanItemEntity> currentItems = itemRepository.findAllByPlanIdAndDeletedFalseOrderByCreatedAtAsc(planId);
+        List<PlanItemEntity> currentItems = itemRepository.findAllByPlanIdOrderByCreatedAtAsc(planId);
         List<String> itemIds = currentItems.stream().map(PlanItemEntity::getId).toList();
         List<PlanItemTargetEntity> currentTargets = itemIds.isEmpty()
                 ? List.<PlanItemTargetEntity>of()
-                : targetRepository.findAllByPlanItemIdInAndDeletedFalse(itemIds);
+                : targetRepository.findAllByPlanItemIdIn(itemIds);
         Map<String,PlanItemTargetEntity> targetByItemId = currentTargets.stream().collect(Collectors.toMap(
                 PlanItemTargetEntity::getPlanItemId,
                 Function.identity(),
@@ -265,7 +265,7 @@ public class SeatingService {
     @Transactional
     public void unassign(String planId, String participantId) {
         SeatingPlanEntity plan = requirePlan(planId);
-        PlanItemEntity item = itemRepository.findByPlanIdAndParticipantIdAndItemTypeAndDeletedFalse(
+        PlanItemEntity item = itemRepository.findByPlanIdAndParticipantIdAndItemType(
                 planId, participantId, PlanItemType.PERSON).orElse(null);
         if (item == null) {
             return;
@@ -288,7 +288,7 @@ public class SeatingService {
     @Transactional
     public void setLocked(String planId, String participantId, boolean locked) {
         SeatingPlanEntity plan = requirePlan(planId);
-        PlanItemEntity item = itemRepository.findByPlanIdAndParticipantIdAndItemTypeAndDeletedFalse(
+        PlanItemEntity item = itemRepository.findByPlanIdAndParticipantIdAndItemType(
                         planId, participantId, PlanItemType.PERSON)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "人员尚未排座"));
         item.setLocked(locked);

@@ -14,32 +14,20 @@ import lombok.Setter;
 public class VenueElementEntity extends AuditedEntity {
     @TableField("venue_template_id")
     private String venueTemplateId;
-
-    @TableField("element_type")
-    private ElementType elementType;
-
-    private String code;
-    private String label;
-    @TableField("grid_row")
-    private int gridRow;
-    @TableField("grid_column")
-    private int gridColumn;
+    @TableField("element_kind")
+    private ElementKind elementKind;
+    @TableField("element_name")
+    private String elementName;
+    @TableField("start_row")
+    private int startRow;
+    @TableField("start_column")
+    private int startColumn;
     @TableField("row_span")
     private int rowSpan;
     @TableField("column_span")
     private int columnSpan;
-    private int rotation;
-    private int capacity;
-    private boolean assignable;
-    private boolean walkable;
-    @TableField("group_code")
-    private String groupCode;
-    @TableField("group_label")
-    private String groupLabel;
-    @TableField("sequence_no")
-    private Integer sequenceNo;
-    @TableField("background_color")
-    private String backgroundColor;
+    @TableField("fill_color")
+    private String fillColor;
     @TableField("border_color")
     private String borderColor;
 }

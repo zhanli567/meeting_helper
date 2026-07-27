@@ -54,15 +54,19 @@ function formatTime(value) {
           <div class="hero-actions">
             <el-button
               v-if="recentMeeting"
-              type="primary"
               size="large"
               :icon="ArrowRight"
               @click="openMeeting(recentMeeting.id)"
             >
               继续最近会议
             </el-button>
-            <el-button size="large" :icon="Plus" @click="router.push('/venues')">
-              创建新会议
+            <el-button
+              type="primary"
+              size="large"
+              :icon="Plus"
+              @click="router.push('/venues/select')"
+            >
+              开始排座
             </el-button>
           </div>
         </section>
@@ -72,8 +76,8 @@ function formatTime(value) {
             <div>
               <h2>我的会议</h2>
             </div>
-            <el-button type="primary" plain :icon="Plus" @click="router.push('/venues')">
-              从场馆创建
+            <el-button plain @click="router.push('/venues')">
+              场馆模板
             </el-button>
           </div>
 
@@ -100,8 +104,8 @@ function formatTime(value) {
           <div v-else class="home-empty">
             <Calendar />
             <h3>还没有会议</h3>
-            <p>先从场馆模板创建一场会议，再导入人员并开始排座。</p>
-            <el-button type="primary" @click="router.push('/venues')">选择场馆</el-button>
+            <p>选择一个可用场馆模板，创建会议后即可导入人员并排座。</p>
+            <el-button type="primary" @click="router.push('/venues/select')">开始排座</el-button>
           </div>
         </section>
       </div>
