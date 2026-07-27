@@ -124,12 +124,37 @@ test('场馆预览和布局编辑页面不再调用会议 API 的场馆方法', 
   )
 })
 
+test('场馆预览只读并支持初始适配、滚轮缩放和右键平移', async () => {
+  const source = await readSource('src/components/VenuePreviewDialog.vue')
+
+  assert.match(source, /venueApi\.layout\(venueId\)/)
+  assert.match(source, /`预览场馆：\$\{venue\.location\}`/)
+  assert.match(source, /@opened="fitCanvas"/)
+  assert.match(source, /nextTick\(centerCanvas\)/)
+  assert.match(source, /@wheel="onWheel"/)
+  assert.match(source, /event\.button !== 2/)
+  assert.match(source, /@contextmenu\.prevent/)
+  assert.doesNotMatch(source, /VenueElement(Picker|Panel)|VenueLayoutEditor/)
+})
+
 test('会议创建防止重复提交且 Enter 只保留单一触发路径', async () => {
   const source = await readSource('src/views/VenueLibraryView.vue')
 
   assert.match(source, /if \(submitting\.value\) return/)
   assert.match(source, /@submit\.prevent="createMeeting"/)
   assert.doesNotMatch(source, /@keyup\.enter="createMeeting"/)
+})
+
+test('选择有座位模板后填写会议名称并进入独立会议工作台', async () => {
+  const source = await readSource('src/views/VenueLibraryView.vue')
+
+  assert.match(source, /if \(venue\.seatCount === 0\) return/)
+  assert.match(source, /meetingForm\.venueTemplateId = venue\.id/)
+  assert.match(source, /meetingVisible\.value = true/)
+  assert.match(source, /meetingApi\.createMeeting\(name, meetingForm\.venueTemplateId\)/)
+  assert.match(source, /store\.rememberMeeting\(meetingId\)/)
+  assert.match(source, /router\.push\(`\/workbench\/\$\{meetingId\}`\)/)
+  assert.match(source, /:disabled="row\.seatCount === 0"/)
 })
 
 test('场馆列表只接收最后一次查询响应', async () => {

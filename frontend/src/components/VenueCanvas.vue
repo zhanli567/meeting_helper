@@ -31,12 +31,13 @@ const itemByTarget = computed(() => {
   )
   return result
 })
-const unit = computed(() => displayCellUnit(props.workspace.layout.cellSize, props.zoom))
+const unit = computed(() => displayCellUnit(props.zoom))
 const canvasStyle = computed(() => ({
   width: `${props.workspace.layout.gridColumns * unit.value}px`,
   height: `${props.workspace.layout.gridRows * unit.value}px`,
   '--unit': `${unit.value}px`,
 }))
+const isSeat = (element) => element.kind === 'SEAT'
 function elementStyle(element) {
   const box = elementBox(element, unit.value)
   return {
@@ -44,10 +45,9 @@ function elementStyle(element) {
     top: `${box.top}px`,
     width: `${box.width}px`,
     height: `${box.height}px`,
-    backgroundColor: element.backgroundColor || '#fff',
+    backgroundColor: element.fillColor || '#fff',
     borderColor: element.borderColor || '#d7dee9',
-    transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
-    zIndex: element.assignable ? 5 : element.type === 'DOOR' ? 4 : 2,
+    zIndex: isSeat(element) ? 5 : 2,
   }
 }
 function itemFor(elementId) {
@@ -66,7 +66,7 @@ function visualStyle(element) {
   return {
     ...elementStyle(element),
     backgroundColor:
-      person?.displayColor || item?.backgroundColor || element.backgroundColor || '#ffffff',
+      person?.displayColor || item?.backgroundColor || element.fillColor || '#ffffff',
     color: item?.textColor || '#172033',
     fontWeight: item?.bold ? '700' : undefined,
   }
@@ -86,7 +86,7 @@ function startParticipantDrag(event, elementId) {
   if (participant) onDragStart(event, participant)
 }
 function onDragOver(event, element) {
-  if (props.readonly) return
+  if (props.readonly || !isSeat(element)) return
   event.preventDefault()
   if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
   dragTargetId.value = element.id
@@ -96,7 +96,7 @@ function onDragLeave(event, element) {
   if (dragTargetId.value === element.id) dragTargetId.value = undefined
 }
 function onDrop(event, element) {
-  if (props.readonly) return
+  if (props.readonly || !isSeat(element)) return
   event.preventDefault()
   const participantId = event.dataTransfer?.getData('text/participant-id')
   if (participantId) emit('assign', participantId, element.id)
@@ -104,31 +104,17 @@ function onDrop(event, element) {
   emit('dragState', undefined)
 }
 function onSeatClick(element) {
-  if (panMoved) return
+  if (panMoved || !isSeat(element)) return
   const item = itemFor(element.id)
   const person = participantFor(element.id)
   if (person) emit('select', person)
   else if (!item) emit('seatClick', element)
 }
 function onSeatDoubleClick(element) {
-  if (props.readonly) return
+  if (props.readonly || !isSeat(element)) return
   const item = itemFor(element.id)
   const person = participantFor(element.id)
   if (person && !item?.locked) emit('unassign', person.id)
-}
-function typeLabel(type) {
-  return (
-    {
-      STAGE: '舞台',
-      AISLE: '走廊',
-      DOOR: '门',
-      WALL: '墙',
-      TABLE: '桌子',
-      STAIR: '楼梯',
-      SCREEN: '屏幕',
-      PODIUM: '讲台',
-    }[type] || ''
-  )
 }
 function startPan(event) {
   if (event.button !== 2) return
@@ -209,7 +195,7 @@ onBeforeUnmount(endPan)
       <div class="venue-canvas" :style="canvasStyle">
         <template v-for="element in workspace.layout.elements" :key="element.id">
         <el-tooltip
-          v-if="element.assignable"
+          v-if="isSeat(element)"
           :show-after="360"
           placement="top"
           effect="light"
@@ -217,7 +203,7 @@ onBeforeUnmount(endPan)
         >
           <template #content>
             <div class="tooltip-card">
-              <strong>{{ element.code }}</strong>
+              <strong>{{ element.name || '座位' }}</strong>
               <template v-if="participantFor(element.id)">
                 <span>
                   {{ participantFor(element.id)?.name }} ·
@@ -255,7 +241,7 @@ onBeforeUnmount(endPan)
             @click="onSeatClick(element)"
             @dblclick.stop="onSeatDoubleClick(element)"
           >
-            <span class="seat-code">{{ element.code }}</span>
+            <span class="seat-code">{{ element.name || '座位' }}</span>
             <template v-if="participantFor(element.id)">
               <span
                 class="seat-person"
@@ -283,12 +269,10 @@ onBeforeUnmount(endPan)
         <div
           v-else
           class="layout-element structural-element"
-          :class="`type-${element.type.toLowerCase()}`"
           :style="visualStyle(element)"
+          :title="element.name"
         >
-          <span v-if="element.label || typeLabel(element.type)">
-            {{ element.label || typeLabel(element.type) }}
-          </span>
+          <span>{{ element.name }}</span>
         </div>
         </template>
       </div>
@@ -349,34 +333,6 @@ onBeforeUnmount(endPan)
   color: var(--muted);
   font-size: max(7px, calc(var(--unit) * 0.22));
   text-align: center;
-}
-
-.type-stage {
-  color: var(--ink);
-  border-radius: 0 0 12px 12px;
-  font-size: max(12px, calc(var(--unit) * 0.42));
-  font-weight: 700;
-  letter-spacing: 0.34em;
-}
-
-.type-aisle {
-  border-style: dashed;
-  color: var(--tertiary);
-}
-
-.type-wall {
-  background-image: repeating-linear-gradient(
-    45deg,
-    rgba(255, 255, 255, 0.12) 0,
-    rgba(255, 255, 255, 0.12) 4px,
-    transparent 4px,
-    transparent 8px
-  );
-}
-
-.type-door {
-  color: var(--warning);
-  font-weight: 700;
 }
 
 .seat-element {

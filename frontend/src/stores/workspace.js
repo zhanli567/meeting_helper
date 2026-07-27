@@ -83,7 +83,7 @@ function createWorkspaceStore() {
     if (!workspace.value) return false
     const person = workspace.value.participants.find((value) => value.id === participantId)
     const target = workspace.value.layout.elements.find((value) => value.id === targetElementId)
-    if (!participantCanBeSeated(person) || !target?.assignable || target.capacity !== 1) return false
+    if (!participantCanBeSeated(person) || target?.kind !== 'SEAT') return false
     if (person.locked) {
       ElMessage.warning('该人员已锁定，无法移动')
       return false
