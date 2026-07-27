@@ -965,6 +965,44 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
+    void restoringPublishedVersionDoesNotRecreatePhysicallyDeletedParticipant()
+            throws Exception {
+        String meetingId = createImportMeeting();
+        previewAndCommit(
+                meetingId,
+                "工号,姓名,批次",
+                "a12345678,张三,第二批"
+        );
+        ParticipantEntity participant = participantRepository
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
+                .orElseThrow();
+        WorkspaceResponse before = workspaceService.getWorkspace(meetingId);
+        ElementView seat = before.layout().elements().stream()
+                .filter(value -> value.assignable() && value.capacity() == 1)
+                .findFirst()
+                .orElseThrow();
+        seatingService.assign(
+                before.plan().id(),
+                new AssignmentRequest(participant.getId(), seat.id())
+        );
+        VersionResult version = planVersionService.create(
+                before.plan().id(),
+                new CreateVersionRequest("已删除人员恢复保护版", "", false)
+        );
+
+        participantService.delete(meetingId, participant.getId());
+
+        planVersionService.restore(before.plan().id(), version.id());
+
+        WorkspaceResponse restored = workspaceService.getWorkspace(meetingId);
+        assertThat(restored.participants()).isEmpty();
+        assertThat(recordRepository.findAllByParticipantIdOrderByRecordOrderAsc(participant.getId()))
+                .isEmpty();
+        assertThat(itemRepository.findByPlanIdAndParticipantIdAndItemType(
+                before.plan().id(), participant.getId(), PlanItemType.PERSON)).isEmpty();
+    }
+
+    @Test
     void legacyGenericAttributesAreAdaptedToDynamicFieldsForExportAndRestore()
             throws Exception {
         String meetingId = createImportMeeting();

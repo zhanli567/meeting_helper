@@ -18,18 +18,6 @@ public class ParticipantRepository extends AbstractMyBatisRepository<Participant
     }
 
     /**
-     * 新增或更新人员；更新时允许恢复已逻辑删除的同工号人员。
-     *
-     * @param participant 待保存人员
-     * @return 已保存人员
-     */
-    /**
-     * 按主键查询人员，包括已逻辑删除的人员。
-     *
-     * @param id 人员ID
-     * @return 匹配人员
-     */
-    /**
      * 查询会议中的全部有效人员。
      *
      * @param meetingId 会议ID
@@ -41,12 +29,6 @@ public class ParticipantRepository extends AbstractMyBatisRepository<Participant
                 .orderByAsc(ParticipantEntity::getName));
     }
 
-    /**
-     * 查询会议中的全部人员，包括逻辑删除记录。
-     *
-     * @param meetingId 会议ID
-     * @return 有效人员优先、姓名升序排列的参会人员
-     */
     /**
      * 按人员ID和会议ID查询有效人员。
      *

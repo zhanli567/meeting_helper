@@ -168,7 +168,7 @@ public class VenueService {
     }
 
     /**
-     * 软删除自定义场馆模板及其元素。
+     * 物理删除自定义场馆模板及其元素。
      *
      * @param id 场馆模板ID
      */

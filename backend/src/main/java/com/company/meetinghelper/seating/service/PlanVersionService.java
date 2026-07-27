@@ -587,6 +587,9 @@ public class PlanVersionService {
                 continue;
             }
             String participantId = participantIdsBySnapshotId.get(source.id());
+            if (participantId == null) {
+                continue;
+            }
             int recordOrder = 0;
             for (ParticipantRecordView sourceRecord : source.records().stream()
                     .sorted(Comparator.comparingInt(
