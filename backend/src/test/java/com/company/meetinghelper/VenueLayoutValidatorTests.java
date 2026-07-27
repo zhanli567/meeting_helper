@@ -2,10 +2,12 @@ package com.company.meetinghelper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.venue.api.dto.ElementInput;
 import com.company.meetinghelper.venue.validation.VenueLayoutValidator;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -131,5 +133,29 @@ class VenueLayoutValidatorTests {
         );
 
         assertEquals("元素“溢出座位”超出布局边界", exception.getMessage());
+    }
+
+    @Test
+    void rejectsOverlapAtMaximumGridSizeWithoutTraversingEveryCell() {
+        List<ElementInput> elements = List.of(
+                new ElementInput(
+                        "GENERIC", "超大区域", 1, 1, Integer.MAX_VALUE, 1,
+                        "#dbeafe", "#93c5fd"
+                ),
+                new ElementInput(
+                        "SEAT", "重叠座位", 1, 1, 1, 1,
+                        "#ffffff", "#8fb4e8"
+                )
+        );
+
+        ApiException exception = assertTimeoutPreemptively(
+                Duration.ofSeconds(1),
+                () -> assertThrows(
+                        ApiException.class,
+                        () -> validator.validate(Integer.MAX_VALUE, 5, elements)
+                )
+        );
+
+        assertEquals("元素“重叠座位”与其他元素发生重叠", exception.getMessage());
     }
 }

@@ -46,8 +46,10 @@ public class VenueController {
     public VenuePage list(
             @RequestParam(defaultValue = "") String keyword,
             @RequestParam(defaultValue = "") String campus,
-            @RequestParam(defaultValue = "1") @Min(1) int pageNum,
-            @RequestParam(defaultValue = "10") @Min(1) int pageSize
+            @RequestParam(defaultValue = "1")
+            @Min(value = 1, message = "必须大于等于1") int pageNum,
+            @RequestParam(defaultValue = "10")
+            @Min(value = 1, message = "必须大于等于1") int pageSize
     ) {
         return venueService.list(keyword, campus, pageNum, pageSize);
     }

@@ -4,10 +4,8 @@ import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.venue.api.dto.ElementInput;
 import com.company.meetinghelper.venue.entity.ElementKind;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -31,7 +29,7 @@ public class VenueLayoutValidator {
         if (elements == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "布局元素不能为空");
         }
-        Set<String> occupiedCells = new HashSet<>();
+        List<OccupiedRectangle> occupiedRectangles = new ArrayList<>(elements.size());
         List<ElementInput> normalizedElements = new ArrayList<>(elements.size());
         int seatCount = 0;
         for (ElementInput source : elements) {
@@ -58,18 +56,18 @@ public class VenueLayoutValidator {
                     || endColumn > gridColumns) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "元素“" + name + "”超出布局边界");
             }
-            for (int row = source.row(); row < source.row() + source.rowSpan(); row++) {
-                for (int column = source.column();
-                     column < source.column() + source.columnSpan();
-                     column++) {
-                    if (!occupiedCells.add(row + ":" + column)) {
-                        throw new ApiException(
-                                HttpStatus.BAD_REQUEST,
-                                "元素“" + name + "”与其他元素发生重叠"
-                        );
-                    }
+            OccupiedRectangle rectangle = new OccupiedRectangle(
+                    source.row(), endRow, source.column(), endColumn
+            );
+            for (OccupiedRectangle occupied : occupiedRectangles) {
+                if (rectangle.overlaps(occupied)) {
+                    throw new ApiException(
+                            HttpStatus.BAD_REQUEST,
+                            "元素“" + name + "”与其他元素发生重叠"
+                    );
                 }
             }
+            occupiedRectangles.add(rectangle);
             normalizedElements.add(new ElementInput(
                     kind.name(), name, source.row(), source.column(), source.rowSpan(),
                     source.columnSpan(), fillColor, borderColor
@@ -87,6 +85,20 @@ public class VenueLayoutValidator {
             throw new ApiException(HttpStatus.BAD_REQUEST, "元素“" + elementName + "”的颜色格式无效");
         }
         return normalized;
+    }
+
+    private record OccupiedRectangle(
+            long startRow,
+            long endRow,
+            long startColumn,
+            long endColumn
+    ) {
+        private boolean overlaps(OccupiedRectangle other) {
+            return startRow <= other.endRow
+                    && endRow >= other.startRow
+                    && startColumn <= other.endColumn
+                    && endColumn >= other.startColumn;
+        }
     }
 
     public record ValidationResult(List<ElementInput> elements, int seatCount) {

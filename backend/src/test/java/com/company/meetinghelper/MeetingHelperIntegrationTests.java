@@ -2,6 +2,7 @@ package com.company.meetinghelper;
 
 import static java.util.Locale.ROOT;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hamcrest.Matchers.nullValue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -1764,6 +1765,28 @@ class MeetingHelperIntegrationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records[0].id").value(created.id()))
                 .andExpect(jsonPath("$.data.total").value(1));
+    }
+
+    @Test
+    void venueListRejectsPageNumberBelowOne() throws Exception {
+        mockMvc.perform(get("/venues")
+                        .param("pageNum", "0")
+                        .param("pageSize", "10"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.msg").value("pageNum：必须大于等于1"));
+    }
+
+    @Test
+    void venueListRejectsPageSizeBelowOne() throws Exception {
+        mockMvc.perform(get("/venues")
+                        .param("pageNum", "1")
+                        .param("pageSize", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.msg").value("pageSize：必须大于等于1"));
     }
 
     @Test
