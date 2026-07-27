@@ -41,7 +41,7 @@ public class ParticipantFieldRegistrationService {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public void lockMeeting(String meetingId) {
-        meetingRepository.findByIdAndDeletedFalseForUpdate(meetingId)
+        meetingRepository.findByIdForUpdate(meetingId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议不存在"));
     }
 
@@ -60,7 +60,7 @@ public class ParticipantFieldRegistrationService {
         lockMeeting(meetingId);
 
         List<MeetingParticipantFieldEntity> existing = fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId);
         LinkedHashMap<String,String> canonicalNames = new LinkedHashMap<String, String>();
         existing.forEach(field -> canonicalNames.putIfAbsent(
                 normalize(field.getFieldName()),

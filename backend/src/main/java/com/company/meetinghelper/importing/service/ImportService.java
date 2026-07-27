@@ -117,7 +117,7 @@ public class ImportService {
         }
 
         List<MeetingParticipantFieldEntity> registeredFields = fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId);
         LinkedHashMap<String,String> canonicalFieldNames = new LinkedHashMap<String, String>();
         registeredFields.forEach(field -> canonicalFieldNames.put(
                 normalize(field.getFieldName()),
@@ -201,7 +201,7 @@ public class ImportService {
                 continue;
             }
             ParticipantEntity existing = participantRepository
-                    .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, row.employeeNo())
+                    .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, row.employeeNo())
                     .orElse(null);
             if (existing != null && !existing.getName().equals(row.name())) {
                 throw new ApiException(
@@ -288,7 +288,7 @@ public class ImportService {
             boolean firstIncomingRow = state == null;
             if (state == null) {
                 ParticipantEntity existing = participantRepository
-                        .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(
+                        .findByMeetingIdAndEmployeeNoIgnoreCase(
                                 meetingId,
                                 row.employeeNo()
                         )
@@ -301,7 +301,7 @@ public class ImportService {
                     );
                 } else {
                     List<ParticipantRecordEntity> records = recordRepository
-                            .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(
+                            .findAllByParticipantIdOrderByRecordOrderAsc(
                                     existing.getId()
                             );
                     state = new PreviewParticipant(
@@ -350,7 +350,7 @@ public class ImportService {
                 continue;
             }
             participantRepository
-                    .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(
+                    .findByMeetingIdAndEmployeeNoIgnoreCase(
                             meetingId,
                             row.employeeNo()
                     )
@@ -441,7 +441,7 @@ public class ImportService {
             return recordsByParticipant;
         }
         recordRepository
-                .findAllByParticipantIdInAndDeletedFalseOrderByParticipantIdAscRecordOrderAsc(
+                .findAllByParticipantIdInOrderByParticipantIdAscRecordOrderAsc(
                         participantIds
                 )
                 .forEach(record -> recordsByParticipant

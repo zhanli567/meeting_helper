@@ -56,13 +56,13 @@ public class VenueService {
                         definition.gridColumns(), definition.versionNo(), true,
                         definition.elements().stream().filter(ElementInput::assignable).count()
                 ));
-        Stream<VenueSummary> customVenues = templateRepository.findAllByDeletedFalseOrderByPresetDescNameAsc().stream()
+        Stream<VenueSummary> customVenues = templateRepository.findAllOrderByPresetDescNameAsc().stream()
                 .filter(template -> !template.isPreset())
                 .map(template -> new VenueSummary(
                         template.getId(), template.getName(), template.getDescription(), template.getGridRows(),
                         template.getGridColumns(), template.getVersionNo(), template.isPreset(),
                         elementRepository
-                                .findAllByVenueTemplateIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(template.getId())
+                                .findAllByVenueTemplateIdOrderByGridRowAscGridColumnAsc(template.getId())
                                 .stream().filter(VenueElementEntity::isAssignable).count()));
         return Stream.concat(presets, customVenues).toList();
     }
@@ -80,13 +80,13 @@ public class VenueService {
             return toDetail(preset.get());
         }
         VenueTemplateEntity template = templateRepository.findById(id)
-                .filter(value -> !value.isDeleted() && !value.isPreset())
+                .filter(value -> !value.isPreset())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "场馆模板不存在"));
         return new VenueDetail(
                 template.getId(), template.getName(), template.getDescription(), template.getGridRows(),
                 template.getGridColumns(), template.getCellSize(), template.getVersionNo(), template.isPreset(),
                 template.getFrontDirection().name(),
-                elementRepository.findAllByVenueTemplateIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(id).stream()
+                elementRepository.findAllByVenueTemplateIdOrderByGridRowAscGridColumnAsc(id).stream()
                         .map(this::toElement).toList());
     }
 
@@ -100,7 +100,7 @@ public class VenueService {
     public VenueDetail create(CreateVenueRequest request) {
         String normalizedName = request.name().trim();
         if (presetVenueStore.existsByNameIgnoreCase(normalizedName)
-                || templateRepository.existsByNameIgnoreCaseAndDeletedFalse(normalizedName)) {
+                || templateRepository.existsByNameIgnoreCase(normalizedName)) {
             throw new ApiException(HttpStatus.CONFLICT, "场馆名称已存在");
         }
         VenueTemplateEntity template = new VenueTemplateEntity();
@@ -136,14 +136,13 @@ public class VenueService {
             throw new ApiException(HttpStatus.CONFLICT, "系统预置场馆不允许修改");
         }
         VenueTemplateEntity template = templateRepository.findById(id)
-                .filter(value -> !value.isDeleted())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "场馆模板不存在"));
         if (template.isPreset()) {
             throw new ApiException(HttpStatus.CONFLICT, "系统预置场馆不允许修改");
         }
         String normalizedName = request.name().trim();
         if (presetVenueStore.existsByNameIgnoreCase(normalizedName)
-                || templateRepository.existsByNameIgnoreCaseAndDeletedFalseAndIdNot(normalizedName, id)) {
+                || templateRepository.existsByNameIgnoreCaseAndIdNot(normalizedName, id)) {
             throw new ApiException(HttpStatus.CONFLICT, "场馆名称已存在");
         }
         template.setName(normalizedName);
@@ -156,9 +155,8 @@ public class VenueService {
         templateRepository.save(template);
 
         List<VenueElementEntity> oldElements = elementRepository
-                .findAllByVenueTemplateIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(id);
-        oldElements.forEach(element -> element.setDeleted(true));
-        elementRepository.saveAll(oldElements);
+                .findAllByVenueTemplateIdOrderByGridRowAscGridColumnAsc(id);
+        elementRepository.deleteAll(oldElements);
         List<VenueElementEntity> newElements = request.elements().stream().map(source -> {
             VenueElementEntity target = new VenueElementEntity();
             target.setVenueTemplateId(id);
@@ -180,17 +178,14 @@ public class VenueService {
             throw new ApiException(HttpStatus.CONFLICT, "系统预置场馆不允许删除");
         }
         VenueTemplateEntity template = templateRepository.findById(id)
-                .filter(value -> !value.isDeleted())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "场馆模板不存在"));
         if (template.isPreset()) {
             throw new ApiException(HttpStatus.CONFLICT, "系统预置场馆不允许删除");
         }
-        template.setDeleted(true);
-        templateRepository.save(template);
         List<VenueElementEntity> elements = elementRepository
-                .findAllByVenueTemplateIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(id);
-        elements.forEach(element -> element.setDeleted(true));
-        elementRepository.saveAll(elements);
+                .findAllByVenueTemplateIdOrderByGridRowAscGridColumnAsc(id);
+        elementRepository.deleteAll(elements);
+        templateRepository.delete(template);
     }
 
     private void applyElement(ElementInput source, VenueElementEntity target) {

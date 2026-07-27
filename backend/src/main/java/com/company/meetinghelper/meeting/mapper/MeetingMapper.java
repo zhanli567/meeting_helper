@@ -10,7 +10,6 @@ public interface MeetingMapper extends BaseMapper<MeetingEntity> {
             select *
             from t_meetings
             where id = #{meetingId}
-              and deleted = false
             for update
             """)
     MeetingEntity selectByIdForUpdate(@Param("meetingId") String meetingId);

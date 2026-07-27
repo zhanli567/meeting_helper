@@ -23,34 +23,19 @@ public class ParticipantRepository extends AbstractMyBatisRepository<Participant
      * @param participant 待保存人员
      * @return 已保存人员
      */
-    @Override
-    public ParticipantEntity save(ParticipantEntity participant) {
-        if (participant.getId() == null) {
-            return super.save(participant);
-        }
-        prepareUpdate(participant);
-        participantMapper.updateIncludingDeleted(participant);
-        return participant;
-    }
-
     /**
      * 按主键查询人员，包括已逻辑删除的人员。
      *
      * @param id 人员ID
      * @return 匹配人员
      */
-    @Override
-    public Optional<ParticipantEntity> findById(String id) {
-        return Optional.ofNullable(participantMapper.selectIncludingDeletedById(id));
-    }
-
     /**
      * 查询会议中的全部有效人员。
      *
      * @param meetingId 会议ID
      * @return 按姓名升序排列的参会人员
      */
-    public List<ParticipantEntity> findAllByMeetingIdAndDeletedFalseOrderByNameAsc(String meetingId) {
+    public List<ParticipantEntity> findAllByMeetingIdOrderByNameAsc(String meetingId) {
         return participantMapper.selectList(new LambdaQueryWrapper<ParticipantEntity>()
                 .eq(ParticipantEntity::getMeetingId, meetingId)
                 .orderByAsc(ParticipantEntity::getName));
@@ -62,10 +47,6 @@ public class ParticipantRepository extends AbstractMyBatisRepository<Participant
      * @param meetingId 会议ID
      * @return 有效人员优先、姓名升序排列的参会人员
      */
-    public List<ParticipantEntity> findAllByMeetingIdOrderByDeletedAscNameAsc(String meetingId) {
-        return participantMapper.selectAllIncludingDeletedByMeetingId(meetingId);
-    }
-
     /**
      * 按人员ID和会议ID查询有效人员。
      *
@@ -73,7 +54,7 @@ public class ParticipantRepository extends AbstractMyBatisRepository<Participant
      * @param meetingId 会议ID
      * @return 属于指定会议的有效人员
      */
-    public Optional<ParticipantEntity> findByIdAndMeetingIdAndDeletedFalse(String id, String meetingId) {
+    public Optional<ParticipantEntity> findByIdAndMeetingId(String id, String meetingId) {
         return Optional.ofNullable(participantMapper.selectOne(new LambdaQueryWrapper<ParticipantEntity>()
                 .eq(ParticipantEntity::getId, id)
                 .eq(ParticipantEntity::getMeetingId, meetingId)
@@ -87,7 +68,7 @@ public class ParticipantRepository extends AbstractMyBatisRepository<Participant
      * @param employeeNo 工号
      * @return 参会人员
      */
-    public Optional<ParticipantEntity> findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(
+    public Optional<ParticipantEntity> findByMeetingIdAndEmployeeNoIgnoreCase(
             String meetingId,
             String employeeNo
     ) {
@@ -103,7 +84,7 @@ public class ParticipantRepository extends AbstractMyBatisRepository<Participant
      * @param meetingId 会议ID
      * @return 有效人员数量
      */
-    public long countByMeetingIdAndDeletedFalse(String meetingId) {
+    public long countByMeetingId(String meetingId) {
         return participantMapper.selectCount(new LambdaQueryWrapper<ParticipantEntity>()
                 .eq(ParticipantEntity::getMeetingId, meetingId));
     }

@@ -22,7 +22,7 @@ public class VenueElementRepository extends AbstractMyBatisRepository<VenueEleme
      * @param venueTemplateId 场馆模板ID
      * @return 按网格位置排列的场馆元素
      */
-    public List<VenueElementEntity> findAllByVenueTemplateIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(
+    public List<VenueElementEntity> findAllByVenueTemplateIdOrderByGridRowAscGridColumnAsc(
             String venueTemplateId
     ) {
         return elementMapper.selectList(new LambdaQueryWrapper<VenueElementEntity>()

@@ -25,7 +25,7 @@ public class PlanItemRepository extends AbstractMyBatisRepository<PlanItemEntity
      * @param planId 排座方案ID
      * @return 按创建时间升序排列的排座明细
      */
-    public List<PlanItemEntity> findAllByPlanIdAndDeletedFalseOrderByCreatedAtAsc(String planId) {
+    public List<PlanItemEntity> findAllByPlanIdOrderByCreatedAtAsc(String planId) {
         return itemMapper.selectList(new LambdaQueryWrapper<PlanItemEntity>()
                 .eq(PlanItemEntity::getPlanId, planId)
                 .orderByAsc(PlanItemEntity::getCreatedAt));
@@ -39,7 +39,7 @@ public class PlanItemRepository extends AbstractMyBatisRepository<PlanItemEntity
      * @param itemType 排座明细类型
      * @return 排座明细
      */
-    public Optional<PlanItemEntity> findByPlanIdAndParticipantIdAndItemTypeAndDeletedFalse(
+    public Optional<PlanItemEntity> findByPlanIdAndParticipantIdAndItemType(
             String planId,
             String participantId,
             PlanItemType itemType

@@ -23,7 +23,7 @@ public class MeetingRepository extends AbstractMyBatisRepository<MeetingEntity> 
      * @param createdById 创建人ID
      * @return 按更新时间倒序排列的会议
      */
-    public List<MeetingEntity> findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(String createdById) {
+    public List<MeetingEntity> findAllByCreatedByIdOrderByUpdatedAtDesc(String createdById) {
         return meetingMapper.selectList(new LambdaQueryWrapper<MeetingEntity>()
                 .eq(MeetingEntity::getCreatedById, createdById)
                 .orderByDesc(MeetingEntity::getUpdatedAt));
@@ -36,7 +36,7 @@ public class MeetingRepository extends AbstractMyBatisRepository<MeetingEntity> 
      * @param createdById 创建人ID
      * @return 匹配的有效会议
      */
-    public Optional<MeetingEntity> findByIdAndCreatedByIdAndDeletedFalse(String id, String createdById) {
+    public Optional<MeetingEntity> findByIdAndCreatedById(String id, String createdById) {
         return Optional.ofNullable(meetingMapper.selectOne(new LambdaQueryWrapper<MeetingEntity>()
                 .eq(MeetingEntity::getId, id)
                 .eq(MeetingEntity::getCreatedById, createdById)
@@ -49,7 +49,7 @@ public class MeetingRepository extends AbstractMyBatisRepository<MeetingEntity> 
      * @param meetingId 会议ID
      * @return 已加悲观写锁的会议
      */
-    public Optional<MeetingEntity> findByIdAndDeletedFalseForUpdate(String meetingId) {
+    public Optional<MeetingEntity> findByIdForUpdate(String meetingId) {
         return Optional.ofNullable(meetingMapper.selectByIdForUpdate(meetingId));
     }
 
@@ -60,7 +60,7 @@ public class MeetingRepository extends AbstractMyBatisRepository<MeetingEntity> 
      * @param name 会议名称
      * @return 名称已存在时返回true
      */
-    public boolean existsByCreatedByIdAndNameIgnoreCaseAndDeletedFalse(String createdById, String name) {
+    public boolean existsByCreatedByIdAndNameIgnoreCase(String createdById, String name) {
         return meetingMapper.selectCount(new LambdaQueryWrapper<MeetingEntity>()
                 .eq(MeetingEntity::getCreatedById, createdById)
                 .apply("lower(name) = lower({0})", name)) > 0;

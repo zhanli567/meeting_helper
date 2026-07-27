@@ -14,7 +14,6 @@ create table if not exists t_venue_templates (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
     row_version bigint not null
 );
 
@@ -34,7 +33,6 @@ comment on column t_venue_templates.created_at is '创建时间';
 comment on column t_venue_templates.updated_by_id is '最后更新人标识';
 comment on column t_venue_templates.updated_by_name is '最后更新人姓名';
 comment on column t_venue_templates.updated_at is '最后更新时间';
-comment on column t_venue_templates.deleted is '逻辑删除标记';
 comment on column t_venue_templates.row_version is '乐观锁版本号';
 
 create table if not exists t_venue_elements (
@@ -62,9 +60,7 @@ create table if not exists t_venue_elements (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
-    row_version bigint not null,
-    constraint fk_t_venue_element_template foreign key (venue_template_id) references t_venue_templates(id)
+    row_version bigint not null
 );
 
 comment on table t_venue_elements is '场馆模板中的布局元素';
@@ -92,7 +88,6 @@ comment on column t_venue_elements.created_at is '创建时间';
 comment on column t_venue_elements.updated_by_id is '最后更新人标识';
 comment on column t_venue_elements.updated_by_name is '最后更新人姓名';
 comment on column t_venue_elements.updated_at is '最后更新时间';
-comment on column t_venue_elements.deleted is '逻辑删除标记';
 comment on column t_venue_elements.row_version is '乐观锁版本号';
 
 create table if not exists t_meetings (
@@ -111,9 +106,7 @@ create table if not exists t_meetings (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
-    row_version bigint not null,
-    constraint fk_t_meeting_template foreign key (venue_template_id) references t_venue_templates(id)
+    row_version bigint not null
 );
 
 comment on table t_meetings is '会议及其场馆布局快照';
@@ -132,7 +125,6 @@ comment on column t_meetings.created_at is '创建时间';
 comment on column t_meetings.updated_by_id is '最后更新人标识';
 comment on column t_meetings.updated_by_name is '最后更新人姓名';
 comment on column t_meetings.updated_at is '最后更新时间';
-comment on column t_meetings.deleted is '逻辑删除标记';
 comment on column t_meetings.row_version is '乐观锁版本号';
 
 create table if not exists t_meeting_elements (
@@ -161,9 +153,7 @@ create table if not exists t_meeting_elements (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
-    row_version bigint not null,
-    constraint fk_t_meeting_element_meeting foreign key (meeting_id) references t_meetings(id)
+    row_version bigint not null
 );
 
 comment on table t_meeting_elements is '会议创建时复制的布局元素快照';
@@ -192,7 +182,6 @@ comment on column t_meeting_elements.created_at is '创建时间';
 comment on column t_meeting_elements.updated_by_id is '最后更新人标识';
 comment on column t_meeting_elements.updated_by_name is '最后更新人姓名';
 comment on column t_meeting_elements.updated_at is '最后更新时间';
-comment on column t_meeting_elements.deleted is '逻辑删除标记';
 comment on column t_meeting_elements.row_version is '乐观锁版本号';
 
 create table if not exists t_participants (
@@ -208,9 +197,7 @@ create table if not exists t_participants (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
     row_version bigint not null,
-    constraint fk_t_participant_meeting foreign key (meeting_id) references t_meetings(id),
     constraint uk_t_participant_employee unique (meeting_id, employee_no)
 );
 
@@ -227,7 +214,6 @@ comment on column t_participants.created_at is '创建时间';
 comment on column t_participants.updated_by_id is '最后更新人标识';
 comment on column t_participants.updated_by_name is '最后更新人姓名';
 comment on column t_participants.updated_at is '最后更新时间';
-comment on column t_participants.deleted is '逻辑删除标记';
 comment on column t_participants.row_version is '乐观锁版本号';
 
 create table if not exists t_meeting_participant_fields (
@@ -241,9 +227,7 @@ create table if not exists t_meeting_participant_fields (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
     row_version bigint not null,
-    constraint fk_t_participant_field_meeting foreign key (meeting_id) references t_meetings(id),
     constraint uk_t_participant_field_name unique (meeting_id, field_name)
 );
 
@@ -258,7 +242,6 @@ comment on column t_meeting_participant_fields.created_at is '创建时间';
 comment on column t_meeting_participant_fields.updated_by_id is '最后更新人标识';
 comment on column t_meeting_participant_fields.updated_by_name is '最后更新人姓名';
 comment on column t_meeting_participant_fields.updated_at is '最后更新时间';
-comment on column t_meeting_participant_fields.deleted is '逻辑删除标记';
 comment on column t_meeting_participant_fields.row_version is '乐观锁版本号';
 
 create table if not exists t_participant_records (
@@ -272,9 +255,7 @@ create table if not exists t_participant_records (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
     row_version bigint not null,
-    constraint fk_t_participant_record_person foreign key (participant_id) references t_participants(id),
     constraint uk_t_participant_record_order unique (participant_id, record_order)
 );
 
@@ -289,7 +270,6 @@ comment on column t_participant_records.created_at is '创建时间';
 comment on column t_participant_records.updated_by_id is '最后更新人标识';
 comment on column t_participant_records.updated_by_name is '最后更新人姓名';
 comment on column t_participant_records.updated_at is '最后更新时间';
-comment on column t_participant_records.deleted is '逻辑删除标记';
 comment on column t_participant_records.row_version is '乐观锁版本号';
 
 create table if not exists t_seating_plans (
@@ -304,9 +284,7 @@ create table if not exists t_seating_plans (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
-    row_version bigint not null,
-    constraint fk_t_plan_meeting foreign key (meeting_id) references t_meetings(id)
+    row_version bigint not null
 );
 
 comment on table t_seating_plans is '会议当前可编辑的排座方案';
@@ -321,7 +299,6 @@ comment on column t_seating_plans.created_at is '创建时间';
 comment on column t_seating_plans.updated_by_id is '最后更新人标识';
 comment on column t_seating_plans.updated_by_name is '最后更新人姓名';
 comment on column t_seating_plans.updated_at is '最后更新时间';
-comment on column t_seating_plans.deleted is '逻辑删除标记';
 comment on column t_seating_plans.row_version is '乐观锁版本号';
 
 create table if not exists t_plan_items (
@@ -340,10 +317,7 @@ create table if not exists t_plan_items (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
-    row_version bigint not null,
-    constraint fk_t_item_plan foreign key (plan_id) references t_seating_plans(id),
-    constraint fk_t_item_participant foreign key (participant_id) references t_participants(id)
+    row_version bigint not null
 );
 
 comment on table t_plan_items is '排座方案中的人员、设备、预留或禁用占用项';
@@ -362,7 +336,6 @@ comment on column t_plan_items.created_at is '创建时间';
 comment on column t_plan_items.updated_by_id is '最后更新人标识';
 comment on column t_plan_items.updated_by_name is '最后更新人姓名';
 comment on column t_plan_items.updated_at is '最后更新时间';
-comment on column t_plan_items.deleted is '逻辑删除标记';
 comment on column t_plan_items.row_version is '乐观锁版本号';
 
 create table if not exists t_plan_item_targets (
@@ -375,10 +348,7 @@ create table if not exists t_plan_item_targets (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
     row_version bigint not null,
-    constraint fk_t_target_item foreign key (plan_item_id) references t_plan_items(id),
-    constraint fk_t_target_element foreign key (meeting_element_id) references t_meeting_elements(id),
     constraint uk_t_target_element unique (meeting_element_id)
 );
 
@@ -392,7 +362,6 @@ comment on column t_plan_item_targets.created_at is '创建时间';
 comment on column t_plan_item_targets.updated_by_id is '最后更新人标识';
 comment on column t_plan_item_targets.updated_by_name is '最后更新人姓名';
 comment on column t_plan_item_targets.updated_at is '最后更新时间';
-comment on column t_plan_item_targets.deleted is '逻辑删除标记';
 comment on column t_plan_item_targets.row_version is '乐观锁版本号';
 
 create table if not exists t_plan_versions (
@@ -411,9 +380,7 @@ create table if not exists t_plan_versions (
     updated_by_id varchar(64) not null,
     updated_by_name varchar(80) not null,
     updated_at timestamp with time zone not null,
-    deleted boolean not null,
     row_version bigint not null,
-    constraint fk_t_version_plan foreign key (plan_id) references t_seating_plans(id),
     constraint uk_t_plan_version unique (plan_id, version_no)
 );
 
@@ -433,5 +400,4 @@ comment on column t_plan_versions.created_at is '创建时间';
 comment on column t_plan_versions.updated_by_id is '最后更新人标识';
 comment on column t_plan_versions.updated_by_name is '最后更新人姓名';
 comment on column t_plan_versions.updated_at is '最后更新时间';
-comment on column t_plan_versions.deleted is '逻辑删除标记';
 comment on column t_plan_versions.row_version is '乐观锁版本号';

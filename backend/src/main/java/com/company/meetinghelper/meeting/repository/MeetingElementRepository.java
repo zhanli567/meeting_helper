@@ -23,7 +23,7 @@ public class MeetingElementRepository extends AbstractMyBatisRepository<MeetingE
      * @param meetingId 会议ID
      * @return 按网格位置排列的会议元素
      */
-    public List<MeetingElementEntity> findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(
+    public List<MeetingElementEntity> findAllByMeetingIdOrderByGridRowAscGridColumnAsc(
             String meetingId
     ) {
         return elementMapper.selectList(new LambdaQueryWrapper<MeetingElementEntity>()
@@ -39,7 +39,7 @@ public class MeetingElementRepository extends AbstractMyBatisRepository<MeetingE
      * @param meetingId 会议ID
      * @return 属于指定会议的有效会议元素
      */
-    public Optional<MeetingElementEntity> findByIdAndMeetingIdAndDeletedFalse(String id, String meetingId) {
+    public Optional<MeetingElementEntity> findByIdAndMeetingId(String id, String meetingId) {
         return Optional.ofNullable(elementMapper.selectOne(new LambdaQueryWrapper<MeetingElementEntity>()
                 .eq(MeetingElementEntity::getId, id)
                 .eq(MeetingElementEntity::getMeetingId, meetingId)

@@ -21,7 +21,7 @@ public class VenueTemplateRepository extends AbstractMyBatisRepository<VenueTemp
      *
      * @return 系统预置优先、名称升序排列的场馆模板
      */
-    public List<VenueTemplateEntity> findAllByDeletedFalseOrderByPresetDescNameAsc() {
+    public List<VenueTemplateEntity> findAllOrderByPresetDescNameAsc() {
         return templateMapper.selectList(new LambdaQueryWrapper<VenueTemplateEntity>()
                 .orderByDesc(VenueTemplateEntity::isPreset)
                 .orderByAsc(VenueTemplateEntity::getName));
@@ -33,7 +33,7 @@ public class VenueTemplateRepository extends AbstractMyBatisRepository<VenueTemp
      * @param name 场馆名称
      * @return 名称已存在时返回true
      */
-    public boolean existsByNameIgnoreCaseAndDeletedFalse(String name) {
+    public boolean existsByNameIgnoreCase(String name) {
         return templateMapper.selectCount(new LambdaQueryWrapper<VenueTemplateEntity>()
                 .apply("lower(name) = lower({0})", name)) > 0;
     }
@@ -45,7 +45,7 @@ public class VenueTemplateRepository extends AbstractMyBatisRepository<VenueTemp
      * @param id 排除的场馆模板ID
      * @return 其他同名模板存在时返回true
      */
-    public boolean existsByNameIgnoreCaseAndDeletedFalseAndIdNot(String name, String id) {
+    public boolean existsByNameIgnoreCaseAndIdNot(String name, String id) {
         return templateMapper.selectCount(new LambdaQueryWrapper<VenueTemplateEntity>()
                 .ne(VenueTemplateEntity::getId, id)
                 .apply("lower(name) = lower({0})", name)) > 0;

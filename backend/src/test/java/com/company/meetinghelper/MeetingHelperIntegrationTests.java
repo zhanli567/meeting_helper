@@ -37,6 +37,8 @@ import com.company.meetinghelper.seating.api.dto.request.CreateVersionRequest;
 import com.company.meetinghelper.seating.api.dto.request.SaveAssignmentsRequest;
 import com.company.meetinghelper.seating.api.dto.response.VersionResult;
 import com.company.meetinghelper.seating.entity.PlanVersionEntity;
+import com.company.meetinghelper.seating.entity.PlanItemType;
+import com.company.meetinghelper.seating.repository.PlanItemRepository;
 import com.company.meetinghelper.seating.repository.PlanVersionRepository;
 import com.company.meetinghelper.seating.service.PlanVersionService;
 import com.company.meetinghelper.seating.service.SeatingService;
@@ -160,6 +162,9 @@ class MeetingHelperIntegrationTests {
     private ParticipantRecordRepository recordRepository;
 
     @Autowired
+    private PlanItemRepository itemRepository;
+
+    @Autowired
     private MeetingParticipantFieldRepository fieldRepository;
 
     @Autowired
@@ -196,7 +201,7 @@ class MeetingHelperIntegrationTests {
                     assertThat(value.name()).isEqualTo("多功能礼堂");
                 });
         assertThat(meetingRepository
-                .findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(DEFAULT_USER))
+                .findAllByCreatedByIdOrderByUpdatedAtDesc(DEFAULT_USER))
                 .isEmpty();
     }
 
@@ -538,7 +543,7 @@ class MeetingHelperIntegrationTests {
                 .containsEntry("批次", "第一批");
         assertThat(participant.records()).hasSize(1);
         assertThat(participant.records().getFirst().recordOrder()).isEqualTo(1);
-        assertThat(fieldRepository.findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meeting.id()))
+        assertThat(fieldRepository.findAllByMeetingIdOrderBySortOrderAsc(meeting.id()))
                 .extracting(value -> value.getFieldName())
                 .containsExactly("活动角色", "批次");
         assertThat(after.items().stream()
@@ -604,7 +609,7 @@ class MeetingHelperIntegrationTests {
                 "a12345678,张三,第二批,创新奖"
         );
         ParticipantEntity participant = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         ParticipantRecordEntity blankRecord = new ParticipantRecordEntity();
         blankRecord.setParticipantId(participant.getId());
@@ -826,7 +831,7 @@ class MeetingHelperIntegrationTests {
                 "a12345678,张三,第三批,创新奖"
         );
         ParticipantEntity original = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         WorkspaceResponse before = workspaceService.getWorkspace(meetingId);
         ElementView seat = before.layout().elements().stream()
@@ -865,7 +870,7 @@ class MeetingHelperIntegrationTests {
         saveRecord(replacement.getId(), 8, Map.of("批次", "残留批次"));
 
         List<MeetingParticipantFieldEntity> draftFields = fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId);
         draftFields.get(0).setSortOrder(20);
         draftFields.get(1).setSortOrder(10);
         fieldRepository.saveAll(draftFields);
@@ -930,7 +935,7 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
-    void publishedVersionReactivatesSoftDeletedParticipantWithOriginalIdentityRecordsAndSeat()
+    void deletingParticipantPhysicallyRemovesIdentityRecordsAndAssignment()
             throws Exception {
         String meetingId = createImportMeeting();
         previewAndCommit(
@@ -939,7 +944,7 @@ class MeetingHelperIntegrationTests {
                 "a12345678,张三,第二批,优秀项目奖"
         );
         ParticipantEntity original = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         WorkspaceResponse before = workspaceService.getWorkspace(meetingId);
         ElementView seat = before.layout().elements().stream()
@@ -950,41 +955,13 @@ class MeetingHelperIntegrationTests {
                 before.plan().id(),
                 new AssignmentRequest(original.getId(), seat.id())
         );
-        VersionResult version = planVersionService.create(
-                before.plan().id(),
-                new CreateVersionRequest("软删除人员恢复版", "", false)
-        );
-
         participantService.delete(meetingId, original.getId());
 
-        assertThat(participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678"))
+        assertThat(participantRepository.findById(original.getId())).isEmpty();
+        assertThat(recordRepository.findAllByParticipantIdOrderByRecordOrderAsc(original.getId()))
                 .isEmpty();
-        assertThat(participantRepository.findById(original.getId()))
-                .get()
-                .extracting(ParticipantEntity::isDeleted)
-                .isEqualTo(true);
-
-        planVersionService.restore(before.plan().id(), version.id());
-
-        WorkspaceResponse restored = workspaceService.getWorkspace(meetingId);
-        ParticipantView restoredPerson = restored.participants().stream()
-                .filter(value -> value.employeeNo().equalsIgnoreCase("a12345678"))
-                .findFirst()
-                .orElseThrow();
-        assertThat(restored.participants().stream()
-                .filter(value -> value.employeeNo().equalsIgnoreCase("a12345678")))
-                .hasSize(1);
-        assertThat(restoredPerson.id()).isEqualTo(original.getId());
-        assertThat(restoredPerson.name()).isEqualTo("张三");
-        assertThat(restoredPerson.records())
-                .extracting(value -> value.attributes().get("批次"))
-                .containsExactly("第二批");
-        assertThat(restoredPerson.assignedElementId()).isEqualTo(seat.id());
-        assertThat(restored.items().stream()
-                .filter(value -> original.getId().equals(value.participantId()))
-                .flatMap(value -> value.targetElementIds().stream()))
-                .containsExactly(seat.id());
+        assertThat(itemRepository.findByPlanIdAndParticipantIdAndItemType(
+                before.plan().id(), original.getId(), PlanItemType.PERSON)).isEmpty();
     }
 
     @Test
@@ -1049,11 +1026,11 @@ class MeetingHelperIntegrationTests {
         planVersionService.restore(before.plan().id(), version.id());
 
         assertThat(fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId))
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId))
                 .extracting(value -> value.getFieldName())
                 .containsExactly("部门", "备注");
         assertThat(recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.id()))
+                .findAllByParticipantIdOrderByRecordOrderAsc(participant.id()))
                 .extracting(value -> readAttributes(value.getAttributesJson()))
                 .singleElement()
                 .satisfies(attributes -> assertThat(attributes)
@@ -1188,17 +1165,17 @@ class MeetingHelperIntegrationTests {
         assertThat(importedPreview.path("errors").isEmpty()).isTrue();
         commit(importedMeetingId, importedPreview.path("token").asText());
         ParticipantEntity imported = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(
+                .findByMeetingIdAndEmployeeNoIgnoreCase(
                         importedMeetingId,
                         "a12345678"
                 )
                 .orElseThrow();
         assertThat(fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(importedMeetingId))
+                .findAllByMeetingIdOrderBySortOrderAsc(importedMeetingId))
                 .extracting(value -> value.getFieldName())
                 .containsExactly("批次", "奖项名称");
         assertThat(recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(imported.getId()))
+                .findAllByParticipantIdOrderByRecordOrderAsc(imported.getId()))
                 .extracting(value -> readAttributes(value.getAttributesJson()))
                 .containsExactly(
                         Map.of("批次", "第二批", "奖项名称", "优秀项目奖"),
@@ -1262,11 +1239,11 @@ class MeetingHelperIntegrationTests {
         );
 
         ParticipantEntity participant = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         List<ParticipantRecordEntity> records = recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.getId());
-        List<MeetingParticipantFieldEntity> fields = fieldRepository.findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+                .findAllByParticipantIdOrderByRecordOrderAsc(participant.getId());
+        List<MeetingParticipantFieldEntity> fields = fieldRepository.findAllByMeetingIdOrderBySortOrderAsc(meetingId);
 
         assertThat(first.path("newParticipants").asInt()).isEqualTo(1);
         assertThat(first.path("appendedRecords").asInt()).isEqualTo(1);
@@ -1301,10 +1278,10 @@ class MeetingHelperIntegrationTests {
         );
 
         ParticipantEntity participant = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         List<ParticipantRecordEntity> records = recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.getId());
+                .findAllByParticipantIdOrderByRecordOrderAsc(participant.getId());
 
         assertThat(third.path("appendedRecords").asInt()).isEqualTo(1);
         assertThat(repeated.path("skippedRecords").asInt()).isEqualTo(1);
@@ -1350,13 +1327,13 @@ class MeetingHelperIntegrationTests {
         );
 
         ParticipantEntity participant = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         ParticipantRecordEntity record = recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.getId())
+                .findAllByParticipantIdOrderByRecordOrderAsc(participant.getId())
                 .getFirst();
         assertThat(fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId))
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId))
                 .extracting(value -> value.getFieldName())
                 .containsExactly("Department", "字段2");
         assertThat(readAttributes(record.getAttributesJson()))
@@ -1387,11 +1364,11 @@ class MeetingHelperIntegrationTests {
                 .andExpect(status().isConflict());
 
         ParticipantEntity participant = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         assertThat(participant.getName()).isEqualTo("张三");
         assertThat(recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.getId()))
+                .findAllByParticipantIdOrderByRecordOrderAsc(participant.getId()))
                 .isEmpty();
     }
 
@@ -1415,8 +1392,8 @@ class MeetingHelperIntegrationTests {
                 ).header(USER_HEADER, DEFAULT_USER))
                 .andExpect(status().isConflict());
 
-        assertThat(participantRepository.countByMeetingIdAndDeletedFalse(meetingId)).isZero();
-        assertThat(fieldRepository.findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId))
+        assertThat(participantRepository.countByMeetingId(meetingId)).isZero();
+        assertThat(fieldRepository.findAllByMeetingIdOrderBySortOrderAsc(meetingId))
                 .isEmpty();
     }
 
@@ -1438,10 +1415,10 @@ class MeetingHelperIntegrationTests {
         commit(meetingId, preview.path("token").asText());
 
         ParticipantEntity participant = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         List<ParticipantRecordEntity> records = recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(participant.getId());
+                .findAllByParticipantIdOrderByRecordOrderAsc(participant.getId());
         assertThat(records).hasSize(1);
         assertThat(readAttributes(records.getFirst().getAttributesJson()))
                 .containsEntry("字段1", "值1")
@@ -1461,8 +1438,8 @@ class MeetingHelperIntegrationTests {
                 ).header(USER_HEADER, DEFAULT_USER))
                 .andExpect(status().isBadRequest());
 
-        assertThat(participantRepository.countByMeetingIdAndDeletedFalse(meetingId)).isZero();
-        assertThat(fieldRepository.findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId))
+        assertThat(participantRepository.countByMeetingId(meetingId)).isZero();
+        assertThat(fieldRepository.findAllByMeetingIdOrderBySortOrderAsc(meetingId))
                 .isEmpty();
     }
 
@@ -1492,15 +1469,15 @@ class MeetingHelperIntegrationTests {
                 .andExpect(status().isConflict());
 
         assertThat(participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "12345678"))
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "12345678"))
                 .isEmpty();
-        assertThat(fieldRepository.findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId))
+        assertThat(fieldRepository.findAllByMeetingIdOrderBySortOrderAsc(meetingId))
                 .isEmpty();
         ParticipantEntity existing = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         assertThat(recordRepository
-                .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(existing.getId()))
+                .findAllByParticipantIdOrderByRecordOrderAsc(existing.getId()))
                 .isEmpty();
     }
 
@@ -1526,7 +1503,7 @@ class MeetingHelperIntegrationTests {
         previewAndCommit(meetingId, "工号,姓名,字段1", "a12345678,张三,值1");
 
         ParticipantEntity imported = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCaseAndDeletedFalse(meetingId, "a12345678")
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, "a12345678")
                 .orElseThrow();
         WorkspaceResponse refreshedWorkspace = workspaceService.getWorkspace(meetingId);
         assertThat(imported.getId()).isEqualTo(participant.id());
@@ -1580,7 +1557,7 @@ class MeetingHelperIntegrationTests {
         }
 
         List<MeetingParticipantFieldEntity> fields = fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId);
         assertThat(fields)
                 .extracting(value -> value.getFieldName().toLowerCase(ROOT))
                 .containsExactlyInAnyOrder("sharedfield", "importfield", "participantfield");
@@ -1664,14 +1641,14 @@ class MeetingHelperIntegrationTests {
         assertThat(List.of(importStatus, participantStatus))
                 .containsExactlyInAnyOrder(200, 409);
         List<ParticipantEntity> participants = participantRepository
-                .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(meetingId)
+                .findAllByMeetingIdOrderByNameAsc(meetingId)
                 .stream()
                 .filter(value -> value.getEmployeeNo().equalsIgnoreCase("a22222222"))
                 .toList();
         assertThat(participants).hasSize(1);
 
         List<MeetingParticipantFieldEntity> fields = fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId);
         List<String> normalizedFieldNames = fields.stream()
                 .map(value -> value.getFieldName().toLowerCase(ROOT))
                 .toList();

@@ -57,7 +57,7 @@ public class MeetingService {
     @Transactional(readOnly = true)
     public List<MeetingSummary> list() {
         String userId = currentUserProvider.requireUserId();
-        return meetingRepository.findAllByCreatedByIdAndDeletedFalseOrderByUpdatedAtDesc(userId).stream()
+        return meetingRepository.findAllByCreatedByIdOrderByUpdatedAtDesc(userId).stream()
                 .map(meeting -> new MeetingSummary(
                         meeting.getId(), meeting.getName(), meeting.getStatus(), meeting.getLayoutName(),
                         meeting.getUpdatedAt(), meeting.getUpdatedByName()))
@@ -74,7 +74,7 @@ public class MeetingService {
     public MeetingSummary create(CreateMeetingRequest request) {
         String userId = currentUserProvider.requireUserId();
         String normalizedName = request.name().trim();
-        if (meetingRepository.existsByCreatedByIdAndNameIgnoreCaseAndDeletedFalse(
+        if (meetingRepository.existsByCreatedByIdAndNameIgnoreCase(
                 userId,
                 normalizedName
         )) {

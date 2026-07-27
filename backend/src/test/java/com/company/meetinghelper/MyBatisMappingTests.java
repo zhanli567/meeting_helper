@@ -2,7 +2,6 @@ package com.company.meetinghelper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.company.meetinghelper.common.entity.AuditedEntity;
 import com.company.meetinghelper.meeting.entity.MeetingElementEntity;
@@ -16,10 +15,10 @@ import com.company.meetinghelper.seating.entity.PlanVersionEntity;
 import com.company.meetinghelper.seating.entity.SeatingPlanEntity;
 import com.company.meetinghelper.venue.entity.VenueElementEntity;
 import com.company.meetinghelper.venue.entity.VenueTemplateEntity;
-import java.lang.reflect.Field;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.springframework.util.ReflectionUtils;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MyBatisMappingTests {
 
@@ -49,10 +48,8 @@ class MyBatisMappingTests {
     }
 
     @Test
-    void auditedEntityUsesMyBatisLogicalDeletion() {
-        Field deleted = ReflectionUtils.findField(AuditedEntity.class, "deleted");
-
-        assertThat(deleted).isNotNull();
-        assertThat(deleted.getAnnotation(TableLogic.class)).isNotNull();
+    void auditedEntityDoesNotEnableLogicalDeletion() {
+        assertThatThrownBy(() -> AuditedEntity.class.getDeclaredField("deleted"))
+                .isInstanceOf(NoSuchFieldException.class);
     }
 }

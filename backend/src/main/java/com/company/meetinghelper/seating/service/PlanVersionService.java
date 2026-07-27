@@ -118,10 +118,10 @@ public class PlanVersionService {
     public VersionResult create(String planId, CreateVersionRequest request) {
         SeatingPlanEntity plan = meetingAccessService.requireOwnedPlan(planId);
         String versionName = request.versionName().trim();
-        if (versionRepository.existsByPlanIdAndVersionNameIgnoreCaseAndDeletedFalse(planId, versionName)) {
+        if (versionRepository.existsByPlanIdAndVersionNameIgnoreCase(planId, versionName)) {
             throw new ApiException(HttpStatus.CONFLICT, "版本名称已存在，请使用其他名称");
         }
-        Integer nextVersion = versionRepository.findFirstByPlanIdAndDeletedFalseOrderByVersionNoDesc(planId)
+        Integer nextVersion = versionRepository.findFirstByPlanIdOrderByVersionNoDesc(planId)
                 .map(value -> value.getVersionNo() + 1)
                 .orElse(1);
         WorkspaceResponse workspace = workspaceService.getWorkspace(plan.getMeetingId());
@@ -173,7 +173,7 @@ public class PlanVersionService {
     public RestoreVersionResult restore(String planId, String versionId) {
         SeatingPlanEntity plan = meetingAccessService.requireOwnedPlan(planId);
         PlanVersionEntity version = versionRepository.findById(versionId)
-                .filter(value -> !value.isDeleted() && value.getPlanId().equals(planId))
+                .filter(value -> value.getPlanId().equals(planId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "方案版本不存在"));
 
         WorkspaceResponse snapshot = readSnapshot(version);
@@ -183,16 +183,14 @@ public class PlanVersionService {
 
         fieldRegistrationService.lockMeeting(plan.getMeetingId());
         List<ParticipantEntity> currentParticipants = participantRepository
-                .findAllByMeetingIdAndDeletedFalseOrderByNameAsc(plan.getMeetingId());
-        List<ParticipantEntity> participantsIncludingDeleted = participantRepository
-                .findAllByMeetingIdOrderByDeletedAscNameAsc(plan.getMeetingId());
+                .findAllByMeetingIdOrderByNameAsc(plan.getMeetingId());
         Set<String> elementIds = elementRepository
-                .findAllByMeetingIdAndDeletedFalseOrderByGridRowAscGridColumnAsc(plan.getMeetingId())
+                .findAllByMeetingIdOrderByGridRowAscGridColumnAsc(plan.getMeetingId())
                 .stream()
                 .map(value -> value.getId())
                 .collect(Collectors.toSet());
 
-        List<PlanItemEntity> currentItems = itemRepository.findAllByPlanIdAndDeletedFalseOrderByCreatedAtAsc(planId);
+        List<PlanItemEntity> currentItems = itemRepository.findAllByPlanIdOrderByCreatedAtAsc(planId);
         currentItems.forEach(item -> targetRepository.deleteAllByPlanItemId(item.getId()));
         targetRepository.flush();
         itemRepository.deleteAll(currentItems);
@@ -201,7 +199,7 @@ public class PlanVersionService {
         restoreFieldDefinitions(plan.getMeetingId(), snapshot, currentParticipants);
         LinkedHashMap<String,String> participantIdsBySnapshotId = restoreParticipants(
                 plan.getMeetingId(),
-                participantsIncludingDeleted,
+                currentParticipants,
                 snapshot
         );
 
@@ -254,7 +252,7 @@ public class PlanVersionService {
     public WorkspaceResponse getSnapshot(String planId, String versionId) {
         SeatingPlanEntity plan = meetingAccessService.requireOwnedPlan(planId);
         PlanVersionEntity version = versionRepository.findById(versionId)
-                .filter(value -> !value.isDeleted() && value.getPlanId().equals(planId))
+                .filter(value -> value.getPlanId().equals(planId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "方案版本不存在"));
         WorkspaceResponse snapshot = readSnapshot(version);
         if (!snapshot.meeting().id().equals(plan.getMeetingId())) {
@@ -273,7 +271,7 @@ public class PlanVersionService {
     @Transactional(readOnly = true)
     public WorkspaceResponse getSnapshotForMeeting(String meetingId, String versionId) {
         meetingAccessService.requireOwnedMeeting(meetingId);
-        SeatingPlanEntity plan = planRepository.findFirstByMeetingIdAndDeletedFalseOrderByCreatedAtAsc(meetingId)
+        SeatingPlanEntity plan = planRepository.findFirstByMeetingIdOrderByCreatedAtAsc(meetingId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议尚未建立排座方案"));
         return getSnapshot(plan.getId(), versionId);
     }
@@ -464,7 +462,7 @@ public class PlanVersionService {
             return;
         }
         List<MeetingParticipantFieldEntity> currentFields = fieldRepository
-                .findAllByMeetingIdAndDeletedFalseOrderBySortOrderAsc(meetingId);
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId);
         Set<String> snapshotEmployeeNumbers = snapshot.participants() == null
                 ? Set.<String>of()
                 : snapshot.participants().stream()
@@ -479,7 +477,7 @@ public class PlanVersionService {
         LinkedHashSet<String> laterFieldNames = new LinkedHashSet<String>();
         if (!laterParticipantIds.isEmpty()) {
             recordRepository
-                    .findAllByParticipantIdInAndDeletedFalseOrderByParticipantIdAscRecordOrderAsc(
+                    .findAllByParticipantIdInOrderByParticipantIdAscRecordOrderAsc(
                             laterParticipantIds
                     )
                     .forEach(record -> readRecordAttributes(record.getAttributesJson())
@@ -559,18 +557,14 @@ public class PlanVersionService {
         for (ParticipantView source : snapshotParticipants) {
             ParticipantEntity participant = participantByEmployeeNo.get(normalize(source.employeeNo()));
             if (participant == null) {
-                participant = new ParticipantEntity();
-                participant.setMeetingId(meetingId);
-                participant.setEmployeeNo(source.employeeNo());
-                participantByEmployeeNo.put(normalize(source.employeeNo()), participant);
+                continue;
             }
             participant.setName(source.name());
             participant.setAttendanceStatus(attendanceStatus(source.attendanceStatus()));
-            participant.setDeleted(false);
             restoredParticipants.add(participant);
             if (participant.getId() != null && source.records() != null) {
                 recordsToDelete.addAll(recordRepository
-                        .findAllByParticipantIdAndDeletedFalseOrderByRecordOrderAsc(
+                        .findAllByParticipantIdOrderByRecordOrderAsc(
                                 participant.getId()
                         ));
             }

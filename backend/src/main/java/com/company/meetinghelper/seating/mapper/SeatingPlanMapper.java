@@ -11,9 +11,7 @@ public interface SeatingPlanMapper extends BaseMapper<SeatingPlanEntity> {
             from t_seating_plans plan
             join t_meetings meeting on meeting.id = plan.meeting_id
             where plan.id = #{planId}
-              and plan.deleted = false
               and meeting.created_by_id = #{ownerId}
-              and meeting.deleted = false
             """)
     SeatingPlanEntity selectOwnedById(
             @Param("planId") String planId,
