@@ -85,6 +85,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -92,6 +93,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -112,6 +115,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Transactional
 @Import(MeetingHelperIntegrationTests.TestUserConfiguration.class)
 @ContextConfiguration(initializers = PostgreSqlTestDatabaseInitializer.class)
+@ExtendWith(OutputCaptureExtension.class)
 class MeetingHelperIntegrationTests {
     private static final String USER_HEADER = "X-User-Id";
     private static final String DEFAULT_USER = "demo-secretary";
@@ -203,6 +207,34 @@ class MeetingHelperIntegrationTests {
                 .andExpect(status().isOk());
         mockMvc.perform(get("/meetings").header(USER_HEADER, "   "))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void successfulApiCallsWriteStartAndResultLogs(CapturedOutput output) throws Exception {
+        mockMvc.perform(get("/meetings").header(USER_HEADER, DEFAULT_USER))
+                .andExpect(status().isOk());
+
+        assertThat(output.getOut())
+                .contains("[API][START]")
+                .contains("[API][RESULT]")
+                .contains("method=GET")
+                .contains("path=/meetings")
+                .contains("status=200");
+    }
+
+    @Test
+    void handledApiExceptionsWriteExceptionLogs(CapturedOutput output) throws Exception {
+        mockMvc.perform(get("/meetings/{meetingId}/workspace", "missing-meeting")
+                        .header(USER_HEADER, DEFAULT_USER))
+                .andExpect(status().isNotFound());
+
+        assertThat(output.getOut())
+                .contains("[API][EXCEPTION]")
+                .contains("requestId=")
+                .contains("method=GET")
+                .contains("path=/meetings/missing-meeting/workspace")
+                .contains("status=404")
+                .contains("exception=ApiException");
     }
 
     @Test

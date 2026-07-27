@@ -73,7 +73,7 @@ async function commit() {
 <template>
   <el-dialog v-model="visible" title="导入参会人员" width="820px" top="5vh">
     <div class="import-layout">
-      <section class="template-section">
+      <section class="import-card import-card--template">
         <div>
           <strong>人员导入模板</strong>
           <p>使用单一 Excel 模板导入人员及其动态记录。</p>
@@ -84,6 +84,7 @@ async function commit() {
       </section>
 
       <el-upload
+        class="upload-surface"
         drag
         :auto-upload="false"
         :limit="1"
@@ -102,7 +103,7 @@ async function commit() {
         解析并预览
       </el-button>
 
-      <section v-if="preview" class="preview-section">
+      <section v-if="preview" class="preview-section import-card">
         <div class="preview-stats">
           <div>
             <strong>{{ preview.totalRows }}</strong
@@ -163,26 +164,54 @@ async function commit() {
 
 <style scoped>
 .import-layout,
-.template-section,
+.import-card,
 .preview-section,
 .field-section {
   display: grid;
   gap: 14px;
 }
 
-.template-section {
-  grid-template-columns: 1fr auto;
-  align-items: center;
+.import-card {
   padding: 14px;
-  background: #f6f8fb;
-  border: 1px solid #e1e7ef;
-  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
 }
 
-.template-section p {
+.import-card--template {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  background: #fbfcfd;
+}
+
+.import-card--template p {
   margin: 4px 0 0;
-  color: #718096;
+  color: var(--muted);
   font-size: 12px;
+}
+
+.upload-surface :deep(.el-upload) {
+  width: 100%;
+}
+
+.upload-surface :deep(.el-upload-dragger) {
+  padding: 28px;
+  background: #fbfcfd;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+}
+
+.upload-surface :deep(.el-upload-dragger:hover) {
+  border-color: var(--brand);
+  background: #f8fbff;
+}
+
+.upload-surface :deep(.el-icon--upload) {
+  color: var(--brand);
+}
+
+.upload-surface :deep(.el-upload__tip) {
+  color: var(--tertiary);
 }
 
 .preview-stats {
@@ -195,9 +224,9 @@ async function commit() {
   display: grid;
   place-items: center;
   padding: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 9px;
+  background: #fbfcfd;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
 }
 
 .preview-stats strong {
@@ -205,7 +234,7 @@ async function commit() {
 }
 
 .preview-stats span {
-  color: #718096;
+  color: var(--muted);
   font-size: 11px;
 }
 
@@ -213,9 +242,9 @@ async function commit() {
   grid-template-columns: auto repeat(auto-fit, minmax(90px, max-content));
   align-items: center;
   padding: 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  color: #718096;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
   font-size: 12px;
 }
 </style>

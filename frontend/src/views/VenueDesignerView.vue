@@ -988,7 +988,7 @@ onBeforeUnmount(() => {
 }
 
 .back-button {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--muted);
 }
 
 .designer-canvas-area {
@@ -1027,8 +1027,8 @@ onBeforeUnmount(() => {
   overflow: auto;
   padding: 86px;
   background:
-    linear-gradient(#e2ebf5 1px, transparent 1px),
-    linear-gradient(90deg, #e2ebf5 1px, transparent 1px), #edf5fc;
+    linear-gradient(rgba(0, 0, 0, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.055) 1px, transparent 1px), var(--workspace);
   background-size: 24px 24px;
   cursor: default;
   scrollbar-gutter: stable;
@@ -1052,10 +1052,12 @@ onBeforeUnmount(() => {
   left: 0;
   transform-origin: 0 0;
   background:
-    linear-gradient(#dfe8f3 1px, transparent 1px),
-    linear-gradient(90deg, #dfe8f3 1px, transparent 1px), #fff;
+    linear-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.06) 1px, transparent 1px), #fff;
   background-size: var(--designer-unit) var(--designer-unit);
-  box-shadow: 0 18px 42px rgba(37, 99, 235, 0.14);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
   cursor: crosshair;
   touch-action: none;
 }
@@ -1068,7 +1070,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   overflow: hidden;
   padding: 2px;
-  color: #17365f;
+  color: var(--ink);
   border: 1px solid;
   cursor: move;
   user-select: none;
@@ -1076,15 +1078,15 @@ onBeforeUnmount(() => {
 
 .draft-element:hover {
   z-index: 5;
-  box-shadow: inset 0 0 0 2px #60a5fa;
+  box-shadow: inset 0 0 0 2px rgba(10, 89, 247, 0.38);
 }
 
 .draft-element.selected {
   z-index: 6;
   overflow: visible;
   box-shadow:
-    0 0 0 3px #2563eb,
-    0 6px 16px rgba(37, 99, 235, 0.22);
+    0 0 0 3px var(--brand),
+    0 6px 16px rgba(10, 89, 247, 0.18);
 }
 
 .resize-handle {
@@ -1094,7 +1096,7 @@ onBeforeUnmount(() => {
   z-index: 10;
   padding: 0;
   background: #fff;
-  border: 2px solid #2563eb;
+  border: 2px solid var(--brand);
   border-radius: 50%;
 }
 
@@ -1155,7 +1157,7 @@ onBeforeUnmount(() => {
 }
 
 .element-code {
-  color: #5f7390;
+  color: var(--muted);
   font-size: 7px;
   line-height: 1;
 }
@@ -1177,28 +1179,28 @@ onBeforeUnmount(() => {
   z-index: 12;
   display: grid;
   place-items: center;
-  color: #1d4ed8;
-  background: rgba(147, 197, 253, 0.38);
-  border: 2px solid #2563eb;
+  color: var(--brand);
+  background: var(--brand-soft);
+  border: 2px solid var(--brand);
   font-size: 10px;
   font-weight: 700;
   pointer-events: none;
 }
 
 .draw-preview.pending {
-  color: #174f99;
+  color: var(--brand);
   background:
     repeating-linear-gradient(
       -45deg,
-      rgba(96, 165, 250, 0.3) 0,
-      rgba(96, 165, 250, 0.3) 8px,
-      rgba(219, 234, 254, 0.62) 8px,
-      rgba(219, 234, 254, 0.62) 16px
+      rgba(10, 89, 247, 0.22) 0,
+      rgba(10, 89, 247, 0.22) 8px,
+      rgba(10, 89, 247, 0.08) 8px,
+      rgba(10, 89, 247, 0.08) 16px
     );
   border-width: 3px;
   box-shadow:
     0 0 0 2px rgba(255, 255, 255, 0.92) inset,
-    0 8px 22px rgba(37, 99, 235, 0.2);
+    0 8px 22px rgba(10, 89, 247, 0.14);
 }
 
 .floating-settings {
@@ -1210,9 +1212,9 @@ onBeforeUnmount(() => {
   flex-direction: column;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.97);
-  border: 1px solid #9fbce4;
-  border-radius: 14px;
-  box-shadow: 0 16px 36px rgba(37, 85, 151, 0.18);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-hover);
   transition:
     width 0.18s ease,
     transform 0.18s ease;
@@ -1250,8 +1252,8 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
   padding: 0 8px 0 14px;
-  color: #244a80;
-  background: #edf5ff;
+  color: var(--ink);
+  background: #fbfcfd;
   cursor: move;
 }
 
@@ -1323,7 +1325,7 @@ onBeforeUnmount(() => {
 
 .editor-heading strong {
   overflow: hidden;
-  color: #17365f;
+  color: var(--ink);
   font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1351,8 +1353,8 @@ onBeforeUnmount(() => {
 .geometry-tip {
   margin: 0;
   padding: 8px 10px;
-  color: #56708f;
-  background: #eef5ff;
+  color: var(--muted);
+  background: #f8fbff;
   border-radius: 8px;
   font-size: 10px;
   line-height: 1.55;
@@ -1387,7 +1389,7 @@ onBeforeUnmount(() => {
 .color-row > button.active {
   box-shadow:
     0 0 0 2px #fff,
-    0 0 0 4px #2563eb;
+    0 0 0 4px var(--brand);
 }
 
 .integrated-editor-actions {
@@ -1416,9 +1418,9 @@ onBeforeUnmount(() => {
   z-index: 70;
   padding: 10px;
   background: rgba(255, 255, 255, 0.98);
-  border: 1px solid #8fb3e5;
-  border-radius: 12px;
-  box-shadow: 0 18px 42px rgba(29, 78, 216, 0.22);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-hover);
 }
 
 .element-picker-popover > header {
@@ -1435,7 +1437,7 @@ onBeforeUnmount(() => {
 }
 
 .element-picker-popover > header strong {
-  color: #17365f;
+  color: var(--ink);
   font-size: 13px;
 }
 
@@ -1458,16 +1460,16 @@ onBeforeUnmount(() => {
   padding: 7px;
   color: #334155;
   background: #fff;
-  border: 1px solid #d8e4f3;
-  border-radius: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   text-align: left;
 }
 
 .element-picker button:hover {
-  color: #1d4ed8;
-  background: #f3f8ff;
-  border-color: #7da6df;
+  color: var(--brand);
+  background: var(--brand-soft);
+  border-color: rgba(10, 89, 247, 0.32);
 }
 
 .element-picker button.danger:hover {

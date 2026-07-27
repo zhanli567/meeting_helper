@@ -510,11 +510,11 @@ async function onParticipantAdded(participant) {
 
     <main
       v-if="workspace"
-      class="workspace-layout"
+      class="workspace-shell"
       :class="{ 'participant-collapsed': participantPanelCollapsed }"
     >
-      <section class="canvas-panel">
-        <div class="canvas-toolbar">
+      <section class="canvas-shell">
+        <div class="toolbar-card">
           <div class="canvas-title">
             <h1>{{ workspace.meeting.layoutName }}</h1>
           </div>
@@ -680,7 +680,7 @@ async function onParticipantAdded(participant) {
   align-items: center;
   gap: 10px;
   padding: 0;
-  color: #fff;
+  color: var(--ink);
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -700,33 +700,33 @@ async function onParticipantAdded(participant) {
 }
 
 .header-selector :deep(.el-select__wrapper) {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25) inset;
+  color: var(--ink);
+  background: #f8f9fb;
+  box-shadow: 0 0 0 1px var(--line) inset;
 }
 
 .header-selector :deep(.el-select__selected-item),
 .header-selector :deep(.el-select__placeholder),
 .header-selector :deep(.el-select__caret) {
-  color: #fff !important;
+  color: var(--ink) !important;
 }
 
 .save-state {
   display: flex;
   align-items: center;
   gap: 7px;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
   font-size: 11px;
   white-space: nowrap;
 }
 
 .header-home {
-  color: rgba(255, 255, 255, 0.86) !important;
+  color: var(--muted) !important;
 }
 
 .header-home:hover {
-  color: #fff !important;
-  background: rgba(255, 255, 255, 0.12) !important;
+  color: var(--brand) !important;
+  background: var(--brand-soft) !important;
 }
 
 .header-save-control {
@@ -736,20 +736,24 @@ async function onParticipantAdded(participant) {
   gap: 6px;
 }
 
+.app-header :deep(.el-button--primary) {
+  min-height: 34px;
+}
+
 .header-auto-save {
   width: 142px;
 }
 
 .header-auto-save :deep(.el-select__wrapper) {
   min-height: 32px;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28) inset;
+  color: var(--ink);
+  background: #f8f9fb;
+  box-shadow: 0 0 0 1px var(--line) inset;
 }
 
 .header-auto-save :deep(.el-select__selected-item),
 .header-auto-save :deep(.el-select__caret) {
-  color: #fff !important;
+  color: var(--ink) !important;
 }
 
 .save-state i {
@@ -768,16 +772,19 @@ async function onParticipantAdded(participant) {
   background: #f59e0b;
 }
 
-.workspace-layout {
+.workspace-shell {
   flex: 1;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 390px;
+  gap: 14px;
+  padding: 14px;
+  background: var(--workspace);
   overflow: hidden;
   transition: grid-template-columns 0.18s ease;
 }
 
-.workspace-layout.participant-collapsed {
+.workspace-shell.participant-collapsed {
   grid-template-columns: minmax(0, 1fr) 36px;
 }
 
@@ -785,7 +792,7 @@ async function onParticipantAdded(participant) {
   min-width: 0;
   min-height: 0;
   position: relative;
-  background: #fff;
+  background: transparent;
 }
 
 .participant-panel-toggle {
@@ -796,9 +803,9 @@ async function onParticipantAdded(participant) {
   left: -13px;
   z-index: 25;
   padding: 0;
-  color: #3565a6;
+  color: var(--brand);
   background: #fff;
-  border: 1px solid #b9cce6;
+  border: 1px solid var(--line);
   border-radius: 14px 0 0 14px;
   box-shadow: -5px 4px 12px rgba(37, 85, 151, 0.12);
   cursor: pointer;
@@ -807,8 +814,8 @@ async function onParticipantAdded(participant) {
 }
 
 .participant-panel-toggle:hover {
-  color: #174f99;
-  background: #edf5ff;
+  color: var(--brand-hover);
+  background: var(--brand-soft);
 }
 
 .participant-collapsed .participant-panel-toggle {
@@ -816,21 +823,25 @@ async function onParticipantAdded(participant) {
   border-radius: 14px;
 }
 
-.canvas-panel {
+.canvas-shell {
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
 }
 
-.canvas-toolbar {
-  min-height: 70px;
+.toolbar-card {
+  min-height: 68px;
   flex: none;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 18px;
+  padding: 10px 16px;
   background: #fff;
   border-bottom: 1px solid var(--line);
 }
@@ -842,6 +853,7 @@ async function onParticipantAdded(participant) {
 
 .canvas-title h1 {
   margin: 2px 0 0;
+  color: var(--ink);
   font-size: 16px;
 }
 
@@ -860,7 +872,7 @@ async function onParticipantAdded(participant) {
 }
 
 .canvas-stats b {
-  color: #12325f;
+  color: var(--ink);
   font-size: 21px;
   line-height: 1;
 }
@@ -875,12 +887,12 @@ async function onParticipantAdded(participant) {
   min-width: 0;
 }
 
-.canvas-toolbar > .el-button-group,
-.canvas-toolbar :deep(.el-dropdown) {
+.toolbar-card > .el-button-group,
+.toolbar-card :deep(.el-dropdown) {
   flex: none;
 }
 
-.canvas-toolbar > .el-button-group {
+.toolbar-card > .el-button-group {
   display: inline-flex;
   flex-wrap: nowrap;
 }
@@ -907,10 +919,10 @@ async function onParticipantAdded(participant) {
   place-items: center;
   padding: 0;
   color: #fff;
-  background: #2f80d8;
+  background: var(--brand);
   border: 0;
   border-radius: 50%;
-  box-shadow: 0 9px 22px rgba(39, 94, 164, 0.36);
+  box-shadow: 0 4px 14px rgba(10, 89, 247, 0.22);
   cursor: grab;
   transition:
     transform 0.2s ease,
@@ -934,9 +946,9 @@ async function onParticipantAdded(participant) {
   gap: 4px;
   padding: 7px;
   background: #fff;
-  border: 1px solid #cfdced;
-  border-radius: 12px;
-  box-shadow: 0 16px 38px rgba(27, 62, 112, 0.22);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-hover);
 }
 
 .add-menu button {
@@ -953,8 +965,8 @@ async function onParticipantAdded(participant) {
 }
 
 .add-menu button:hover {
-  color: #1d5ba7;
-  background: #edf5ff;
+  color: var(--brand);
+  background: var(--brand-soft);
 }
 
 @media (max-width: 1450px) {
@@ -986,8 +998,8 @@ async function onParticipantAdded(participant) {
   flex: none;
   display: grid;
   place-items: center;
-  color: #2f6eb6;
-  background: #e5f0ff;
+  color: var(--brand);
+  background: var(--brand-soft);
   border-radius: 8px;
 }
 
