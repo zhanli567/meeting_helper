@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { Refresh, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { apiErrorMessage } from '@/api/http'
-import { meetingApi } from '@/api/meeting'
+import { venueApi } from '@/api/venue'
 import { displayCellUnit, elementBox, previewFitZoom } from '@/utils/venueCanvasMetrics'
 
 const visible = defineModel({ required: true })
@@ -33,7 +33,7 @@ watch(
     if (!isVisible || !venueId) return
     loading.value = true
     try {
-      venue.value = await meetingApi.venue(venueId)
+      venue.value = await venueApi.layout(venueId)
       await nextTick()
       fitCanvas()
     } catch (error) {
@@ -52,11 +52,10 @@ function elementStyle(element) {
     left: `${box.left}px`,
     width: `${box.width}px`,
     height: `${box.height}px`,
-    zIndex: element.type === 'SEAT' ? 3 : 1,
-    color: readableTextColor(element.backgroundColor),
-    backgroundColor: element.backgroundColor || defaultColor(element.type),
+    zIndex: element.kind === 'SEAT' ? 3 : 1,
+    color: readableTextColor(element.fillColor),
+    backgroundColor: element.fillColor || defaultColor(element.kind),
     borderColor: element.borderColor || '#93b4df',
-    transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
   }
 }
 
@@ -170,7 +169,7 @@ onBeforeUnmount(stopPan)
 <template>
   <el-dialog
     v-model="visible"
-    :title="venue ? `预览场馆：${venue.name}` : '预览场馆'"
+    :title="venue ? `预览场馆：${venue.location}` : '预览场馆'"
     width="88vw"
     top="5vh"
     append-to-body
@@ -201,13 +200,13 @@ onBeforeUnmount(stopPan)
           <div v-if="venue" class="preview-canvas" :style="canvasStyle">
             <div
               v-for="element in venue.elements"
-              :key="`${element.row}-${element.column}-${element.code}-${element.type}`"
+              :key="`${element.row}-${element.column}-${element.name}-${element.kind}`"
               class="preview-element"
-              :class="`type-${element.type.toLowerCase()}`"
+              :class="`type-${element.kind.toLowerCase()}`"
               :style="elementStyle(element)"
-              :title="[element.code, element.label, typeLabel(element.type)].filter(Boolean).join(' · ')"
+              :title="[element.name, typeLabel(element.kind)].filter(Boolean).join(' · ')"
             >
-              <span>{{ element.label || element.code || typeLabel(element.type) }}</span>
+              <span>{{ element.name || typeLabel(element.kind) }}</span>
             </div>
           </div>
         </div>

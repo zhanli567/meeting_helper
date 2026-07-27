@@ -31,6 +31,22 @@ const genericNames = [
   '讲台',
 ]
 
+export function emptyVenueInfo() {
+  return {
+    location: '',
+    campus: '',
+    mainScreenResolution: '',
+    stageDimensions: '',
+    manualCapacity: null,
+    contactInfo: '',
+    bookingUrl: '',
+    meetingRoomFunctions: '',
+    servicesProvided: '',
+    description: '',
+    remarks: '',
+  }
+}
+
 export const COMMON_ELEMENT_SUGGESTIONS = Object.freeze([
   Object.freeze({
     name: '座位',

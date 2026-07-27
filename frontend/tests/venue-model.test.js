@@ -9,10 +9,27 @@ import {
   DEFAULT_CANVAS,
   ELEMENT_KINDS,
   MIN_CANVAS_SIZE,
+  emptyVenueInfo,
   normalizeVenueInfo,
   toCreateVenuePayload,
   toElementPayload,
 } from '../src/utils/venueModel.js'
+
+test('空场馆信息草稿覆盖全部固定字段', () => {
+  assert.deepEqual(emptyVenueInfo(), {
+    location: '',
+    campus: '',
+    mainScreenResolution: '',
+    stageDimensions: '',
+    manualCapacity: null,
+    contactInfo: '',
+    bookingUrl: '',
+    meetingRoomFunctions: '',
+    servicesProvided: '',
+    description: '',
+    remarks: '',
+  })
+})
 
 test('场馆元素只生成通用字段', () => {
   assert.deepEqual(

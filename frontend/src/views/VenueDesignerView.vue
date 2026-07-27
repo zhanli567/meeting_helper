@@ -13,7 +13,7 @@ import {
   ZoomOut,
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { meetingApi } from '@/api/meeting'
+import { venueApi } from '@/api/venue'
 import { apiErrorMessage } from '@/api/http'
 import {
   activeSelectionRect,
@@ -28,7 +28,7 @@ const venueId = computed(() =>
   typeof route.params.venueId === 'string' ? route.params.venueId : undefined,
 )
 const config = reactive({
-  name: '自定义会议室',
+  name: '未命名场馆',
   description: '',
   gridRows: 16,
   gridColumns: 30,
@@ -36,7 +36,7 @@ const config = reactive({
   frontDirection: 'TOP',
 })
 const elements = ref([])
-const existingVenues = ref([])
+const rowVersion = ref(0)
 const saving = ref(false)
 const loading = ref(false)
 const drawing = ref()
@@ -136,26 +136,26 @@ const pickerStyle = computed(() => ({
 onMounted(async () => {
   loading.value = true
   try {
-    existingVenues.value = await meetingApi.venues()
     if (venueId.value) {
-      const venue = await meetingApi.venue(venueId.value)
-      if (venue.preset) {
-        ElMessage.warning('系统预置场馆只允许查看，不能编辑')
-        await router.replace('/venues')
-        return
-      }
+      const [venue, layout] = await Promise.all([
+        venueApi.detail(venueId.value),
+        venueApi.layout(venueId.value),
+      ])
       Object.assign(config, {
-        name: venue.name,
+        name: venue.location,
         description: venue.description || '',
-        gridRows: venue.gridRows,
-        gridColumns: venue.gridColumns,
-        cellSize: Math.max(venue.cellSize || 0, MIN_DISPLAY_CELL_SIZE),
-        frontDirection: venue.frontDirection,
+        gridRows: layout.gridRows,
+        gridColumns: layout.gridColumns,
+        cellSize: MIN_DISPLAY_CELL_SIZE,
+        frontDirection: 'TOP',
       })
-      elements.value = venue.elements.map((element) => ({
+      rowVersion.value = layout.rowVersion
+      elements.value = layout.elements.map((element) => ({
         ...element,
         localId: crypto.randomUUID(),
-        backgroundColor: element.backgroundColor || '#ffffff',
+        type: element.kind,
+        label: element.name,
+        backgroundColor: element.fillColor || '#ffffff',
         borderColor: element.borderColor || '#93b4df',
       }))
     }
@@ -654,33 +654,29 @@ function endPanelDrag() {
   window.removeEventListener('pointerup', endPanelDrag)
 }
 async function save() {
-  const name = config.name.trim()
-  if (!name || !elements.value.length) {
-    ElMessage.warning('请填写场馆名称并至少放置一个元素')
-    return
-  }
-  const duplicate = existingVenues.value.some(
-    (venue) =>
-      venue.id !== venueId.value &&
-      venue.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase(),
-  )
-  if (duplicate) {
-    ElMessage.warning('场馆名称已存在，请换一个名称')
+  if (!venueId.value) {
+    ElMessage.warning('请从场馆模板列表进入布局编辑')
     return
   }
   saving.value = true
   try {
     const payload = {
-      ...config,
-      name,
-      elements: elements.value.map(({ localId, ...element }) => {
-        void localId
-        return element
-      }),
+      gridRows: config.gridRows,
+      gridColumns: config.gridColumns,
+      elements: elements.value.map((element) => ({
+        kind: element.type === 'SEAT' ? 'SEAT' : 'GENERIC',
+        name: String(element.label || element.name || '未命名元素').trim(),
+        row: element.row,
+        column: element.column,
+        rowSpan: element.rowSpan,
+        columnSpan: element.columnSpan,
+        fillColor: element.backgroundColor,
+        borderColor: element.borderColor,
+      })),
+      rowVersion: rowVersion.value,
     }
-    if (venueId.value) await meetingApi.updateVenue(venueId.value, payload)
-    else await meetingApi.createVenue(payload)
-    ElMessage.success(venueId.value ? '场馆修改已保存' : '场馆模板已保存')
+    await venueApi.updateLayout(venueId.value, payload)
+    ElMessage.success('场馆布局已保存')
     await router.push('/venues')
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
@@ -703,7 +699,7 @@ onBeforeUnmount(() => {
       </el-button>
       <span class="header-divider" />
       <div class="brand-copy">
-        <strong>{{ venueId ? '编辑场馆布局' : '自定义场馆设计器' }}</strong>
+        <strong>编辑场馆布局</strong>
       </div>
       <span class="header-spacer" />
       <el-button type="primary" :loading="saving" @click="save">
@@ -825,19 +821,12 @@ onBeforeUnmount(() => {
           </el-button>
         </header>
         <div v-show="!panelCollapsed" class="settings-content">
+          <div class="venue-summary">
+            <span>当前地点</span>
+            <strong>{{ config.name }}</strong>
+            <p v-if="config.description">{{ config.description }}</p>
+          </div>
           <el-form label-position="top" size="small">
-            <el-form-item label="场馆名称">
-              <el-input v-model="config.name" maxlength="60" show-word-limit />
-            </el-form-item>
-            <el-form-item label="说明">
-              <el-input
-                v-model="config.description"
-                type="textarea"
-                :rows="2"
-                maxlength="200"
-                show-word-limit
-              />
-            </el-form-item>
             <div class="field-grid">
               <el-form-item label="画布行数">
                 <el-input-number
@@ -1302,6 +1291,34 @@ onBeforeUnmount(() => {
   margin: 12px 0 0;
   color: #7b8ba0;
   font-size: 10px;
+}
+
+.venue-summary {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: #f8fbff;
+  border: 1px solid #e1eaf5;
+  border-radius: var(--radius-sm);
+}
+
+.venue-summary span {
+  color: var(--tertiary);
+  font-size: 10px;
+}
+
+.venue-summary strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.venue-summary p {
+  margin: 0;
+  line-height: 1.5;
 }
 
 .field-grid {

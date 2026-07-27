@@ -1,85 +1,227 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowLeft, Delete, EditPen, Plus, View } from '@element-plus/icons-vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  ArrowLeft,
+  Delete,
+  EditPen,
+  MoreFilled,
+  Plus,
+  Search,
+  View,
+} from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import VenueDetailDrawer from '@/components/VenueDetailDrawer.vue'
+import VenueInfoDrawer from '@/components/VenueInfoDrawer.vue'
 import VenuePreviewDialog from '@/components/VenuePreviewDialog.vue'
 import { meetingApi } from '@/api/meeting'
+import { venueApi } from '@/api/venue'
 import { apiErrorMessage } from '@/api/http'
 import { useWorkspaceStore } from '@/stores/workspace'
+
+const route = useRoute()
 const router = useRouter()
 const store = useWorkspaceStore()
-const venues = ref([])
-const meetingNames = ref([])
+const isSelectMode = computed(() => route.name === 'venue-select')
 const loading = ref(false)
-const meetingVisible = ref(false)
+const records = ref([])
+const total = ref(0)
+const campusOptions = ref([])
+const query = reactive({
+  keyword: '',
+  campus: '',
+  pageNum: 1,
+  pageSize: 10,
+  groupByCampus: false,
+})
+const pageSizes = [10, 20, 50]
+const detailVisible = ref(false)
+const infoVisible = ref(false)
+const detailLoading = ref(false)
+const selectedVenue = ref()
 const previewVisible = ref(false)
 const previewVenueId = ref('')
+const meetingVisible = ref(false)
 const submitting = ref(false)
-const form = reactive({ name: '', venueTemplateId: '' })
+const meetingForm = reactive({ name: '', venueTemplateId: '' })
+let searchTimer
+let latestLoadId = 0
+
+const tableRows = computed(() => {
+  if (!query.groupByCampus) return records.value
+  const groups = new Map()
+  for (const venue of records.value) {
+    const label = venue.campus?.trim() || '未填写园区'
+    if (!groups.has(label)) groups.set(label, [])
+    groups.get(label).push(venue)
+  }
+  return [...groups.entries()].flatMap(([campus, venues]) => [
+    { id: `group:${campus}`, __group: true, campus },
+    ...venues,
+  ])
+})
+
 onMounted(load)
+onBeforeUnmount(() => window.clearTimeout(searchTimer))
+
+watch(
+  () => query.keyword,
+  () => {
+    window.clearTimeout(searchTimer)
+    searchTimer = window.setTimeout(() => {
+      query.pageNum = 1
+      load()
+    }, 300)
+  },
+)
+
+watch(
+  () => query.campus,
+  () => {
+    query.pageNum = 1
+    load()
+  },
+)
+
+watch(
+  () => route.name,
+  () => {
+    meetingVisible.value = false
+  },
+)
+
 async function load() {
+  const loadId = ++latestLoadId
   loading.value = true
   try {
-    const [venueList, meetings] = await Promise.all([meetingApi.venues(), meetingApi.meetings()])
-    venues.value = venueList
-    meetingNames.value = meetings.map((meeting) => meeting.name.trim().toLocaleLowerCase())
+    const page = await venueApi.list({
+      keyword: query.keyword.trim(),
+      campus: query.campus,
+      pageNum: query.pageNum,
+      pageSize: query.pageSize,
+    })
+    if (loadId !== latestLoadId) return
+    records.value = page.records || []
+    total.value = page.total || 0
+    query.pageNum = page.pageNum || query.pageNum
+    query.pageSize = page.pageSize || query.pageSize
+    if (!query.campus) {
+      campusOptions.value = [
+        ...new Set(records.value.map((venue) => venue.campus?.trim()).filter(Boolean)),
+      ].sort((left, right) => left.localeCompare(right, 'zh-CN'))
+    }
   } catch (error) {
+    if (loadId !== latestLoadId) return
     ElMessage.error(apiErrorMessage(error))
   } finally {
-    loading.value = false
+    if (loadId === latestLoadId) loading.value = false
   }
 }
-function startMeeting(venue) {
-  form.venueTemplateId = venue.id
-  form.name = ''
-  meetingVisible.value = true
+
+function changePage(pageNum) {
+  query.pageNum = pageNum
+  load()
 }
+
+function changePageSize(pageSize) {
+  query.pageSize = pageSize
+  query.pageNum = 1
+  load()
+}
+
+function groupSpan({ row, columnIndex }) {
+  if (!row.__group) return undefined
+  return columnIndex === 0 ? [1, 7] : [0, 0]
+}
+
+function rowClassName({ row }) {
+  return row.__group ? 'campus-group-row' : ''
+}
+
+async function loadDetail(venue, mode) {
+  selectedVenue.value = venue
+  detailLoading.value = true
+  if (mode === 'detail') detailVisible.value = true
+  try {
+    selectedVenue.value = await venueApi.detail(venue.id)
+    if (mode === 'edit') infoVisible.value = true
+  } catch (error) {
+    if (mode === 'detail') detailVisible.value = false
+    ElMessage.error(apiErrorMessage(error))
+  } finally {
+    detailLoading.value = false
+  }
+}
+
 function previewVenue(venue) {
   previewVenueId.value = venue.id
   previewVisible.value = true
 }
+
+function startMeeting(venue) {
+  if (venue.seatCount === 0) return
+  meetingForm.name = ''
+  meetingForm.venueTemplateId = venue.id
+  meetingVisible.value = true
+}
+
 async function createMeeting() {
-  const name = form.name.trim()
+  if (submitting.value) return
+  const name = meetingForm.name.trim()
   if (!name) {
     ElMessage.warning('请输入会议名称')
     return
   }
-  if (meetingNames.value.includes(name.toLocaleLowerCase())) {
-    ElMessage.warning('会议名称已存在，请换一个名称')
-    return
-  }
   submitting.value = true
   try {
-    const meeting = await meetingApi.createMeeting(name, form.venueTemplateId)
-    store.rememberMeeting(meeting.id)
+    const meeting = await meetingApi.createMeeting(name, meetingForm.venueTemplateId)
+    const meetingId = typeof meeting === 'string' ? meeting : meeting.id
+    store.rememberMeeting(meetingId)
     await store.initialize()
-    ElMessage.success('会议已创建，场馆布局已生成独立快照')
-    router.push(`/workbench/${meeting.id}`)
+    ElMessage.success('会议已创建')
+    meetingVisible.value = false
+    router.push(`/workbench/${meetingId}`)
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
   } finally {
     submitting.value = false
   }
 }
+
 async function deleteVenue(venue) {
   try {
     await ElMessageBox.confirm(
-      `删除“${venue.name}”后不可再用它创建新会议，已创建会议不会受影响。`,
-      '删除自定义场馆',
+      `删除“${venue.location}”后无法恢复，已有会议不受影响。`,
+      '确认删除场馆模板',
       {
         confirmButtonText: '确认删除',
         cancelButtonText: '取消',
         type: 'warning',
       },
     )
-    await meetingApi.deleteVenue(venue.id)
-    ElMessage.success('场馆已删除')
+    await venueApi.remove(venue.id)
+    if (records.value.length === 1 && query.pageNum > 1) query.pageNum -= 1
+    ElMessage.success('场馆模板已删除')
     await load()
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
     ElMessage.error(apiErrorMessage(error))
   }
+}
+
+async function handleSaved(updated) {
+  selectedVenue.value = updated
+  await load()
+}
+
+function formatTime(value) {
+  if (!value) return '—'
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
 }
 </script>
 
@@ -91,109 +233,169 @@ async function deleteVenue(venue) {
       </el-button>
       <span class="header-divider" />
       <div class="brand-copy">
-        <strong>场馆模板库</strong>
+        <strong>{{ isSelectMode ? '选择场馆模板' : '场馆模板管理' }}</strong>
       </div>
       <span class="header-spacer" />
-      <el-button type="primary" :icon="Plus" @click="router.push('/venues/new')">
+      <el-button
+        v-if="!isSelectMode"
+        type="primary"
+        :icon="Plus"
+        @click="router.push('/venues/new')"
+      >
         新建场馆
       </el-button>
     </header>
 
-    <main v-loading="loading" class="venue-content">
-      <section class="venue-intro">
-        <div>
-          <h1>从真实空间开始安排会议</h1>
-          <p>模板保存物理布局；创建会议后会复制为独立快照，临时设备和禁用座位不会修改原场馆。</p>
-        </div>
-        <div class="venue-count">
-          <strong>{{ venues.length }}</strong
-          ><span>个可用模板</span>
-        </div>
+    <main class="venue-content">
+      <section class="content-heading">
+        <h1>{{ isSelectMode ? '选择场馆，开始排座' : '场馆模板' }}</h1>
+        <span>{{ total }} 个模板</span>
       </section>
 
-      <div class="venue-scroll">
-        <section class="venue-grid">
-          <article v-for="venue in venues" :key="venue.id" class="venue-card">
-            <div class="venue-preview" title="点击预览场馆布局" @click="previewVenue(venue)">
-              <span class="mini-stage">舞台 / 主席区</span>
-              <div class="mini-seats">
-                <i v-for="index in 28" :key="index" :class="{ aisle: index % 9 === 0 }" />
-              </div>
-              <el-tag v-if="venue.preset" size="small" type="primary" effect="dark"
-                >系统预置</el-tag
-              >
-              <el-tag v-else size="small" effect="dark">自定义</el-tag>
-            </div>
-            <div class="venue-card-body">
-              <div>
-                <h2>{{ venue.name }}</h2>
-                <p>{{ venue.description || '未填写场馆说明' }}</p>
-              </div>
-              <dl>
-                <div>
-                  <dt>网格</dt>
-                  <dd>{{ venue.gridRows }} × {{ venue.gridColumns }}</dd>
-                </div>
-                <div>
-                  <dt>座席</dt>
-                  <dd>{{ venue.seatCount }}</dd>
-                </div>
-                <div>
-                  <dt>版本</dt>
-                  <dd>V{{ venue.versionNo }}</dd>
-                </div>
-              </dl>
-              <div class="venue-actions">
-                <el-button type="primary" plain @click="startMeeting(venue)">
-                  使用该场馆创建会议
-                </el-button>
-                <el-button :icon="View" aria-label="预览场馆" @click="previewVenue(venue)" />
-                <template v-if="!venue.preset">
-                  <el-button
-                    :icon="EditPen"
-                    aria-label="编辑场馆"
-                    @click="router.push(`/venues/${venue.id}/edit`)"
-                  />
-                  <el-button
-                    type="danger"
-                    plain
-                    :icon="Delete"
-                    aria-label="删除场馆"
-                    @click="deleteVenue(venue)"
-                  />
-                </template>
-              </div>
-            </div>
-          </article>
+      <section class="venue-panel">
+        <div class="venue-toolbar">
+          <el-input
+            v-model="query.keyword"
+            :prefix-icon="Search"
+            clearable
+            placeholder="搜索地点"
+            class="search-input"
+          />
+          <el-select v-model="query.campus" clearable placeholder="全部园区" class="campus-select">
+            <el-option
+              v-for="campus in campusOptions"
+              :key="campus"
+              :label="campus"
+              :value="campus"
+            />
+          </el-select>
+          <span class="toolbar-spacer" />
+          <el-switch v-model="query.groupByCampus" active-text="按园区分组" />
+        </div>
 
-          <button class="create-card" @click="router.push('/venues/new')">
-            <span><Plus /></span>
-            <strong>设计新的场馆模板</strong>
-          </button>
-        </section>
-      </div>
+        <div class="table-scroll" v-loading="loading">
+          <el-table
+            :data="tableRows"
+            height="100%"
+            :span-method="groupSpan"
+            :row-class-name="rowClassName"
+            empty-text="暂无场馆模板"
+          >
+            <el-table-column prop="location" label="地点" min-width="190">
+              <template #default="{ row }">
+                <strong v-if="row.__group" class="group-title">{{ row.campus }}</strong>
+                <button v-else class="location-link" @click="loadDetail(row, 'detail')">
+                  {{ row.location }}
+                </button>
+              </template>
+            </el-table-column>
+            <el-table-column prop="campus" label="园区" min-width="130">
+              <template #default="{ row }">{{ row.campus || '未填写园区' }}</template>
+            </el-table-column>
+            <el-table-column prop="manualCapacity" label="容纳人数" width="110" align="right">
+              <template #default="{ row }">{{ row.manualCapacity ?? '—' }}</template>
+            </el-table-column>
+            <el-table-column prop="seatCount" label="布局座位数" width="130" align="right">
+              <template #default="{ row }">
+                <el-tag v-if="row.seatCount === 0" type="warning" effect="plain">
+                  布局未完成
+                </el-tag>
+                <span v-else>{{ row.seatCount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="updatedByName" label="更新人" min-width="120" />
+            <el-table-column prop="updatedAt" label="更新时间" width="150">
+              <template #default="{ row }">{{ formatTime(row.updatedAt) }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="310" fixed="right">
+              <template #default="{ row }">
+                <div class="row-actions">
+                  <el-tooltip
+                    :disabled="row.seatCount !== 0"
+                    content="请先完成场馆布局"
+                    placement="top"
+                  >
+                    <span>
+                      <el-button
+                        type="primary"
+                        link
+                        :disabled="row.seatCount === 0"
+                        @click="startMeeting(row)"
+                      >
+                        使用模板
+                      </el-button>
+                    </span>
+                  </el-tooltip>
+                  <el-button link :icon="View" @click="loadDetail(row, 'detail')">详情</el-button>
+                  <el-button link @click="previewVenue(row)">预览</el-button>
+                  <el-dropdown v-if="!isSelectMode" trigger="click">
+                    <el-button link :icon="MoreFilled">更多</el-button>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item :icon="EditPen" @click="loadDetail(row, 'edit')">
+                          编辑信息
+                        </el-dropdown-item>
+                        <el-dropdown-item
+                          :icon="EditPen"
+                          @click="router.push(`/venues/${row.id}/layout/edit`)"
+                        >
+                          编辑布局
+                        </el-dropdown-item>
+                        <el-dropdown-item :icon="Delete" divided @click="deleteVenue(row)">
+                          <span class="danger-action">删除</span>
+                        </el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+
+        <footer class="pagination-bar">
+          <el-pagination
+            :current-page="query.pageNum"
+            :page-size="query.pageSize"
+            :page-sizes="pageSizes"
+            :total="total"
+            layout="total, sizes, prev, pager, next, jumper"
+            @current-change="changePage"
+            @size-change="changePageSize"
+          />
+        </footer>
+      </section>
     </main>
 
-    <el-dialog v-model="meetingVisible" title="使用场馆创建会议" width="460px">
-      <el-form label-position="top">
+    <VenueDetailDrawer
+      v-model="detailVisible"
+      :venue="selectedVenue"
+      :loading="detailLoading"
+    />
+    <VenueInfoDrawer
+      v-model="infoVisible"
+      :venue="selectedVenue"
+      @saved="handleSaved"
+    />
+    <VenuePreviewDialog v-model="previewVisible" :venue-id="previewVenueId" />
+
+    <el-dialog v-model="meetingVisible" title="创建会议" width="440px">
+      <el-form label-position="top" @submit.prevent="createMeeting">
         <el-form-item label="会议名称" required>
-          <el-input v-model="form.name" placeholder="例如：2026年度技术交流会" />
+          <el-input
+            v-model="meetingForm.name"
+            maxlength="200"
+            placeholder="请输入会议名称"
+          />
         </el-form-item>
-        <el-alert
-          title="创建后会生成独立场馆快照，后续调整不会影响模板。"
-          type="info"
-          :closable="false"
-          show-icon
-        />
       </el-form>
       <template #footer>
         <el-button @click="meetingVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="createMeeting"
-          >创建并进入排座</el-button
-        >
+        <el-button type="primary" :loading="submitting" @click="createMeeting">
+          创建并进入工作台
+        </el-button>
       </template>
     </el-dialog>
-    <VenuePreviewDialog v-model="previewVisible" :venue-id="previewVenueId" />
   </div>
 </template>
 
@@ -210,66 +412,39 @@ async function deleteVenue(venue) {
 }
 
 .venue-content {
-  width: min(1380px, calc(100% - 64px));
+  width: min(1460px, calc(100% - 64px));
   flex: 1;
   min-height: 0;
-  margin: 0 auto;
-  padding: 30px 0 0;
   display: flex;
   flex-direction: column;
+  margin: 0 auto;
+  padding: 26px 0 32px;
   overflow: hidden;
 }
 
-.venue-intro {
+.content-heading {
   flex: none;
   display: flex;
-  justify-content: space-between;
-  align-items: end;
-  margin-bottom: 28px;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
-.venue-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0 12px 64px 0;
-  scrollbar-gutter: stable;
-}
-
-.venue-intro h1 {
-  margin: 6px 0 8px;
-  font-size: 28px;
-}
-
-.venue-intro p {
-  max-width: 720px;
+.content-heading h1 {
   margin: 0;
-  color: var(--muted);
+  font-size: 26px;
 }
 
-.venue-count {
-  display: grid;
-  text-align: right;
-}
-
-.venue-count strong {
-  font-size: 28px;
-}
-
-.venue-count span {
-  color: var(--muted);
+.content-heading span {
+  color: var(--tertiary);
   font-size: 12px;
 }
 
-.venue-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
-}
-
-.venue-card,
-.create-card {
-  min-height: 390px;
+.venue-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: #fff;
   border: 1px solid var(--line);
@@ -277,145 +452,76 @@ async function deleteVenue(venue) {
   box-shadow: var(--shadow);
 }
 
-.venue-preview {
-  height: 185px;
-  position: relative;
-  display: grid;
-  align-content: center;
-  gap: 20px;
-  padding: 28px 34px;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.82)),
-    linear-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.06) 1px, transparent 1px), #f1f3f5;
-  background-size:
-    auto,
-    18px 18px,
-    18px 18px,
-    auto;
-  cursor: zoom-in;
-}
-
-.venue-preview > .el-tag {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-}
-
-.mini-stage {
-  padding: 9px;
-  color: var(--ink);
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 0 0 8px 8px;
-  font-size: 10px;
-  text-align: center;
-}
-
-.mini-seats {
-  display: grid;
-  grid-template-columns: repeat(9, 1fr);
-  gap: 5px;
-}
-
-.mini-seats i {
-  height: 11px;
-  background: rgba(10, 89, 247, 0.22);
-  border-radius: 2px;
-}
-
-.mini-seats i.aisle {
-  visibility: hidden;
-}
-
-.venue-card-body {
-  display: grid;
-  gap: 16px;
-  padding: 20px;
-}
-
-.venue-card-body h2 {
-  margin: 0 0 6px;
-  font-size: 18px;
-}
-
-.venue-card-body p {
-  height: 38px;
-  margin: 0;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.venue-card-body dl {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  margin: 0;
-}
-
-.venue-actions {
+.venue-toolbar {
+  min-height: 68px;
+  flex: none;
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
 }
 
-.venue-actions > .el-button:first-child {
+.search-input {
+  width: 290px;
+}
+
+.campus-select {
+  width: 180px;
+}
+
+.toolbar-spacer {
   flex: 1;
 }
 
-.venue-actions > .el-button {
+.table-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.location-link {
+  padding: 0;
+  color: var(--brand);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.group-title {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.row-actions :deep(.el-button) {
   margin-left: 0;
 }
 
-.venue-card-body dl div {
-  display: grid;
-  gap: 4px;
-  padding: 8px;
-  border-left: 1px solid var(--line);
+.danger-action {
+  color: var(--danger);
 }
 
-.venue-card-body dl div:first-child {
-  border-left: 0;
+.pagination-bar {
+  min-height: 62px;
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
 }
 
-.venue-card-body dt {
-  color: var(--tertiary);
-  font-size: 10px;
+:deep(.campus-group-row td.el-table__cell) {
+  background: #f5f8fc;
 }
 
-.venue-card-body dd {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
+:deep(.campus-group-row:hover > td.el-table__cell) {
+  background: #f5f8fc !important;
 }
-
-.create-card {
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 12px;
-  padding: 40px;
-  color: var(--muted);
-  border-style: dashed;
-  cursor: pointer;
-}
-
-.create-card:hover {
-  color: var(--brand);
-  border-color: rgba(10, 89, 247, 0.34);
-}
-
-.create-card > span {
-  width: 54px;
-  height: 54px;
-  display: grid;
-  place-items: center;
-  color: var(--brand);
-  background: var(--brand-soft);
-  border-radius: var(--radius-md);
-}
-
-.create-card svg {
-  width: 24px;
-}
-
 </style>
