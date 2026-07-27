@@ -94,7 +94,7 @@ test('详情抽屉只读，信息抽屉携带行版本更新并通知列表刷�
   assert.match(editSource, /emit\('saved'/)
 })
 
-test('场馆新建第一步保留信息和默认布局草稿，离开时保护未保存内容', async () => {
+test('场馆新建保留信息和默认布局草稿并在第二步统一保存', async () => {
   const source = await readSource('src/views/VenueCreateView.vue')
 
   assert.match(source, /const step = ref\('info'\)/)
@@ -104,15 +104,16 @@ test('场馆新建第一步保留信息和默认布局草稿，离开时保护�
     /const layout = reactive\(\{\s*gridRows:\s*20,\s*gridColumns:\s*30,\s*elements:\s*\[\]\s*\}\)/,
   )
   assert.match(source, /<VenueInfoForm/)
+  assert.match(source, /<VenueLayoutEditor/)
   assert.match(source, /onBeforeRouteLeave/)
   assert.match(source, /beforeunload/)
-  assert.doesNotMatch(source, /venueApi\.create/)
+  assert.match(source, /venueApi\.create\(toCreateVenuePayload\(info,\s*layout\)\)/)
   assert.doesNotMatch(source, /画布行数|画布列数/)
 })
 
-test('旧场馆预览和设计页面不再调用会议 API 的场馆方法', async () => {
+test('场馆预览和布局编辑页面不再调用会议 API 的场馆方法', async () => {
   const previewSource = await readSource('src/components/VenuePreviewDialog.vue')
-  const designerSource = await readSource('src/views/VenueDesignerView.vue')
+  const designerSource = await readSource('src/views/VenueLayoutEditorView.vue')
 
   assert.match(previewSource, /venueApi\.layout/)
   assert.doesNotMatch(previewSource, /meetingApi/)
@@ -140,10 +141,10 @@ test('场馆列表只接收最后一次查询响应', async () => {
   assert.match(source, /if \(loadId === latestLoadId\) loading\.value = false/)
 })
 
-test('任务四兼容布局页不提供无法随布局保存的场馆信息输入', async () => {
-  const source = await readSource('src/views/VenueDesignerView.vue')
+test('布局编辑页不提供无法随布局保存的场馆信息输入', async () => {
+  const source = await readSource('src/views/VenueLayoutEditorView.vue')
 
-  assert.doesNotMatch(source, /v-model="config\.(name|description)"/)
-  assert.match(source, /当前地点/)
-  assert.match(source, /\{\{ config\.name \}\}/)
+  assert.doesNotMatch(source, /v-model="venue\.(location|description)"/)
+  assert.match(source, /venue\?\.location/)
+  assert.match(source, /venue\?\.description/)
 })

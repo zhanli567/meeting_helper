@@ -77,3 +77,116 @@ export function createSeatElements(rect, mode, defaults = {}) {
   }
   return seats
 }
+
+export function pointerDeltaToGrid(deltaX, deltaY, cellSize, zoom) {
+  const scaledUnit = Math.max(1, cellSize * zoom)
+  return {
+    rows: Math.round(deltaY / scaledUnit),
+    columns: Math.round(deltaX / scaledUnit),
+  }
+}
+
+export function normalizeGridRect(start, current) {
+  const row = Math.min(start.row, current.row)
+  const column = Math.min(start.column, current.column)
+  return {
+    row,
+    column,
+    rowSpan: Math.max(start.row, current.row) - row + 1,
+    columnSpan: Math.max(start.column, current.column) - column + 1,
+  }
+}
+
+export function canvasSizeFromPointer(
+  start,
+  direction,
+  deltaX,
+  deltaY,
+  cellSize,
+  zoom,
+  minimumSize,
+) {
+  const delta = pointerDeltaToGrid(deltaX, deltaY, cellSize, zoom)
+  let rows = start.rows
+  let columns = start.columns
+
+  if (direction.includes('east')) columns += delta.columns
+  if (direction.includes('west')) columns -= delta.columns
+  if (direction.includes('south')) rows += delta.rows
+  if (direction.includes('north')) rows -= delta.rows
+
+  return {
+    rows: Math.max(minimumSize, rows),
+    columns: Math.max(minimumSize, columns),
+  }
+}
+
+export function placePanelBesideRect(rect, viewport, panel, gap = 12) {
+  const margin = 12
+  const maximumLeft = Math.max(margin, viewport.width - panel.width - margin)
+  const maximumTop = Math.max(margin, viewport.height - panel.height - margin)
+  const candidates = [
+    {
+      left: rect.left + rect.width + gap,
+      top: clamp(rect.top, margin, maximumTop),
+    },
+    {
+      left: rect.left - panel.width - gap,
+      top: clamp(rect.top, margin, maximumTop),
+    },
+    {
+      left: clamp(rect.left, margin, maximumLeft),
+      top: rect.top + rect.height + gap,
+    },
+    {
+      left: clamp(rect.left, margin, maximumLeft),
+      top: rect.top - panel.height - gap,
+    },
+  ]
+  const withinViewport = (candidate) =>
+    candidate.left >= margin &&
+    candidate.top >= margin &&
+    candidate.left + panel.width <= viewport.width - margin &&
+    candidate.top + panel.height <= viewport.height - margin
+  const coversSelection = (candidate) =>
+    !(
+      candidate.left + panel.width <= rect.left ||
+      rect.left + rect.width <= candidate.left ||
+      candidate.top + panel.height <= rect.top ||
+      rect.top + rect.height <= candidate.top
+    )
+  const available = candidates.find(
+    (candidate) => withinViewport(candidate) && !coversSelection(candidate),
+  )
+  if (available) return available
+
+  return {
+    left: clamp(candidates[0].left, margin, maximumLeft),
+    top: clamp(candidates[0].top, margin, maximumTop),
+  }
+}
+
+export function appendHistorySnapshot(history, snapshot, limit = 50) {
+  return [...history, structuredClone(snapshot)].slice(-limit)
+}
+
+export function canvasAnchorCorrection(direction, startBounds, currentBounds) {
+  let x = 0
+  let y = 0
+  if (direction.includes('west')) x = currentBounds.right - startBounds.right
+  else if (direction.includes('east')) x = currentBounds.left - startBounds.left
+  if (direction.includes('north')) y = currentBounds.bottom - startBounds.bottom
+  else if (direction.includes('south')) y = currentBounds.top - startBounds.top
+  return { x, y }
+}
+
+export function validElementProperties(properties) {
+  const name = String(properties?.name ?? '').trim()
+  const colorPattern = /^#[0-9a-fA-F]{6}$/
+  return (
+    name.length > 0 &&
+    name.length <= 80 &&
+    colorPattern.test(properties?.fillColor || '') &&
+    colorPattern.test(properties?.borderColor || '')
+  )
+}

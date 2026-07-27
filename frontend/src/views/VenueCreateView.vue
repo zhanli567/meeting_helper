@@ -2,8 +2,12 @@
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { venueApi } from '@/api/venue'
+import { apiErrorMessage } from '@/api/http'
 import VenueInfoForm from '@/components/VenueInfoForm.vue'
-import { emptyVenueInfo } from '@/utils/venueModel'
+import VenueLayoutEditor from '@/components/VenueLayoutEditor.vue'
+import { emptyVenueInfo, toCreateVenuePayload } from '@/utils/venueModel'
 
 const router = useRouter()
 const step = ref('info')
@@ -11,12 +15,17 @@ const info = reactive(emptyVenueInfo())
 const layout = reactive({ gridRows: 20, gridColumns: 30, elements: [] })
 const formRef = ref()
 const dirty = ref(false)
+const saving = ref(false)
 
 watch(info, () => (dirty.value = true), { deep: true })
 watch(layout, () => (dirty.value = true), { deep: true })
 
 function updateInfo(value) {
   Object.assign(info, value)
+}
+
+function updateLayout(value) {
+  Object.assign(layout, value)
 }
 
 async function continueToLayout() {
@@ -36,6 +45,21 @@ function back() {
   router.push('/venues')
 }
 
+async function saveVenue() {
+  if (saving.value) return
+  saving.value = true
+  try {
+    await venueApi.create(toCreateVenuePayload(info, layout))
+    dirty.value = false
+    ElMessage.success('场馆模板已创建')
+    await router.push('/venues')
+  } catch (error) {
+    ElMessage.error(apiErrorMessage(error))
+  } finally {
+    saving.value = false
+  }
+}
+
 function beforeUnload(event) {
   if (!dirty.value) return
   event.preventDefault()
@@ -53,9 +77,9 @@ onBeforeRouteLeave(() => {
 
 <template>
   <div class="app-page create-page">
-    <header class="app-header">
+    <header v-if="step === 'info'" class="app-header">
       <el-button text class="back-button" :icon="ArrowLeft" @click="back">
-        {{ step === 'info' ? '返回场馆模板' : '返回场馆信息' }}
+        返回场馆模板
       </el-button>
       <span class="header-divider" />
       <div class="brand-copy">
@@ -67,12 +91,7 @@ onBeforeRouteLeave(() => {
         <span :class="{ active: step === 'layout' }"><i>2</i>场馆布局</span>
       </div>
       <span class="header-spacer" />
-      <el-button
-        v-if="step === 'info'"
-        type="primary"
-        :icon="ArrowRight"
-        @click="continueToLayout"
-      >
+      <el-button type="primary" :icon="ArrowRight" @click="continueToLayout">
         继续编辑布局
       </el-button>
     </header>
@@ -92,11 +111,17 @@ onBeforeRouteLeave(() => {
       </div>
 
       <section v-else class="layout-step">
-        <div class="layout-placeholder">
-          <strong>{{ info.location }}</strong>
-          <span>{{ layout.gridRows }} × {{ layout.gridColumns }} 默认画布</span>
-          <el-button :icon="ArrowLeft" @click="step = 'info'">返回修改信息</el-button>
-        </div>
+        <VenueLayoutEditor
+          :model-value="layout"
+          :venue-name="info.location"
+          :venue-description="info.description || ''"
+          title="新建场馆布局"
+          save-label="创建场馆模板"
+          :saving="saving"
+          @update:model-value="updateLayout"
+          @back="step = 'info'"
+          @save="saveVenue"
+        />
       </section>
     </main>
   </div>
@@ -185,29 +210,7 @@ onBeforeRouteLeave(() => {
 
 .layout-step {
   height: 100%;
-  display: grid;
-  place-items: center;
-  padding: 32px;
-}
-
-.layout-placeholder {
-  min-width: 360px;
-  display: grid;
-  justify-items: center;
-  gap: 14px;
-  padding: 42px;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow);
-}
-
-.layout-placeholder strong {
-  font-size: 20px;
-}
-
-.layout-placeholder span {
-  color: var(--muted);
-  font-size: 13px;
+  min-height: 0;
+  overflow: hidden;
 }
 </style>
