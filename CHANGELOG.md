@@ -6,6 +6,7 @@
 
 ### 新增
 
+- 2026-07-27 16:45  完成场馆模板模块重构设计，明确全局模板、通用元素、多格座位、拖拽画布尺寸、会议布局快照、并发控制、物理删除及无数据库外键方案。
 - 2026-07-23 18:09  初始化 Git 仓库。
 - 2026-07-23 18:09  使用 Vue、TypeScript、Vite、Pinia 和 Vue Router 创建前端工程。
 - 2026-07-23 22:59  使用 Spring Boot、Spring Data JPA、PostgreSQL、H2 和 Bean Validation 创建后端工程。
