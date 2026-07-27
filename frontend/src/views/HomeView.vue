@@ -1,8 +1,7 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, Calendar, Plus, User } from '@element-plus/icons-vue'
-import { currentUser } from '@/auth/session'
+import { ArrowRight, Calendar, Plus } from '@element-plus/icons-vue'
 import { useWorkspaceStore } from '@/stores/workspace'
 const router = useRouter()
 const store = useWorkspaceStore()
@@ -33,13 +32,6 @@ function formatTime(value) {
         <strong>会议排座助手</strong>
       </div>
       <span class="header-spacer" />
-      <div class="user-context">
-        <span class="user-avatar"><User /></span>
-        <span
-          ><strong>{{ currentUser.name }}</strong
-          ><small>{{ currentUser.tenantName }}</small></span
-        >
-      </div>
     </header>
 
     <main class="home-scroll">
@@ -64,9 +56,9 @@ function formatTime(value) {
               type="primary"
               size="large"
               :icon="Plus"
-              @click="router.push('/venues/select')"
+              @click="router.push('/venues')"
             >
-              开始排座
+              场馆模板
             </el-button>
           </div>
         </section>
@@ -76,9 +68,6 @@ function formatTime(value) {
             <div>
               <h2>我的会议</h2>
             </div>
-            <el-button plain @click="router.push('/venues')">
-              场馆模板
-            </el-button>
           </div>
 
           <div v-if="store.meetings.length" class="meeting-grid">
@@ -105,7 +94,7 @@ function formatTime(value) {
             <Calendar />
             <h3>还没有会议</h3>
             <p>选择一个可用场馆模板，创建会议后即可导入人员并排座。</p>
-            <el-button type="primary" @click="router.push('/venues/select')">开始排座</el-button>
+            <el-button type="primary" @click="router.push('/venues')">场馆模板</el-button>
           </div>
         </section>
       </div>
@@ -123,40 +112,6 @@ function formatTime(value) {
 
 .home-header {
   flex: none;
-}
-
-.user-context {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.user-context > span:last-child {
-  display: grid;
-}
-
-.user-context strong {
-  font-size: 13px;
-}
-
-.user-context small {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.user-avatar {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  color: var(--brand);
-  background: var(--brand-soft);
-  border: 1px solid rgba(10, 89, 247, 0.16);
-  border-radius: var(--radius-sm);
-}
-
-.user-avatar svg {
-  width: 15px;
 }
 
 .home-scroll {

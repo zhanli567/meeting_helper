@@ -29,13 +29,13 @@ test('场馆列表使用独立 API，并提供搜索、筛选、当前页分组�
   assert.match(source, /seatCount === 0/)
 })
 
-test('首页主入口和管理入口语义分离', async () => {
+test('首页仅保留场馆模板入口', async () => {
   const source = await readSource('src/views/HomeView.vue')
 
-  assert.match(source, /开始排座/)
-  assert.match(source, /router\.push\('\/venues\/select'\)/)
   assert.match(source, /场馆模板/)
   assert.match(source, /router\.push\('\/venues'\)/)
+  assert.doesNotMatch(source, /开始排座/)
+  assert.doesNotMatch(source, /router\.push\('\/venues\/select'\)/)
   assert.doesNotMatch(source, /创建新会议/)
 })
 
