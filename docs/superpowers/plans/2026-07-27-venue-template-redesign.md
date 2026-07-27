@@ -138,7 +138,7 @@ Run:
 
 ```powershell
 cd backend
-.\mvnw.cmd -Dtest=DdlConventionTests,MyBatisMappingTests,MeetingHelperIntegrationTests#deletingParticipantPhysicallyRemovesIdentityRecordsAndAssignment test
+mvn -Dtest=DdlConventionTests,MyBatisMappingTests,MeetingHelperIntegrationTests#deletingParticipantPhysicallyRemovesIdentityRecordsAndAssignment test
 ```
 
 Expected: FAIL because DDL and entities still contain logical deletion.
@@ -219,7 +219,7 @@ Run:
 
 ```powershell
 cd backend
-.\mvnw.cmd test
+mvn test
 ```
 
 Expected: all tests PASS on the dedicated PostgreSQL test database.
@@ -296,7 +296,7 @@ Run:
 
 ```powershell
 cd backend
-.\mvnw.cmd -Dtest=VenueLayoutValidatorTests test
+mvn -Dtest=VenueLayoutValidatorTests test
 ```
 
 Expected: compilation FAIL because the new model does not exist.
@@ -515,7 +515,7 @@ Run:
 
 ```powershell
 cd backend
-.\mvnw.cmd -Dtest=MeetingHelperIntegrationTests#venueTemplatesArePagedAndGloballySearchable+venueTemplateRejectsStaleUpdates+deletingVenueKeepsMeetingSnapshot test
+mvn -Dtest=MeetingHelperIntegrationTests#venueTemplatesArePagedAndGloballySearchable+venueTemplateRejectsStaleUpdates+deletingVenueKeepsMeetingSnapshot test
 ```
 
 Expected: FAIL because the current list is unpaged and has preset behavior.
@@ -676,7 +676,7 @@ Run:
 
 ```powershell
 cd backend
-.\mvnw.cmd -Dtest=MeetingHelperIntegrationTests#meetingCopiesVenueLayoutAndIgnoresLaterTemplateChanges+genericElementCannotReceiveParticipantAndMultiCellSeatCanReceiveOnlyOne test
+mvn -Dtest=MeetingHelperIntegrationTests#meetingCopiesVenueLayoutAndIgnoresLaterTemplateChanges+genericElementCannotReceiveParticipantAndMultiCellSeatCanReceiveOnlyOne test
 ```
 
 Expected: FAIL because the meeting snapshot still uses legacy element fields.
@@ -752,7 +752,7 @@ Run:
 
 ```powershell
 cd backend
-.\mvnw.cmd test
+mvn test
 ```
 
 Expected: all tests PASS, including assignment swap, published version and Excel/PDF export tests.
@@ -826,7 +826,7 @@ Run:
 
 ```powershell
 cd frontend
-npm test
+npm.cmd test
 ```
 
 Expected: FAIL because `venueModel.js` and the new geometry helpers do not exist.
@@ -980,7 +980,7 @@ Run:
 
 ```powershell
 cd frontend
-npm test
+npm.cmd test
 ```
 
 Expected: all tests PASS.
@@ -1039,7 +1039,7 @@ Run:
 
 ```powershell
 cd frontend
-npm test
+npm.cmd test
 ```
 
 Expected: FAIL because the current library uses cards and one route mode.
@@ -1096,8 +1096,8 @@ Run:
 
 ```powershell
 cd frontend
-npm test
-npm run build
+npm.cmd test
+npm.cmd run build
 ```
 
 Expected: tests and Vite build PASS.
@@ -1156,7 +1156,7 @@ Run:
 
 ```powershell
 cd frontend
-npm test
+npm.cmd test
 ```
 
 Expected: FAIL because the new editor components do not exist.
@@ -1225,8 +1225,8 @@ Run:
 
 ```powershell
 cd frontend
-npm test
-npm run build
+npm.cmd test
+npm.cmd run build
 ```
 
 Expected: all tests and build PASS.
@@ -1277,7 +1277,7 @@ Run:
 
 ```powershell
 cd frontend
-npm test
+npm.cmd test
 ```
 
 Expected: FAIL because components still use legacy `type`, `label`, `backgroundColor`, `assignable` and `rotation`.
@@ -1308,8 +1308,8 @@ Run:
 
 ```powershell
 cd frontend
-npm test
-npm run build
+npm.cmd test
+npm.cmd run build
 ```
 
 Expected: all tests and build PASS.
@@ -1350,8 +1350,8 @@ Run:
 
 ```powershell
 cd backend
-.\mvnw.cmd clean test
-.\mvnw.cmd -DskipTests package
+mvn clean test
+mvn -DskipTests package
 ```
 
 Expected: both commands exit 0.
@@ -1362,8 +1362,8 @@ Run:
 
 ```powershell
 cd frontend
-npm test
-npm run build
+npm.cmd test
+npm.cmd run build
 ```
 
 Expected: both commands exit 0 and no `package-lock.json` is created or staged.
