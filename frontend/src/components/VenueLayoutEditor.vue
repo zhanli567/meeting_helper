@@ -542,13 +542,12 @@ function finishManipulation() {
         (element) => element.editorId === session.editorId,
       )
       if (index >= 0) {
-        elements.value[index] = {
-          ...elements.value[index],
+        Object.assign(elements.value[index], {
           row: session.candidate.row,
           column: session.candidate.column,
           rowSpan: session.candidate.rowSpan,
           columnSpan: session.candidate.columnSpan,
-        }
+        })
       }
       publishLayout()
     }
