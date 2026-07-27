@@ -22,7 +22,7 @@ import VenueElementPicker from '@/components/VenueElementPicker.vue'
 import {
   activeSelectionRect,
   appendHistorySnapshot,
-  canvasAnchorCorrection,
+  canvasAnchorAdjustment,
   canvasResizeConflict,
   canvasSizeFromPointer,
   canPlaceRect,
@@ -88,13 +88,16 @@ const drawing = ref()
 const pendingRect = ref()
 const pickerVisible = ref(false)
 const pickerPosition = ref({ left: 80, top: 80 })
+const pickerDocked = ref(false)
 const manipulation = ref()
 const canvasResizeSession = ref()
 const conflictElementIds = ref([])
 const panelCollapsed = ref(false)
 const panelDock = ref('right')
+const canvasOffsetX = ref(0)
+const canvasOffsetY = ref(0)
 const isPanning = ref(false)
-const canvasPaneRef = ref()
+const canvasSurfaceRef = ref()
 const viewportRef = ref()
 const canvasRef = ref()
 const pickerRef = ref()
@@ -114,7 +117,6 @@ function nextElementId() {
 function asEditorElement(element) {
   const id = element.id || element.editorId || nextElementId()
   return {
-    ...element,
     id,
     editorId: id,
     kind: element.kind || ELEMENT_KINDS.GENERIC,
@@ -128,11 +130,26 @@ function asEditorElement(element) {
   }
 }
 
+function plainEditorElement(element) {
+  return {
+    id: element.id,
+    editorId: element.editorId,
+    kind: element.kind,
+    name: element.name,
+    row: Number(element.row),
+    column: Number(element.column),
+    rowSpan: Number(element.rowSpan),
+    columnSpan: Number(element.columnSpan),
+    fillColor: element.fillColor,
+    borderColor: element.borderColor,
+  }
+}
+
 function currentSnapshot() {
   return {
     gridRows: gridRows.value,
     gridColumns: gridColumns.value,
-    elements: structuredClone(elements.value),
+    elements: elements.value.map(plainEditorElement),
   }
 }
 
@@ -172,6 +189,7 @@ function recordHistory(snapshot = currentSnapshot()) {
 
 function closePicker() {
   pickerVisible.value = false
+  pickerDocked.value = false
   pendingRect.value = undefined
 }
 
@@ -243,6 +261,7 @@ const displayColumns = computed(() =>
 const stageStyle = computed(() => ({
   width: `${displayColumns.value * CELL_SIZE * zoom.value}px`,
   height: `${displayRows.value * CELL_SIZE * zoom.value}px`,
+  transform: `translate(${canvasOffsetX.value}px, ${canvasOffsetY.value}px)`,
 }))
 const canvasStyle = computed(() => ({
   width: `${displayColumns.value * CELL_SIZE}px`,
@@ -270,7 +289,14 @@ function renderedElement(element) {
     rendered = { ...rendered, ...editorPreview.value }
   }
   if (manipulation.value?.editorId === element.editorId) {
-    rendered = { ...rendered, ...manipulation.value.candidate }
+    const candidate = manipulation.value.candidate
+    rendered = {
+      ...rendered,
+      row: candidate.row,
+      column: candidate.column,
+      rowSpan: candidate.rowSpan,
+      columnSpan: candidate.columnSpan,
+    }
   }
   return rendered
 }
@@ -367,27 +393,33 @@ function startSelection(event) {
 }
 
 function positionPicker() {
-  if (!pendingRect.value || !canvasRef.value || !canvasPaneRef.value) return
+  if (!pendingRect.value || !canvasRef.value || !canvasSurfaceRef.value) return
   const canvasBounds = canvasRef.value.getBoundingClientRect()
-  const paneBounds = canvasPaneRef.value.getBoundingClientRect()
+  const surfaceBounds = canvasSurfaceRef.value.getBoundingClientRect()
+  const pickerBounds = pickerNode()?.getBoundingClientRect()
   const rect = pendingRect.value
   const selectionBounds = {
     left:
       canvasBounds.left -
-      paneBounds.left +
+      surfaceBounds.left +
       (rect.column - 1) * CELL_SIZE * zoom.value,
     top:
       canvasBounds.top -
-      paneBounds.top +
+      surfaceBounds.top +
       (rect.row - 1) * CELL_SIZE * zoom.value,
     width: rect.columnSpan * CELL_SIZE * zoom.value,
     height: rect.rowSpan * CELL_SIZE * zoom.value,
   }
-  pickerPosition.value = placePanelBesideRect(
+  const placement = placePanelBesideRect(
     selectionBounds,
-    { width: paneBounds.width, height: paneBounds.height },
-    { width: 390, height: 430 },
+    { width: surfaceBounds.width, height: surfaceBounds.height },
+    {
+      width: pickerBounds?.width || 390,
+      height: pickerBounds?.height || 430,
+    },
   )
+  pickerDocked.value = placement.dock === 'right'
+  if (!pickerDocked.value) pickerPosition.value = placement
 }
 
 function conflictingIds(candidate, ignoredId) {
@@ -435,8 +467,8 @@ function chooseElement(choice) {
 
 function openElementPanel(element) {
   closePicker()
+  if (selectedId.value !== element.editorId) editorPreview.value = undefined
   selectedId.value = element.editorId
-  editorPreview.value = undefined
 }
 
 function startElementMove(event, element) {
@@ -449,8 +481,8 @@ function startElementMove(event, element) {
     editorId: element.editorId,
     startX: event.clientX,
     startY: event.clientY,
-    origin: structuredClone(element),
-    candidate: structuredClone(element),
+    origin: plainEditorElement(element),
+    candidate: plainEditorElement(element),
     valid: true,
   }
   event.preventDefault()
@@ -467,8 +499,8 @@ function startElementResize(event, element, handle) {
     editorId: element.editorId,
     startX: event.clientX,
     startY: event.clientY,
-    origin: structuredClone(element),
-    candidate: structuredClone(element),
+    origin: plainEditorElement(element),
+    candidate: plainEditorElement(element),
     valid: true,
   }
   event.preventDefault()
@@ -509,7 +541,15 @@ function finishManipulation() {
       const index = elements.value.findIndex(
         (element) => element.editorId === session.editorId,
       )
-      if (index >= 0) elements.value[index] = structuredClone(session.candidate)
+      if (index >= 0) {
+        elements.value[index] = {
+          ...elements.value[index],
+          row: session.candidate.row,
+          column: session.candidate.column,
+          rowSpan: session.candidate.rowSpan,
+          columnSpan: session.candidate.columnSpan,
+        }
+      }
       publishLayout()
     }
   }
@@ -557,6 +597,8 @@ function startCanvasResize(event, direction) {
     start: { rows: gridRows.value, columns: gridColumns.value },
     candidate: { rows: gridRows.value, columns: gridColumns.value },
     anchorBounds: canvasRef.value?.getBoundingClientRect(),
+    startOffsetX: canvasOffsetX.value,
+    startOffsetY: canvasOffsetY.value,
     valid: true,
   }
   event.preventDefault()
@@ -567,13 +609,21 @@ function maintainCanvasAnchor() {
   const viewport = viewportRef.value
   const currentBounds = canvasRef.value?.getBoundingClientRect()
   if (!session?.anchorBounds || !viewport || !currentBounds) return
-  const correction = canvasAnchorCorrection(
+  const adjustment = canvasAnchorAdjustment(
     session.direction,
     session.anchorBounds,
     currentBounds,
+    {
+      left: viewport.scrollLeft,
+      top: viewport.scrollTop,
+      maximumLeft: viewport.scrollWidth - viewport.clientWidth,
+      maximumTop: viewport.scrollHeight - viewport.clientHeight,
+    },
   )
-  viewport.scrollLeft += correction.x
-  viewport.scrollTop += correction.y
+  viewport.scrollLeft = adjustment.scrollLeft
+  viewport.scrollTop = adjustment.scrollTop
+  canvasOffsetX.value += adjustment.offsetX
+  canvasOffsetY.value += adjustment.offsetY
 }
 
 function updateCanvasResize(event) {
@@ -618,6 +668,8 @@ function finishCanvasResize() {
     }
     conflictElementIds.value = []
   } else {
+    canvasOffsetX.value = session.startOffsetX
+    canvasOffsetY.value = session.startOffsetY
     ElMessage.warning('画布边界内仍有元素，无法缩小')
     conflictElementIds.value = []
   }
@@ -694,6 +746,10 @@ function onGlobalPointerUp(event) {
 
 function cancelPointerSession(event) {
   if (event && event.pointerId !== activePointerId) return
+  if (canvasResizeSession.value) {
+    canvasOffsetX.value = canvasResizeSession.value.startOffsetX
+    canvasOffsetY.value = canvasResizeSession.value.startOffsetY
+  }
   drawing.value = undefined
   manipulation.value = undefined
   canvasResizeSession.value = undefined
@@ -738,6 +794,8 @@ function centerCanvas() {
 function fitCanvas() {
   const viewport = viewportRef.value
   if (!viewport) return
+  canvasOffsetX.value = 0
+  canvasOffsetY.value = 0
   const fitted = Math.min(
     (viewport.clientWidth - 120) / (gridColumns.value * CELL_SIZE),
     (viewport.clientHeight - 120) / (gridRows.value * CELL_SIZE),
@@ -837,97 +895,99 @@ onBeforeUnmount(() => {
         @dock="panelDock = $event"
       />
 
-      <main ref="canvasPaneRef" class="canvas-pane">
-        <div
-          v-if="conflictElementIds.length && !manipulation"
-          class="conflict-banner"
-        >
-          画布边界内仍有元素，当前尺寸未生效
-        </div>
-        <div
-          ref="viewportRef"
-          class="canvas-viewport"
-          :class="{ panning: isPanning }"
-          @pointerdown="startPan"
-          @contextmenu.prevent
-          @wheel="onWheel"
-        >
-          <div class="canvas-content">
-            <div class="canvas-stage" :style="stageStyle">
-              <div
-                ref="canvasRef"
-                class="designer-canvas"
-                :style="canvasStyle"
-                @pointerdown="startSelection"
-              >
+      <main class="canvas-pane">
+        <div ref="canvasSurfaceRef" class="canvas-surface">
+          <div
+            v-if="conflictElementIds.length && !manipulation"
+            class="conflict-banner"
+          >
+            画布边界内仍有元素，当前尺寸未生效
+          </div>
+          <div
+            ref="viewportRef"
+            class="canvas-viewport"
+            :class="{ panning: isPanning }"
+            @pointerdown="startPan"
+            @contextmenu.prevent
+            @wheel="onWheel"
+          >
+            <div class="canvas-content">
+              <div class="canvas-stage" :style="stageStyle">
                 <div
-                  v-for="element in elements"
-                  :key="element.editorId"
-                  class="layout-element"
-                  :class="{
-                    selected: element.editorId === selectedId,
-                    seat: renderedElement(element).kind === ELEMENT_KINDS.SEAT,
-                    conflict: isElementConflict(element),
-                  }"
-                  :style="elementStyle(element)"
-                  :data-editor-id="element.editorId"
-                  @pointerdown="startElementMove($event, element)"
-                  @dblclick.stop="deleteElement(element)"
+                  ref="canvasRef"
+                  class="designer-canvas"
+                  :style="canvasStyle"
+                  @pointerdown="startSelection"
                 >
-                  <span>{{ renderedElement(element).name }}</span>
-                  <template v-if="element.editorId === selectedId">
-                    <button
-                      v-for="handle in resizeHandles"
-                      :key="handle"
-                      type="button"
-                      class="resize-handle"
-                      :class="`handle-${handle}`"
-                      :aria-label="`向 ${handle} 调整元素大小`"
-                      @pointerdown.stop="startElementResize($event, element, handle)"
-                    />
-                  </template>
+                  <div
+                    v-for="element in elements"
+                    :key="element.editorId"
+                    class="layout-element"
+                    :class="{
+                      selected: element.editorId === selectedId,
+                      seat: renderedElement(element).kind === ELEMENT_KINDS.SEAT,
+                      conflict: isElementConflict(element),
+                    }"
+                    :style="elementStyle(element)"
+                    :data-editor-id="element.editorId"
+                    @pointerdown="startElementMove($event, element)"
+                    @dblclick.stop="deleteElement(element)"
+                  >
+                    <span>{{ renderedElement(element).name }}</span>
+                    <template v-if="element.editorId === selectedId">
+                      <button
+                        v-for="handle in resizeHandles"
+                        :key="handle"
+                        type="button"
+                        class="resize-handle"
+                        :class="`handle-${handle}`"
+                        :aria-label="`向 ${handle} 调整元素大小`"
+                        @pointerdown.stop="startElementResize($event, element, handle)"
+                      />
+                    </template>
+                  </div>
+
+                  <div
+                    v-if="selectionRect"
+                    class="selection-preview"
+                    :class="{ pending: !drawing }"
+                    :style="selectionStyle"
+                  />
+
+                  <button
+                    type="button"
+                    class="canvas-resize-handle canvas-resize-north"
+                    aria-label="调整画布高度"
+                    @pointerdown.stop="startCanvasResize($event, 'north')"
+                  />
+                  <button
+                    type="button"
+                    class="canvas-resize-handle canvas-resize-east"
+                    aria-label="调整画布宽度"
+                    @pointerdown.stop="startCanvasResize($event, 'east')"
+                  />
+                  <button
+                    type="button"
+                    class="canvas-resize-handle canvas-resize-south"
+                    aria-label="调整画布高度"
+                    @pointerdown.stop="startCanvasResize($event, 'south')"
+                  />
+                  <button
+                    type="button"
+                    class="canvas-resize-handle canvas-resize-west"
+                    aria-label="调整画布宽度"
+                    @pointerdown.stop="startCanvasResize($event, 'west')"
+                  />
+                  <button
+                    v-for="corner in ['north-west', 'north-east', 'south-east', 'south-west']"
+                    :key="corner"
+                    type="button"
+                    class="canvas-resize-handle canvas-resize-corner"
+                    :class="`canvas-resize-${corner}`"
+                    aria-label="同时调整画布长宽"
+                    @pointerdown.stop="startCanvasResize($event, corner)"
+                  />
                 </div>
-
-                <div
-                  v-if="selectionRect"
-                  class="selection-preview"
-                  :class="{ pending: !drawing }"
-                  :style="selectionStyle"
-                />
-
-                <button
-                  type="button"
-                  class="canvas-resize-handle canvas-resize-north"
-                  aria-label="调整画布高度"
-                  @pointerdown.stop="startCanvasResize($event, 'north')"
-                />
-                <button
-                  type="button"
-                  class="canvas-resize-handle canvas-resize-east"
-                  aria-label="调整画布宽度"
-                  @pointerdown.stop="startCanvasResize($event, 'east')"
-                />
-                <button
-                  type="button"
-                  class="canvas-resize-handle canvas-resize-south"
-                  aria-label="调整画布高度"
-                  @pointerdown.stop="startCanvasResize($event, 'south')"
-                />
-                <button
-                  type="button"
-                  class="canvas-resize-handle canvas-resize-west"
-                  aria-label="调整画布宽度"
-                  @pointerdown.stop="startCanvasResize($event, 'west')"
-                />
-                <button
-                  v-for="corner in ['north-west', 'north-east', 'south-east', 'south-west']"
-                  :key="corner"
-                  type="button"
-                  class="canvas-resize-handle canvas-resize-corner"
-                  :class="`canvas-resize-${corner}`"
-                  aria-label="同时调整画布长宽"
-                  @pointerdown.stop="startCanvasResize($event, corner)"
-                />
               </div>
             </div>
           </div>
@@ -936,9 +996,9 @@ onBeforeUnmount(() => {
         <VenueElementPicker
           v-if="pickerVisible && pendingRect"
           ref="pickerRef"
-          class="picker-popover"
+          :class="pickerDocked ? 'picker-dock' : 'picker-popover'"
           :rect="pendingRect"
-          :style="pickerStyle"
+          :style="pickerDocked ? undefined : pickerStyle"
           @choose="chooseElement"
           @cancel="closePicker"
         />
@@ -1022,7 +1082,15 @@ onBeforeUnmount(() => {
   min-width: 0;
   position: relative;
   order: 1;
+  display: flex;
   overflow: hidden;
+}
+
+.canvas-surface {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  position: relative;
 }
 
 .canvas-viewport {
@@ -1272,6 +1340,14 @@ onBeforeUnmount(() => {
 .picker-popover {
   position: absolute;
   z-index: 40;
+}
+
+.picker-dock {
+  flex: none;
+  align-self: flex-start;
+  max-height: calc(100% - 24px);
+  margin: 12px;
+  overflow: auto;
 }
 
 .conflict-banner {

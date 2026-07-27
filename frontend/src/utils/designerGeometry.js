@@ -160,14 +160,16 @@ export function placePanelBesideRect(rect, viewport, panel, gap = 12) {
   )
   if (available) return available
 
-  return {
-    left: clamp(candidates[0].left, margin, maximumLeft),
-    top: clamp(candidates[0].top, margin, maximumTop),
-  }
+  return { dock: 'right' }
 }
 
 export function appendHistorySnapshot(history, snapshot, limit = 50) {
-  return [...history, structuredClone(snapshot)].slice(-limit)
+  const plainSnapshot = {
+    gridRows: Number(snapshot.gridRows),
+    gridColumns: Number(snapshot.gridColumns),
+    elements: (snapshot.elements || []).map((element) => ({ ...element })),
+  }
+  return [...history, plainSnapshot].slice(-limit)
 }
 
 export function canvasAnchorCorrection(direction, startBounds, currentBounds) {
@@ -178,6 +180,31 @@ export function canvasAnchorCorrection(direction, startBounds, currentBounds) {
   if (direction.includes('north')) y = currentBounds.bottom - startBounds.bottom
   else if (direction.includes('south')) y = currentBounds.top - startBounds.top
   return { x, y }
+}
+
+export function canvasAnchorAdjustment(
+  direction,
+  startBounds,
+  currentBounds,
+  scroll,
+) {
+  const correction = canvasAnchorCorrection(direction, startBounds, currentBounds)
+  const scrollLeft = clamp(
+    scroll.left + correction.x,
+    0,
+    Math.max(0, scroll.maximumLeft),
+  )
+  const scrollTop = clamp(
+    scroll.top + correction.y,
+    0,
+    Math.max(0, scroll.maximumTop),
+  )
+  return {
+    scrollLeft,
+    scrollTop,
+    offsetX: scrollLeft - scroll.left - correction.x,
+    offsetY: scrollTop - scroll.top - correction.y,
+  }
 }
 
 export function validElementProperties(properties) {

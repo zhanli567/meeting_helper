@@ -78,7 +78,20 @@ watch(
 watch(
   draft,
   (value) => {
-    if (props.element) emit('preview', structuredClone(value))
+    if (
+      props.element &&
+      value.kind &&
+      value.name != null &&
+      value.fillColor &&
+      value.borderColor
+    ) {
+      emit('preview', {
+        kind: value.kind,
+        name: value.name,
+        fillColor: value.fillColor,
+        borderColor: value.borderColor,
+      })
+    }
   },
   { deep: true },
 )

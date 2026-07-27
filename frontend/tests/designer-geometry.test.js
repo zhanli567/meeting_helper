@@ -231,6 +231,19 @@ test('选区左右空间不足时选择器改停在下方', () => {
   )
 })
 
+test('选区四周都放不下选择器时返回画布外停靠方案且不覆盖选区', () => {
+  assert.equal(typeof designerGeometry.placePanelBesideRect, 'function')
+
+  assert.deepEqual(
+    designerGeometry.placePanelBesideRect(
+      { left: 180, top: 100, width: 440, height: 360 },
+      { width: 800, height: 600 },
+      { width: 390, height: 430 },
+    ),
+    { dock: 'right' },
+  )
+})
+
 test('画布四边变化时计算保持相对边固定所需的滚动修正', () => {
   assert.equal(typeof designerGeometry.canvasAnchorCorrection, 'function')
   const start = { left: 100, top: 80, right: 540, bottom: 520 }
@@ -258,6 +271,31 @@ test('画布四边变化时计算保持相对边固定所需的滚动修正', ()
       { left: 12, top: -8, right: 548, bottom: 528 },
     ),
     { x: 8, y: 8 },
+  )
+})
+
+test('滚动位于零点时北西缩小用舞台偏移补足无法应用的滚动修正', () => {
+  assert.equal(typeof designerGeometry.canvasAnchorAdjustment, 'function')
+  const start = { left: 100, top: 80, right: 540, bottom: 520 }
+  const shrunken = { left: 100, top: 80, right: 496, bottom: 476 }
+  const scroll = {
+    left: 0,
+    top: 0,
+    maximumLeft: 0,
+    maximumTop: 0,
+  }
+
+  assert.deepEqual(
+    designerGeometry.canvasAnchorAdjustment('west', start, shrunken, scroll),
+    { scrollLeft: 0, scrollTop: 0, offsetX: 44, offsetY: 0 },
+  )
+  assert.deepEqual(
+    designerGeometry.canvasAnchorAdjustment('north', start, shrunken, scroll),
+    { scrollLeft: 0, scrollTop: 0, offsetX: 0, offsetY: 44 },
+  )
+  assert.deepEqual(
+    designerGeometry.canvasAnchorAdjustment('north-west', start, shrunken, scroll),
+    { scrollLeft: 0, scrollTop: 0, offsetX: 44, offsetY: 44 },
   )
 })
 
