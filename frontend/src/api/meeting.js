@@ -72,22 +72,7 @@ export const meetingApi = {
       }),
     )
   },
-  async venues() {
-    return unwrap(http.get('/venues'))
-  },
-  async venue(id) {
-    return unwrap(http.get(`/venues/${id}`))
-  },
-  async createVenue(data) {
-    return unwrap(http.post('/venues', data))
-  },
-  async updateVenue(id, data) {
-    return unwrap(http.post(`/venues/${id}/update`, data))
-  },
-  async deleteVenue(id) {
-    return unwrap(http.post(`/venues/${id}/delete`))
-  },
   async createMeeting(name, venueTemplateId) {
-    return unwrap(http.post('/meetings', { name, venueTemplateId }))
+    return unwrap(http.post('/meetings/create-from-venue', { name, venueTemplateId }))
   },
 }

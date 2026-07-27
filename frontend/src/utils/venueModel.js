@@ -1,0 +1,93 @@
+export const DEFAULT_CANVAS = Object.freeze({ rows: 20, columns: 30 })
+export const MIN_CANVAS_SIZE = 5
+export const ELEMENT_KINDS = Object.freeze({ SEAT: 'SEAT', GENERIC: 'GENERIC' })
+
+const genericNames = [
+  '门',
+  '智慧屏',
+  '投影',
+  '操控间',
+  '显示器',
+  '入口',
+  '中控室',
+  '后门',
+  '柱子',
+  '电梯',
+  '墙',
+  '伴手礼',
+  '奖杯放置',
+  '荣誉墙',
+  '装饰道具',
+  '主展板',
+  '楼梯口',
+  '音箱',
+  '前门',
+  '桌子',
+  '主屏幕布',
+  '辅助屏幕布',
+  '提词屏',
+  '舞台',
+  '走廊',
+  '讲台',
+]
+
+export const COMMON_ELEMENT_SUGGESTIONS = Object.freeze([
+  Object.freeze({
+    name: '座位',
+    kind: ELEMENT_KINDS.SEAT,
+    fillColor: '#ffffff',
+    borderColor: '#8fb4e8',
+  }),
+  ...genericNames.map((name) =>
+    Object.freeze({
+      name,
+      kind: ELEMENT_KINDS.GENERIC,
+      fillColor: '#dbeafe',
+      borderColor: '#93c5fd',
+    }),
+  ),
+])
+
+function blankToNull(value) {
+  const normalized = String(value ?? '').trim()
+  return normalized || null
+}
+
+export function normalizeVenueInfo(form) {
+  return {
+    location: String(form.location ?? '').trim(),
+    campus: blankToNull(form.campus),
+    mainScreenResolution: blankToNull(form.mainScreenResolution),
+    stageDimensions: blankToNull(form.stageDimensions),
+    manualCapacity:
+      form.manualCapacity === '' || form.manualCapacity == null ? null : Number(form.manualCapacity),
+    contactInfo: blankToNull(form.contactInfo),
+    bookingUrl: blankToNull(form.bookingUrl),
+    meetingRoomFunctions: blankToNull(form.meetingRoomFunctions),
+    servicesProvided: blankToNull(form.servicesProvided),
+    description: blankToNull(form.description),
+    remarks: blankToNull(form.remarks),
+  }
+}
+
+export function toElementPayload(element) {
+  return {
+    kind: element.kind,
+    name: String(element.name).trim(),
+    row: element.row,
+    column: element.column,
+    rowSpan: element.rowSpan,
+    columnSpan: element.columnSpan,
+    fillColor: element.fillColor,
+    borderColor: element.borderColor,
+  }
+}
+
+export function toCreateVenuePayload(info, layout) {
+  return {
+    ...normalizeVenueInfo(info),
+    gridRows: layout.gridRows,
+    gridColumns: layout.gridColumns,
+    elements: layout.elements.map(toElementPayload),
+  }
+}

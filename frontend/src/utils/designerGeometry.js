@@ -36,3 +36,44 @@ export function activeSelectionRect(drawingRect, pendingRect) {
 export function shouldDismissDesignerOverlays({ hasOverlay, insideOverlay }) {
   return Boolean(hasOverlay) && !insideOverlay
 }
+
+export function rectsOverlap(left, right) {
+  return !(
+    left.row + left.rowSpan <= right.row ||
+    right.row + right.rowSpan <= left.row ||
+    left.column + left.columnSpan <= right.column ||
+    right.column + right.columnSpan <= left.column
+  )
+}
+
+export function canPlaceRect(elements, candidate, ignoredId) {
+  return elements
+    .filter((element) => element.id !== ignoredId)
+    .every((element) => !rectsOverlap(element, candidate))
+}
+
+export function canvasResizeConflict(elements, rows, columns) {
+  return elements.filter(
+    (element) =>
+      element.row + element.rowSpan - 1 > rows ||
+      element.column + element.columnSpan - 1 > columns,
+  )
+}
+
+export function createSeatElements(rect, mode, defaults = {}) {
+  const base = {
+    kind: 'SEAT',
+    name: defaults.name || '座位',
+    fillColor: defaults.fillColor || '#ffffff',
+    borderColor: defaults.borderColor || '#8fb4e8',
+  }
+  if (mode === 'merge') return [{ ...base, ...rect }]
+
+  const seats = []
+  for (let row = rect.row; row < rect.row + rect.rowSpan; row += 1) {
+    for (let column = rect.column; column < rect.column + rect.columnSpan; column += 1) {
+      seats.push({ ...base, row, column, rowSpan: 1, columnSpan: 1 })
+    }
+  }
+  return seats
+}

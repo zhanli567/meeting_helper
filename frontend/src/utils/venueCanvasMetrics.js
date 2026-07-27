@@ -9,10 +9,7 @@ export function displayCellUnit(cellSize, zoom = 1) {
 }
 
 export function elementBox(element, unit) {
-  const inset =
-    element?.type === 'SEAT' || element?.assignable
-      ? Math.max(1.5, Math.round(unit * 0.08) / 2)
-      : 0
+  const inset = element?.kind === 'SEAT' ? Math.max(1.5, Math.round(unit * 0.08) / 2) : 0
   return {
     left: (element.column - 1) * unit + inset,
     top: (element.row - 1) * unit + inset,

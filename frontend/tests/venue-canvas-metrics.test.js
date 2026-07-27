@@ -15,14 +15,14 @@ test('座位元素在网格内保留可见间隙而连续区域不留缝', async
 
   assert.deepEqual(
     metrics.elementBox(
-      { type: 'SEAT', row: 2, column: 3, rowSpan: 1, columnSpan: 1 },
+      { kind: 'SEAT', row: 2, column: 3, rowSpan: 1, columnSpan: 1 },
       44,
     ),
     { left: 90, top: 46, width: 40, height: 40 },
   )
   assert.deepEqual(
     metrics.elementBox(
-      { type: 'STAGE', row: 2, column: 3, rowSpan: 2, columnSpan: 4 },
+      { kind: 'GENERIC', row: 2, column: 3, rowSpan: 2, columnSpan: 4 },
       44,
     ),
     { left: 88, top: 44, width: 176, height: 88 },
