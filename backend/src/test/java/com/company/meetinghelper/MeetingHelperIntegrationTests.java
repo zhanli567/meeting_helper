@@ -1272,10 +1272,14 @@ class MeetingHelperIntegrationTests {
                 new ExportService.ExportOptions(List.of("部门"), true, true)
         );
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(exported))) {
-            assertThat(cellValues(workbook.getSheet("人员名单").getRow(0)))
+            XSSFSheet sheet = workbook.getSheet("人员名单");
+            assertThat(cellValues(sheet.getRow(0)))
                     .containsExactly("工号", "姓名", "部门", "出席情况", "座位编号");
-            assertThat(cellValues(workbook.getSheet("人员名单").getRow(1)))
+            assertThat(cellValues(sheet.getRow(1)))
                     .containsExactly("12345678", "草稿导出人员", "研发部", "出席", "1排1");
+            for (int column = 0; column < 5; column++) {
+                assertThat(sheet.getColumnWidth(column)).isGreaterThanOrEqualTo(16 * 256);
+            }
         }
 
         mockMvc.perform(get("/meetings/{meetingId}/exports/excel", meeting.id())
@@ -1311,6 +1315,9 @@ class MeetingHelperIntegrationTests {
                     .contains("座位编号", "元素类型", "区域名称", "人员工号", "姓名");
             assertThat(cellValues(sheet.getRow(1)))
                     .contains("1排1", "区域", "嘉宾");
+            for (int column = 0; column < 5; column++) {
+                assertThat(sheet.getColumnWidth(column)).isGreaterThanOrEqualTo(16 * 256);
+            }
         }
     }
 

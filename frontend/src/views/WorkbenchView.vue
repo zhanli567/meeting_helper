@@ -108,6 +108,7 @@ const protectedElementIds = computed(() => [
 const markerSelectionIds = computed(() => [...markerSelection.value])
 const markerItems = computed(() => reservedItems(workspace.value?.items || []))
 const showAssignmentSave = computed(() => !readonlyMode.value && workbenchMode.value === 'seating')
+const workspaceBusy = computed(() => store.saving || layoutSaving.value || markerSubmitting.value)
 const saveStatusText = computed(() => {
   if (readonlyMode.value) return '已发布版本'
   if (workbenchMode.value === 'layout') {
@@ -179,8 +180,8 @@ async function confirmDiscardLayoutChanges() {
   if (!layoutDirty.value) return true
   try {
     await ElMessageBox.confirm(
-      '布局编辑模式有未保存修改，切换模式后这些修改会被放弃。',
-      '离开布局编辑模式',
+      '布局模式有未保存修改，切换模式后这些修改会被放弃。',
+      '离开布局模式',
       {
         type: 'warning',
         confirmButtonText: '放弃修改',
@@ -701,14 +702,15 @@ async function confirmDeleteProtectedElement(element) {
   }
 }
 async function saveMeetingLayout() {
-  if (!store.workspace || readonlyMode.value) return
-  if (!(await saveDraft(true))) return
+  if (!store.workspace || readonlyMode.value || layoutSaving.value) return
+  const layoutSnapshot = cloneLayout(layoutDraft.value)
   layoutSaving.value = true
   try {
+    if (!(await saveDraft(true))) return
     const updated = await meetingApi.updateMeetingLayout(store.workspace.meeting.id, {
-      gridRows: layoutDraft.value.gridRows,
-      gridColumns: layoutDraft.value.gridColumns,
-      elements: layoutDraft.value.elements.map((element) => ({
+      gridRows: layoutSnapshot.gridRows,
+      gridColumns: layoutSnapshot.gridColumns,
+      elements: layoutSnapshot.elements.map((element) => ({
         id: element.id,
         ...toElementPayload(element),
       })),
@@ -897,6 +899,7 @@ async function onParticipantUpdated(participant) {
 
     <main
       v-if="workspace"
+      v-loading="workspaceBusy"
       class="workspace-shell"
       :class="{
         'participant-collapsed': participantPanelCollapsed && workbenchMode === 'seating',
@@ -933,7 +936,7 @@ async function onParticipantUpdated(participant) {
             @change="changeWorkbenchMode"
           >
             <el-radio-button label="排座模式" value="seating" />
-            <el-radio-button label="布局编辑模式" value="layout" />
+            <el-radio-button label="布局模式" value="layout" />
             <el-radio-button label="区域模式" value="marker" />
           </el-radio-group>
           <el-select
@@ -985,8 +988,8 @@ async function onParticipantUpdated(participant) {
           <VenueLayoutEditor
             v-if="workbenchMode === 'layout'"
             v-model="layoutDraft"
-            title="编辑会议布局"
-            save-label="保存会议布局"
+            title="编辑布局"
+            save-label="保存布局"
             :show-back="false"
             :saving="layoutSaving"
             :manual-capacity="workspace.participants.length"
@@ -1002,6 +1005,7 @@ async function onParticipantUpdated(participant) {
             :readonly="readonlyMode"
             :marker-mode="workbenchMode === 'marker'"
             :marker-rect-enabled="workbenchMode === 'marker' && !markerDraft.id"
+            :active-marker-id="markerDraft.id"
             :marker-selection-ids="workbenchMode === 'marker' ? markerSelectionIds : []"
             :participant-color-by-id="participantColorById"
             :selected-participant-id="store.selectedParticipantId"
@@ -1259,6 +1263,7 @@ async function onParticipantUpdated(participant) {
 .workspace-shell {
   flex: 1;
   min-height: 0;
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 390px;
   gap: 14px;

@@ -233,7 +233,7 @@ public class ExportService {
                 row.createCell(5 + fieldIndex).setCellValue(value);
             }
         }
-        autosize(sheet, headers.size());
+        autosize(sheet, headers.size(), 16);
     }
 
     private String itemTypeLabel(PlanItemView item) {
@@ -295,7 +295,7 @@ public class ExportService {
                 );
             }
         }
-        autosize(sheet, headers.size());
+        autosize(sheet, headers.size(), 16);
     }
 
     private void writeParticipantRow(
@@ -333,9 +333,15 @@ public class ExportService {
     }
 
     private void autosize(Sheet sheet, int count) {
+        autosize(sheet, count, 0);
+    }
+
+    private void autosize(Sheet sheet, int count, int minCharacters) {
         for (int index = 0; index < count; index++) {
             sheet.autoSizeColumn(index);
-            sheet.setColumnWidth(index, Math.min(sheet.getColumnWidth(index) + 512, 40 * 256));
+            int paddedWidth = sheet.getColumnWidth(index) + 1024;
+            int minWidth = Math.max(0, minCharacters) * 256;
+            sheet.setColumnWidth(index, Math.min(Math.max(paddedWidth, minWidth), 48 * 256));
         }
     }
 

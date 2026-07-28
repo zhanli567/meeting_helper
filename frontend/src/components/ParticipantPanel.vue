@@ -190,7 +190,7 @@ function leavePanel(event) {
             <div class="person-main">
               <div class="person-fixed">
                 <strong>{{ person.name }}</strong>
-                <span>工号 {{ person.employeeNo }}</span>
+                <span class="person-employee-no">工号 {{ person.employeeNo }}</span>
               </div>
               <div
                 v-if="
@@ -485,6 +485,10 @@ function leavePanel(event) {
   flex: none;
   color: var(--muted);
   font-size: 11px;
+}
+
+.person-card.assigned .person-employee-no {
+  margin-right: 16px;
 }
 
 .person-dynamic {

@@ -14,6 +14,7 @@ const props = defineProps({
   readonly: { type: Boolean, default: false },
   markerMode: { type: Boolean, default: false },
   markerRectEnabled: { type: Boolean, default: false },
+  activeMarkerId: { type: String, default: undefined },
   markerSelectionIds: { type: Array, default: () => [] },
   participantColorById: { type: Object, default: () => ({}) },
 })
@@ -342,7 +343,7 @@ function onSeatClick(element) {
 }
 function selectReservedRegionFromSeat(element) {
   const reservedItem = reservedItemByElementId.value.get(element.id)
-  if (reservedItem) emit('marker-select', reservedItem)
+  if (reservedItem && reservedItem.id !== props.activeMarkerId) emit('marker-select', reservedItem)
 }
 function onCanvasClear() {
   if (panMoved || markerSuppressClick) return
