@@ -35,6 +35,9 @@ export const meetingApi = {
   async updateParticipant(meetingId, participantId, data) {
     return unwrap(http.post(`/meetings/${meetingId}/participants/${participantId}/update`, data))
   },
+  async updateMeetingLayout(meetingId, data) {
+    return unwrap(http.post(`/meetings/${meetingId}/layout/update`, data))
+  },
   async deleteParticipant(meetingId, participantId) {
     return unwrap(http.post(`/meetings/${meetingId}/participants/${participantId}/delete`))
   },

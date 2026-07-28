@@ -67,6 +67,10 @@ function createWorkspaceStore() {
     workspace.value = normalizeWorkspace(await meetingApi.workspace(activeMeetingId.value))
     dirty.value = false
   }
+  function replaceWorkspace(value) {
+    workspace.value = normalizeWorkspace(value)
+    dirty.value = false
+  }
   async function switchMeeting(meetingId) {
     rememberMeeting(meetingId)
     selectedParticipantId.value = undefined
@@ -275,6 +279,7 @@ function createWorkspaceStore() {
     pendingCount,
     initialize,
     loadWorkspace,
+    replaceWorkspace,
     switchMeeting,
     assign,
     unassign,

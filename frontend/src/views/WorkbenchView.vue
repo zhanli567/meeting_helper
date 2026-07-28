@@ -20,10 +20,12 @@ import ImportDialog from '@/components/ImportDialog.vue'
 import ParticipantPanel from '@/components/ParticipantPanel.vue'
 import PublishVersionDialog from '@/components/PublishVersionDialog.vue'
 import VenueCanvas from '@/components/VenueCanvas.vue'
+import VenueLayoutEditor from '@/components/VenueLayoutEditor.vue'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { attendingPendingCount } from '@/utils/participantRules'
+import { toElementPayload } from '@/utils/venueModel'
 import { placeFloatingMenu } from '@/utils/workbenchLayout'
 const router = useRouter()
 const route = useRoute()
@@ -36,9 +38,11 @@ const redoStack = ref([])
 const applyingHistory = ref(false)
 const draggingParticipantId = ref()
 const activeVersionKey = ref('draft')
+const workbenchMode = ref('seating')
 const publishedWorkspace = ref()
 const loadingVersion = ref(false)
 const publishing = ref(false)
+const layoutSaving = ref(false)
 const publishVisible = ref(false)
 const addMenuVisible = ref(false)
 const addTargetElementId = ref()
@@ -51,6 +55,11 @@ const fab = reactive({
   x: 0,
   y: 0,
   dragging: false,
+})
+const layoutDraft = ref({
+  gridRows: 20,
+  gridColumns: 30,
+  elements: [],
 })
 let fabOffsetX = 0
 let fabOffsetY = 0
@@ -72,6 +81,9 @@ const pendingCount = computed(
 const activePublishedVersion = computed(() =>
   store.workspace?.versions.find((version) => version.id === activeVersionKey.value),
 )
+const protectedElementIds = computed(() => [
+  ...new Set((workspace.value?.items || []).flatMap((item) => item.targetElementIds || [])),
+])
 const fabStyle = computed(() => ({
   left: `${fab.x}px`,
   top: `${fab.y}px`,
@@ -89,6 +101,23 @@ const addMenuStyle = computed(() => {
     top: `${position.top}px`,
   }
 })
+function cloneLayout(layout) {
+  return {
+    gridRows: Number(layout?.gridRows || 20),
+    gridColumns: Number(layout?.gridColumns || 30),
+    elements: (layout?.elements || []).map((element) => ({
+      id: element.id,
+      kind: element.kind,
+      name: element.name,
+      row: element.row,
+      column: element.column,
+      rowSpan: element.rowSpan,
+      columnSpan: element.columnSpan,
+      fillColor: element.fillColor,
+      borderColor: element.borderColor,
+    })),
+  }
+}
 onMounted(async () => {
   const meetingId = typeof route.params.meetingId === 'string' ? route.params.meetingId : ''
   if (meetingId) store.rememberMeeting(meetingId)
@@ -110,6 +139,7 @@ onBeforeUnmount(() => {
 async function switchMeeting(meetingId) {
   if (!(await saveDraft(true))) return
   activeVersionKey.value = 'draft'
+  workbenchMode.value = 'seating'
   publishedWorkspace.value = undefined
   undoStack.value = []
   redoStack.value = []
@@ -119,6 +149,7 @@ async function switchMeeting(meetingId) {
 async function switchVersion(versionKey) {
   if (versionKey !== 'draft' && !(await saveDraft(true))) return
   activeVersionKey.value = versionKey
+  if (versionKey !== 'draft') workbenchMode.value = 'seating'
   store.selectParticipant(undefined)
   draggingParticipantId.value = undefined
   if (versionKey === 'draft') {
@@ -219,8 +250,18 @@ function warnUnsavedChanges(event) {
   event.returnValue = ''
 }
 watch(autoSaveSeconds, resetAutoSaveTimer)
+watch(
+  () => workspace.value?.layout,
+  (layout) => {
+    if (layout) layoutDraft.value = cloneLayout(layout)
+  },
+  { immediate: true, deep: true },
+)
+watch(readonlyMode, (readonly) => {
+  if (readonly) workbenchMode.value = 'seating'
+})
 async function performAssign(participantId, targetElementId) {
-  if (readonlyMode.value) return
+  if (readonlyMode.value || workbenchMode.value !== 'seating') return
   if (!store.workspace || applyingHistory.value) {
     await store.assign(participantId, targetElementId)
     return
@@ -243,7 +284,7 @@ async function performAssign(participantId, targetElementId) {
   redoStack.value = []
 }
 async function performUnassign(participantId) {
-  if (readonlyMode.value) return
+  if (readonlyMode.value || workbenchMode.value !== 'seating') return
   const person = store.workspace?.participants.find((value) => value.id === participantId)
   const originalTarget = person?.assignedElementId
   if (!originalTarget) return
@@ -282,7 +323,7 @@ async function redo() {
   undoStack.value.push(action)
 }
 async function onSeatClick(element) {
-  if (readonlyMode.value || !element?.id) return
+  if (readonlyMode.value || workbenchMode.value !== 'seating' || !element?.id) return
   if (!(await saveDraft(true))) return
   addTargetElementId.value = element.id
   addMenuVisible.value = false
@@ -292,13 +333,13 @@ function selectParticipant(person) {
   store.selectParticipant(person)
 }
 async function openParticipantEdit(person) {
-  if (readonlyMode.value || !person) return
+  if (readonlyMode.value || workbenchMode.value !== 'seating' || !person) return
   if (!(await saveDraft(true))) return
   editingParticipant.value = person
   editParticipantVisible.value = true
 }
 async function updateParticipantAttendance(person, attendanceStatus) {
-  if (readonlyMode.value) return
+  if (readonlyMode.value || workbenchMode.value !== 'seating') return
   if (attendanceStatus === 'TEMPORARILY_ABSENT' && person.assignedElementId) {
     try {
       await ElMessageBox.confirm(
@@ -321,7 +362,7 @@ async function updateParticipantAttendance(person, attendanceStatus) {
   }
 }
 async function removeParticipant(person) {
-  if (readonlyMode.value) return
+  if (readonlyMode.value || workbenchMode.value !== 'seating') return
   try {
     await ElMessageBox.confirm(
       `确认将 ${person.name} 从本次会议名单中移出吗？该人员的座位也会被释放。`,
@@ -345,6 +386,46 @@ function changeZoom(delta) {
 }
 function exportPlan(type) {
   store.exportPlan(type, activeVersionId.value)
+}
+async function confirmDeleteProtectedElement(element) {
+  try {
+    await ElMessageBox.confirm(
+      `“${element.name}”已有人员或区域标记占用，删除后相关座位会回到待排或被清空。`,
+      '确认删除布局元素',
+      {
+        type: 'warning',
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+      },
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+async function saveMeetingLayout() {
+  if (!store.workspace || readonlyMode.value) return
+  if (!(await saveDraft(true))) return
+  layoutSaving.value = true
+  try {
+    const updated = await meetingApi.updateMeetingLayout(store.workspace.meeting.id, {
+      gridRows: layoutDraft.value.gridRows,
+      gridColumns: layoutDraft.value.gridColumns,
+      elements: layoutDraft.value.elements.map((element) => ({
+        id: element.id,
+        ...toElementPayload(element),
+      })),
+    })
+    store.replaceWorkspace(updated)
+    undoStack.value = []
+    redoStack.value = []
+    layoutDraft.value = cloneLayout(updated.layout)
+    ElMessage.success('会议布局已保存')
+  } catch (error) {
+    ElMessage.error(apiErrorMessage(error))
+  } finally {
+    layoutSaving.value = false
+  }
 }
 function resetFab() {
   fab.x = 24
@@ -526,7 +607,10 @@ async function onParticipantUpdated(participant) {
     <main
       v-if="workspace"
       class="workspace-shell"
-      :class="{ 'participant-collapsed': participantPanelCollapsed }"
+      :class="{
+        'participant-collapsed': participantPanelCollapsed,
+        'layout-wide': workbenchMode === 'layout',
+      }"
     >
       <section class="canvas-shell">
         <div class="toolbar-card">
@@ -550,6 +634,16 @@ async function onParticipantUpdated(participant) {
           <el-tag v-if="readonlyMode" type="primary" effect="plain">
             {{ activePublishedVersion?.versionName }}
           </el-tag>
+          <el-radio-group
+            v-model="workbenchMode"
+            class="workbench-mode-switch"
+            :disabled="readonlyMode"
+            size="small"
+          >
+            <el-radio-button label="排座模式" value="seating" />
+            <el-radio-button label="布局编辑模式" value="layout" />
+            <el-radio-button label="区域标记模式" value="marker" />
+          </el-radio-group>
           <span class="toolbar-spacer" />
           <el-button-group>
             <el-button
@@ -583,10 +677,24 @@ async function onParticipantUpdated(participant) {
         </div>
 
         <div class="canvas-body">
+          <VenueLayoutEditor
+            v-if="workbenchMode === 'layout'"
+            v-model="layoutDraft"
+            title="编辑会议布局"
+            save-label="保存会议布局"
+            :show-back="false"
+            :saving="layoutSaving"
+            :manual-capacity="workspace.participants.length"
+            :venue-name="workspace.meeting.layoutName"
+            :protected-element-ids="protectedElementIds"
+            :delete-confirm-message="confirmDeleteProtectedElement"
+            @save="saveMeetingLayout"
+          />
           <VenueCanvas
+            v-else
             :workspace="workspace"
             :zoom="zoom"
-            :readonly="readonlyMode"
+            :readonly="readonlyMode || workbenchMode !== 'seating'"
             :selected-participant-id="store.selectedParticipantId"
             :dragging-participant-id="draggingParticipantId"
             @assign="performAssign"
@@ -600,7 +708,7 @@ async function onParticipantUpdated(participant) {
 
       </section>
 
-      <div class="participant-side">
+      <div v-if="workbenchMode !== 'layout'" class="participant-side">
         <button
           class="participant-panel-toggle"
           :title="participantPanelCollapsed ? '展开人员安排' : '收起人员安排'"
@@ -628,7 +736,7 @@ async function onParticipantUpdated(participant) {
 
     <template v-if="workspace && !readonlyMode && fabReady">
       <div
-        v-if="addMenuVisible"
+        v-if="addMenuVisible && workbenchMode === 'seating'"
         class="add-menu"
         :style="addMenuStyle"
         @mouseenter="showAddMenu"
@@ -644,6 +752,7 @@ async function onParticipantUpdated(participant) {
         </button>
       </div>
       <button
+        v-if="workbenchMode === 'seating'"
         class="floating-add"
         :class="{ dragging: fab.dragging }"
         :style="fabStyle"
@@ -812,6 +921,10 @@ async function onParticipantUpdated(participant) {
   grid-template-columns: minmax(0, 1fr) 36px;
 }
 
+.workspace-shell.layout-wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .participant-side {
   min-width: 0;
   min-height: 0;
@@ -909,6 +1022,14 @@ async function onParticipantUpdated(participant) {
 .toolbar-spacer {
   flex: 1;
   min-width: 0;
+}
+
+.workbench-mode-switch {
+  flex: none;
+}
+
+.workbench-mode-switch :deep(.el-radio-button__inner) {
+  min-width: 76px;
 }
 
 .toolbar-card > .el-button-group,

@@ -75,6 +75,14 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  protectedElementIds: {
+    type: Array,
+    default: () => [],
+  },
+  deleteConfirmMessage: {
+    type: Function,
+    default: undefined,
+  },
 })
 
 const emit = defineEmits(['update:modelValue', 'change', 'save', 'back'])
@@ -581,6 +589,16 @@ function deleteElement(element) {
   publishLayout()
 }
 
+async function requestDeleteElement(element) {
+  const elementIds = [element.id, element.editorId].filter(Boolean)
+  const protectedElement = elementIds.some((id) => props.protectedElementIds.includes(id))
+  if (protectedElement && props.deleteConfirmMessage) {
+    const allowed = await props.deleteConfirmMessage(element)
+    if (!allowed) return
+  }
+  deleteElement(element)
+}
+
 function previewElement(changes) {
   if (!selectedElement.value) return
   editorPreview.value = {
@@ -968,7 +986,7 @@ onBeforeUnmount(() => {
                     :style="elementStyle(element)"
                     :data-editor-id="element.editorId"
                     @pointerdown="startElementMove($event, element)"
-                    @dblclick.stop="deleteElement(element)"
+                    @dblclick.stop="requestDeleteElement(element)"
                   >
                     <span>{{ renderedElement(element).name }}</span>
                     <template v-if="element.editorId === selectedId">
