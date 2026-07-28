@@ -77,10 +77,7 @@ async function saveMeetingName() {
 <template>
   <div class="app-page home-page" v-loading="store.loading">
     <header class="app-header home-header">
-      <div class="brand-mark">席</div>
-      <div class="brand-copy">
-        <strong>会议排座助手</strong>
-      </div>
+      <span class="brand-slot" aria-hidden="true" />
       <span class="header-spacer" />
     </header>
 
@@ -198,6 +195,14 @@ async function saveMeetingName() {
 
 .home-header {
   flex: none;
+}
+
+.brand-slot {
+  width: 148px;
+  min-width: 148px;
+  height: 34px;
+  display: block;
+  border-radius: 8px;
 }
 
 .home-scroll {

@@ -221,8 +221,10 @@ function removeColor(color) {
 }
 
 .marker-list {
+  min-height: 116px;
   max-height: 156px;
   display: grid;
+  align-content: start;
   gap: 8px;
   overflow-y: auto;
   overflow-x: hidden;
@@ -286,6 +288,7 @@ function removeColor(color) {
 }
 
 .swatch-row {
+  min-height: 76px;
   max-height: min(180px, 28vh);
   display: flex;
   flex-wrap: wrap;

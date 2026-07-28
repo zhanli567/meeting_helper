@@ -169,7 +169,6 @@ function regionAnchorStyle(anchor) {
   return {
     left: `${(anchor.centerColumn - 0.5) * unit.value}px`,
     top: `${(anchor.centerRow - 0.5) * unit.value}px`,
-    backgroundColor: anchor.backgroundColor || '#FEF3C7',
     color: anchor.textColor || '#172033',
     fontWeight: anchor.bold ? '700' : undefined,
   }
@@ -744,29 +743,26 @@ onBeforeUnmount(() => {
 
 .region-label {
   max-width: calc(var(--unit) * 5);
-  min-width: calc(var(--unit) * 1.4);
-  min-height: calc(var(--unit) * 0.72);
+  min-width: 0;
+  min-height: auto;
   position: absolute;
   z-index: 24;
   transform: translate(-50%, -50%);
   display: grid;
   place-items: center;
-  padding: 0 8px;
+  padding: 0 2px;
   overflow: hidden;
-  border: 1px solid rgba(15, 23, 42, 0.18);
-  border-radius: 999px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   font-size: max(9px, calc(var(--unit) * 0.24));
   line-height: 1;
   pointer-events: none;
+  text-shadow:
+    0 1px 2px rgba(255, 255, 255, 0.85),
+    0 1px 1px rgba(15, 23, 42, 0.2);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.region-label:hover {
-  box-shadow:
-    0 0 0 2px rgba(10, 89, 247, 0.22),
-    0 4px 12px rgba(15, 23, 42, 0.12);
 }
 
 .row-label {

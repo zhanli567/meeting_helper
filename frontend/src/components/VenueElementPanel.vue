@@ -380,10 +380,15 @@ header > div {
 }
 
 .color-row {
+  min-height: 32px;
+  max-height: 92px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 7px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 2px 2px 2px 0;
 }
 
 .color-swatch {

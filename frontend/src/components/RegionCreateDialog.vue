@@ -297,6 +297,7 @@ watch(
 }
 
 .swatch-row {
+  min-height: 76px;
   max-height: min(180px, 26vh);
   display: flex;
   flex-wrap: wrap;

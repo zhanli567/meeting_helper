@@ -177,6 +177,7 @@ header span {
 }
 
 .suggestion-grid {
+  min-height: 182px;
   max-height: 292px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -106,14 +106,16 @@ function removeExtraField(index) {
           <span>新增列</span>
           <el-button size="small" @click="addExtraField">添加列</el-button>
         </div>
-        <div
-          v-for="(field, index) in form.extraFields"
-          :key="index"
-          class="extra-field-row"
-        >
-          <el-input v-model="field.name" aria-label="列名" maxlength="32" />
-          <el-input v-model="field.value" aria-label="列值" maxlength="80" />
-          <el-button text type="danger" @click="removeExtraField(index)">移除</el-button>
+        <div class="extra-field-list">
+          <div
+            v-for="(field, index) in form.extraFields"
+            :key="index"
+            class="extra-field-row"
+          >
+            <el-input v-model="field.name" aria-label="列名" maxlength="32" />
+            <el-input v-model="field.value" aria-label="列值" maxlength="80" />
+            <el-button text type="danger" @click="removeExtraField(index)">移除</el-button>
+          </div>
         </div>
       </div>
     </el-form>
@@ -160,6 +162,17 @@ function removeExtraField(index) {
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
+}
+
+.extra-field-list {
+  min-height: 104px;
+  max-height: 184px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .extra-field-row {

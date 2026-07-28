@@ -101,6 +101,15 @@ function submit() {
   width: 100%;
 }
 
+.field-checks {
+  min-height: 96px;
+  max-height: 184px;
+  align-content: start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
 .field-checks :deep(.el-checkbox),
 .extra-checks :deep(.el-checkbox) {
   min-width: 0;

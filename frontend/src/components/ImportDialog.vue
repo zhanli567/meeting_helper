@@ -246,9 +246,13 @@ async function commit() {
 }
 
 .field-section {
+  max-height: 126px;
   grid-template-columns: auto repeat(auto-fit, minmax(90px, max-content));
   align-items: center;
+  align-content: start;
   padding: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   color: var(--muted);

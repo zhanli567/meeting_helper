@@ -16,6 +16,11 @@ test('画布渲染区域中心标签并支持双击切换座位', async () => {
   assert.match(source, /activeMarkerId/)
   assert.match(source, /reservedItem\.id !== props\.activeMarkerId/)
   assert.match(source, /pointer-events:\s*none/)
+  assert.match(source, /\.region-label\s*\{[\s\S]*background:\s*transparent;/)
+  assert.match(source, /\.region-label\s*\{[\s\S]*border:\s*0;/)
+  assert.match(source, /\.region-label\s*\{[\s\S]*text-shadow:/)
+  assert.doesNotMatch(source, /\.region-label\s*\{[\s\S]*border-radius:\s*999px/)
+  assert.doesNotMatch(source, /\.region-label:hover/)
   assert.doesNotMatch(source, /@click\.stop="emit\('marker-select', anchor\.source\)"/)
 })
 
