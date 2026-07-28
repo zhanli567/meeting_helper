@@ -96,6 +96,9 @@ function changeAttendance(participant) {
 function removeParticipant(participant) {
   requestParticipantRemoval({ readonly: props.readonly, participant, emit })
 }
+function participantDynamicSummary(person) {
+  return participantSummary(person, props.fieldDefinitions)
+}
 function dragOverPanel(event) {
   if (props.readonly) return
   event.preventDefault()
@@ -134,7 +137,7 @@ function leavePanel(event) {
       <el-input
         v-model="search"
         clearable
-        placeholder="姓名模糊搜索 / 8或9位工号精确搜索"
+        placeholder="姓名或工号搜索"
         aria-label="搜索参会人员"
       >
         <template #prefix>
@@ -185,20 +188,29 @@ function leavePanel(event) {
               :style="{ backgroundColor: person.displayColor || '#d5dbe5' }"
             />
             <div class="person-main">
-              <div>
+              <div class="person-fixed">
                 <strong>{{ person.name }}</strong>
+                <span>工号 {{ person.employeeNo }}</span>
               </div>
-              <span>{{ person.employeeNo }}</span>
-              <small>
+              <div
+                v-if="
+                  isTemporarilyAbsent(person) ||
+                  participantDynamicSummary(person).length ||
+                  person.records?.length > 1
+                "
+                class="person-dynamic"
+              >
                 <el-tag v-if="isTemporarilyAbsent(person)" size="small" type="info">临时不出席</el-tag>
-                <template v-if="participantSummary(person, fieldDefinitions).length">
-                  {{ participantSummary(person, fieldDefinitions).join(' · ') }}
-                </template>
+                <span
+                  v-for="summary in participantDynamicSummary(person)"
+                  :key="summary"
+                >
+                  {{ summary }}
+                </span>
                 <template v-if="person.records?.length > 1">
-                  {{ participantSummary(person, fieldDefinitions).length ? ' · ' : '' }}
-                  共 {{ person.records.length }} 条记录
+                  <span>共 {{ person.records.length }} 条记录</span>
                 </template>
-              </small>
+              </div>
             </div>
             <div v-if="!readonly" class="person-actions icon-actions" @click.stop>
               <el-button
@@ -420,43 +432,78 @@ function leavePanel(event) {
   min-width: 0;
   display: grid;
   align-content: center;
-  gap: 3px;
-  padding: 7px 9px;
+  gap: 6px;
+  padding: 8px 10px;
 }
 
 .person-actions {
-  width: 38px;
-  flex: none;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 4px;
-  padding: 5px;
-  border-left: 1px solid var(--line);
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.82);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.person-card:hover .person-actions,
+.person-card:focus-within .person-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .person-actions .el-button {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   margin: 0;
   padding: 0;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
 }
 
-.person-main > div {
+.person-fixed {
   display: flex;
   align-items: center;
-  gap: 7px;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
 }
 
 .person-main strong {
+  min-width: 0;
+  overflow: hidden;
   font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.person-main > span,
-.person-main small {
+.person-fixed span {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.person-dynamic {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
   overflow: hidden;
   color: var(--muted);
   font-size: 11px;
+}
+
+.person-dynamic span {
+  max-width: 100%;
+  padding: 2px 6px;
+  overflow: hidden;
+  background: #f3f6fb;
+  border: 1px solid rgba(226, 232, 240, 0.86);
+  border-radius: 6px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

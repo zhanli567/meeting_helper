@@ -7,6 +7,7 @@ const normalize = (content) => content.replace(/\s+/g, ' ').trim()
 
 test('新增弹窗将完整上下文和提交事件接入可注入动作', () => {
   const dialog = normalize(source('../src/components/AddParticipantDialog.vue'))
+  const rawDialog = source('../src/components/AddParticipantDialog.vue')
 
   assert.match(dialog, /import \{ submitParticipant \} from '@\/utils\/participantActions'/)
   assert.match(
@@ -14,6 +15,9 @@ test('新增弹窗将完整上下文和提交事件接入可注入动作', () =>
     /submitParticipant\(\{ addParticipant: meetingApi\.addParticipant, meetingId: props\.meetingId, form, targetElementId: props\.targetElementId, \}\)/,
   )
   assert.match(dialog, /<el-button type="primary" :loading="submitting" @click="submit">/)
+  assert.match(rawDialog, />\s*增加\s*</)
+  assert.doesNotMatch(rawDialog, /placeholder=/)
+  assert.match(rawDialog, /wx加6或7位数字/)
 })
 
 test('人员面板保持筛选、分页、分组和操作包装器的完整接线', () => {

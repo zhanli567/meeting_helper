@@ -30,7 +30,7 @@ const rules = {
     {
       validator: (_rule, value, callback) =>
         !isValidEmployeeNo(value)
-          ? callback(new Error('工号必须为8位数字或1个小写字母加8位数字'))
+          ? callback(new Error('工号必须为8位数字、1个小写字母加8位数字，或wx加6或7位数字'))
           : hasDuplicateEmployeeNo(value, props.participants)
             ? callback(new Error('该工号已在当前会议名单中'))
             : callback(),
@@ -86,10 +86,10 @@ function removeExtraField(index) {
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
       <div class="form-grid">
         <el-form-item label="工号" prop="employeeNo">
-          <el-input v-model="form.employeeNo" placeholder="12345678 或 a12345678" maxlength="9" />
+          <el-input v-model="form.employeeNo" maxlength="9" />
         </el-form-item>
         <el-form-item label="姓名" prop="name">
-          <el-input v-model="form.name" placeholder="请输入姓名" />
+          <el-input v-model="form.name" />
         </el-form-item>
       </div>
       <el-form-item v-for="field in dynamicFields" :key="field.code" :label="field.label">
@@ -105,8 +105,8 @@ function removeExtraField(index) {
           :key="index"
           class="extra-field-row"
         >
-          <el-input v-model="field.name" placeholder="列名" maxlength="32" />
-          <el-input v-model="field.value" placeholder="该人员的值" maxlength="80" />
+          <el-input v-model="field.name" aria-label="列名" maxlength="32" />
+          <el-input v-model="field.value" aria-label="列值" maxlength="80" />
           <el-button text type="danger" @click="removeExtraField(index)">移除</el-button>
         </div>
       </div>
@@ -114,7 +114,7 @@ function removeExtraField(index) {
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
       <el-button type="primary" :loading="submitting" @click="submit">
-        {{ targetElementId ? '添加并安排到该座位' : '加入待排列表' }}
+        增加
       </el-button>
     </template>
   </el-dialog>

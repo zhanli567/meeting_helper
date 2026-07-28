@@ -5,10 +5,14 @@ import * as participantRules from '../src/utils/participantRules.js'
 
 const { attendingPendingCount, isValidEmployeeNo, participantCanBeSeated } = participantRules
 
-test('工号只接受 8 位数字或小写字母加 8 位数字', () => {
+test('工号支持 8 位数字、小写字母加 8 位数字和 wx 加 6 或 7 位数字', () => {
   assert.equal(isValidEmployeeNo('12345678'), true)
   assert.equal(isValidEmployeeNo('a12345678'), true)
+  assert.equal(isValidEmployeeNo('wx123456'), true)
+  assert.equal(isValidEmployeeNo('wx1234567'), true)
   assert.equal(isValidEmployeeNo('A12345678'), false)
+  assert.equal(isValidEmployeeNo('wx12345'), false)
+  assert.equal(isValidEmployeeNo('wx12345678'), false)
   assert.equal(isValidEmployeeNo('123456789'), false)
 })
 
