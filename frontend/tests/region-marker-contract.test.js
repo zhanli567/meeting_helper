@@ -16,9 +16,13 @@ test('区域标记面板提供名称颜色座位数和保存删除操作', async
 
   assert.match(source, /标记名称/)
   assert.match(source, /已选座位/)
-  assert.match(source, /添加座位/)
-  assert.match(source, /移除座位/)
+  assert.match(source, /已有标记/)
+  assert.match(source, /新建标记/)
   assert.match(source, /删除标记/)
+  assert.doesNotMatch(source, /选择方式/)
+  assert.doesNotMatch(source, /el-segmented/)
+  assert.doesNotMatch(source, /添加座位/)
+  assert.doesNotMatch(source, /移除座位/)
 })
 
 test('工作台区域标记模式保存 RESERVED 区域', async () => {
@@ -27,4 +31,7 @@ test('工作台区域标记模式保存 RESERVED 区域', async () => {
   assert.match(source, /saveReservedAreas/)
   assert.match(source, /RegionMarkerPanel/)
   assert.match(source, /markerSelection/)
+  assert.match(source, /selectReservedMarker\(blockingItem\)/)
+  assert.match(source, /deleteReservedMarker\(true\)/)
+  assert.doesNotMatch(source, /markerSeatMode/)
 })
