@@ -1,6 +1,7 @@
 package com.company.meetinghelper.meeting.api;
 
 import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
+import com.company.meetinghelper.meeting.api.dto.request.UpdateMeetingNameRequest;
 import com.company.meetinghelper.meeting.api.dto.response.MeetingSummary;
 import com.company.meetinghelper.meeting.service.MeetingService;
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse;
@@ -51,6 +52,21 @@ public class MeetingController {
     @PostMapping("/create-from-venue")
     public MeetingSummary createFromVenue(@Valid @RequestBody CreateMeetingRequest request) {
         return meetingService.create(request);
+    }
+
+    /**
+     * 更新会议名称。
+     *
+     * @param meetingId 会议ID
+     * @param request 会议名称更新请求
+     * @return 更新后的会议信息
+     */
+    @PostMapping("/{meetingId}/name/update")
+    public MeetingSummary updateName(
+            @PathVariable String meetingId,
+            @Valid @RequestBody UpdateMeetingNameRequest request
+    ) {
+        return meetingService.updateName(meetingId, request);
     }
 
     /**

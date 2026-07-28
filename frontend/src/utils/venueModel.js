@@ -4,31 +4,11 @@ export const ELEMENT_KINDS = Object.freeze({ SEAT: 'SEAT', GENERIC: 'GENERIC' })
 
 const genericNames = [
   '门',
-  '智慧屏',
-  '投影',
-  '操控间',
-  '显示器',
-  '入口',
-  '中控室',
-  '后门',
-  '柱子',
-  '电梯',
   '墙',
-  '伴手礼',
-  '奖杯放置',
-  '荣誉墙',
-  '装饰道具',
-  '主展板',
-  '楼梯口',
-  '音箱',
-  '前门',
   '桌子',
-  '主屏幕布',
-  '辅助屏幕布',
-  '提词屏',
+  '摄像',
   '舞台',
-  '走廊',
-  '讲台',
+  '显示屏',
 ]
 
 export function emptyVenueInfo() {

@@ -1,11 +1,16 @@
 <script setup>
-import { computed, reactive, watch } from 'vue'
-import { Close, DArrowLeft, DArrowRight, Fold, Setting } from '@element-plus/icons-vue'
-import {
-  COMMON_ELEMENT_SUGGESTIONS,
-  ELEMENT_KINDS,
-} from '@/utils/venueModel'
+import { computed, reactive, ref, watch } from 'vue'
+import { Close, DArrowLeft, DArrowRight, Fold, Plus, Setting } from '@element-plus/icons-vue'
+import { ELEMENT_KINDS } from '@/utils/venueModel'
 import { validElementProperties } from '@/utils/designerGeometry'
+import {
+  availableColorSwatches,
+  availableElementSuggestions,
+  normalizeHexColor,
+  removeCustomColor,
+  saveCustomColor,
+  saveCustomElementName,
+} from '@/utils/venuePreferences'
 
 const props = defineProps({
   element: {
@@ -45,20 +50,9 @@ const draft = reactive({
   fillColor: '#dbeafe',
   borderColor: '#93c5fd',
 })
-const colorSwatches = [
-  '#ffffff',
-  '#eff6ff',
-  '#dbeafe',
-  '#bfdbfe',
-  '#bae6fd',
-  '#e0f2fe',
-  '#f1f5f9',
-  '#dbe4f0',
-  '#8ca7ce',
-  '#fde68a',
-  '#fed7aa',
-  '#fee2e2',
-]
+const elementSuggestions = ref(availableElementSuggestions())
+const fillColorSwatches = ref(availableColorSwatches('fillColor'))
+const borderColorSwatches = ref(availableColorSwatches('borderColor'))
 const draftValid = computed(() => validElementProperties(draft))
 
 watch(
@@ -96,26 +90,52 @@ watch(
   { deep: true },
 )
 
-function applyKindDefaults(kind) {
-  const suggestion = COMMON_ELEMENT_SUGGESTIONS.find((item) => item.kind === kind)
-  if (!suggestion) return
-  draft.name = suggestion.name
-  draft.fillColor = suggestion.fillColor
-  draft.borderColor = suggestion.borderColor
+function refreshPreferences() {
+  elementSuggestions.value = availableElementSuggestions()
+  fillColorSwatches.value = availableColorSwatches('fillColor')
+  borderColorSwatches.value = availableColorSwatches('borderColor')
 }
 
 function queryNames(query, callback) {
   const keyword = String(query || '').trim().toLowerCase()
   callback(
-    COMMON_ELEMENT_SUGGESTIONS.filter(
+    elementSuggestions.value.filter(
       (suggestion) =>
         !keyword || suggestion.name.toLowerCase().includes(keyword),
     ).map((suggestion) => ({ value: suggestion.name })),
   )
 }
 
+function chooseColor(field, color) {
+  draft[field] = color.value
+}
+
+function previewCustomColor(field, value) {
+  const color = normalizeHexColor(value)
+  if (color) draft[field] = color
+}
+
+function confirmCustomColor(field, value) {
+  const color = saveCustomColor(field, value)
+  if (color) {
+    refreshPreferences()
+    draft[field] = color
+  }
+}
+
+function removeColor(field, color) {
+  removeCustomColor(field, color.value)
+  refreshPreferences()
+}
+
 function confirm() {
   if (!draftValid.value) return
+  if (draft.kind === ELEMENT_KINDS.GENERIC) {
+    saveCustomElementName(draft.name)
+  }
+  saveCustomColor('fillColor', draft.fillColor)
+  saveCustomColor('borderColor', draft.borderColor)
+  refreshPreferences()
   emit('confirm', {
     kind: draft.kind,
     name: draft.name.trim(),
@@ -155,14 +175,7 @@ function confirm() {
         </div>
 
         <el-form label-position="top" size="small">
-          <el-form-item label="元素类型">
-            <el-select v-model="draft.kind" @change="applyKindDefaults">
-              <el-option label="座位" :value="ELEMENT_KINDS.SEAT" />
-              <el-option label="通用元素" :value="ELEMENT_KINDS.GENERIC" />
-            </el-select>
-          </el-form-item>
-
-          <el-form-item label="元素名称">
+          <el-form-item label="显示名称">
             <el-autocomplete
               v-model="draft.name"
               :fetch-suggestions="queryNames"
@@ -174,31 +187,77 @@ function confirm() {
 
           <el-form-item label="填充色">
             <div class="color-row">
-              <button
-                v-for="color in colorSwatches"
-                :key="color"
-                type="button"
-                :class="{ active: draft.fillColor === color }"
-                :style="{ backgroundColor: color }"
-                :aria-label="`填充色 ${color}`"
-                @click="draft.fillColor = color"
-              />
-              <el-color-picker v-model="draft.fillColor" />
+              <span
+                v-for="color in fillColorSwatches"
+                :key="`fill-${color.value}`"
+                class="color-swatch"
+                :class="{ active: draft.fillColor === color.value, custom: color.custom }"
+                :title="color.title"
+              >
+                <button
+                  type="button"
+                  :style="{ backgroundColor: color.value }"
+                  :aria-label="`填充色 ${color.value}`"
+                  @click="chooseColor('fillColor', color)"
+                />
+                <button
+                  v-if="color.custom"
+                  type="button"
+                  class="color-delete"
+                  :aria-label="`删除自定义颜色 ${color.value}`"
+                  @click.stop="removeColor('fillColor', color)"
+                >
+                  <Close />
+                </button>
+              </span>
+              <label class="color-add" title="添加自定义颜色">
+                <input
+                  type="color"
+                  :value="draft.fillColor"
+                  aria-label="添加填充色"
+                  @input="previewCustomColor('fillColor', $event.target.value)"
+                  @change="confirmCustomColor('fillColor', $event.target.value)"
+                />
+                <Plus />
+              </label>
             </div>
           </el-form-item>
 
           <el-form-item label="边框色">
             <div class="color-row">
-              <button
-                v-for="color in colorSwatches"
-                :key="color"
-                type="button"
-                :class="{ active: draft.borderColor === color }"
-                :style="{ backgroundColor: color }"
-                :aria-label="`边框色 ${color}`"
-                @click="draft.borderColor = color"
-              />
-              <el-color-picker v-model="draft.borderColor" />
+              <span
+                v-for="color in borderColorSwatches"
+                :key="`border-${color.value}`"
+                class="color-swatch"
+                :class="{ active: draft.borderColor === color.value, custom: color.custom }"
+                :title="color.title"
+              >
+                <button
+                  type="button"
+                  :style="{ backgroundColor: color.value }"
+                  :aria-label="`边框色 ${color.value}`"
+                  @click="chooseColor('borderColor', color)"
+                />
+                <button
+                  v-if="color.custom"
+                  type="button"
+                  class="color-delete"
+                  :aria-label="`删除自定义颜色 ${color.value}`"
+                  @click.stop="removeColor('borderColor', color)"
+                >
+                  <Close />
+                </button>
+              </span>
+              <label class="color-add" title="添加自定义颜色">
+                <input
+                  type="color"
+                  :value="draft.borderColor"
+                  aria-label="添加边框色"
+                  @input="previewCustomColor('borderColor', $event.target.value)"
+                  @change="confirmCustomColor('borderColor', $event.target.value)"
+                />
+                <Plus />
+              </label>
             </div>
           </el-form-item>
         </el-form>
@@ -327,19 +386,71 @@ header > div {
   gap: 7px;
 }
 
-.color-row > button {
+.color-swatch {
   width: 25px;
   height: 25px;
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.color-swatch > button:first-child,
+.color-add {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
   padding: 0;
+  background: #fff;
   border: 1px solid #aebed2;
   border-radius: 6px;
   cursor: pointer;
 }
 
-.color-row > button.active {
+.color-swatch.active > button:first-child {
   box-shadow:
     0 0 0 2px #fff,
     0 0 0 4px var(--brand);
+}
+
+.color-delete {
+  width: 15px;
+  height: 15px;
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #9aa8ba;
+  background: #fff;
+  border: 1px solid #d7e1ee;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.color-delete:hover {
+  color: var(--danger);
+  border-color: #fecaca;
+}
+
+.color-delete svg,
+.color-add svg {
+  width: 11px;
+  height: 11px;
+}
+
+.color-add {
+  position: relative;
+  color: var(--brand);
+  overflow: hidden;
+}
+
+.color-add input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 footer {
@@ -353,6 +464,7 @@ footer {
 .dock-actions {
   display: flex;
   justify-content: center;
+  margin-top: auto;
   padding: 8px;
   border-top: 1px solid #e5ebf3;
 }

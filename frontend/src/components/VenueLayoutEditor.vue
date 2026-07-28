@@ -255,12 +255,12 @@ const selectionRect = computed(() =>
   activeSelectionRect(drawingRect.value, pendingRect.value),
 )
 const displayRows = computed(() =>
-  canvasResizeSession.value?.valid
+  canvasResizeSession.value
     ? canvasResizeSession.value.candidate.rows
     : gridRows.value,
 )
 const displayColumns = computed(() =>
-  canvasResizeSession.value?.valid
+  canvasResizeSession.value
     ? canvasResizeSession.value.candidate.columns
     : gridColumns.value,
 )
@@ -685,7 +685,6 @@ function finishCanvasResize() {
   } else {
     canvasOffsetX.value = session.startOffsetX
     canvasOffsetY.value = session.startOffsetY
-    ElMessage.warning('画布边界内仍有元素，无法缩小')
     conflictElementIds.value = []
   }
   canvasResizeSession.value = undefined
@@ -825,6 +824,17 @@ function elementFromTarget(target) {
   return node?.dataset.editorId
 }
 
+function isDesignerFloatingControlTarget(target) {
+  if (!(target instanceof Element)) return false
+  return [
+    '.el-popper',
+    '.el-select-dropdown',
+    '.el-autocomplete-suggestion',
+    '.el-color-dropdown',
+    '.el-picker__popper',
+  ].some((selector) => target.closest(selector))
+}
+
 function panelNode() {
   return panelRef.value?.$el || panelRef.value
 }
@@ -835,6 +845,7 @@ function pickerNode() {
 
 function closeOnOutsidePointer(event) {
   const target = event.target
+  if (isDesignerFloatingControlTarget(target)) return
   if (pickerVisible.value && !pickerNode()?.contains(target)) closePicker()
   if (
     selectedId.value &&

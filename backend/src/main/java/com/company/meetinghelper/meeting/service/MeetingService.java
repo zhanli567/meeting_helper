@@ -3,6 +3,7 @@ package com.company.meetinghelper.meeting.service;
 import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.common.user.CurrentUserProvider;
 import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
+import com.company.meetinghelper.meeting.api.dto.request.UpdateMeetingNameRequest;
 import com.company.meetinghelper.meeting.api.dto.response.MeetingSummary;
 import com.company.meetinghelper.meeting.entity.MeetingElementEntity;
 import com.company.meetinghelper.meeting.entity.MeetingEntity;
@@ -66,11 +67,7 @@ public class MeetingService {
     public List<MeetingSummary> list() {
         String userId = currentUserProvider.requireUserId();
         return meetingRepository.findAllByCreatedByIdOrderByUpdatedAtDesc(userId).stream()
-                .map(meeting -> new MeetingSummary(
-                        meeting.getId(), meeting.getName(), meeting.getStatus(),
-                        meeting.getLayoutName(), meeting.getUpdatedAt(),
-                        meeting.getUpdatedByName()
-                ))
+                .map(this::toSummary)
                 .toList();
     }
 
@@ -132,6 +129,32 @@ public class MeetingService {
         plan.setStatus("DRAFT");
         plan.setCurrentVersionNo(0);
         planRepository.save(plan);
+        return toSummary(meeting);
+    }
+
+    /**
+     * 更新当前用户拥有的会议名称。
+     *
+     * @param meetingId 会议ID
+     * @param request 会议名称更新请求
+     * @return 更新后的会议摘要
+     */
+    @Transactional
+    public MeetingSummary updateName(String meetingId, UpdateMeetingNameRequest request) {
+        String userId = currentUserProvider.requireUserId();
+        MeetingEntity meeting = meetingRepository.findByIdAndCreatedById(meetingId, userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议不存在"));
+        String normalizedName = request.name().trim();
+        if (!meeting.getName().equalsIgnoreCase(normalizedName)
+                && meetingRepository.existsByCreatedByIdAndNameIgnoreCase(userId, normalizedName)) {
+            throw new ApiException(HttpStatus.CONFLICT, "会议名称已存在");
+        }
+        meeting.setName(normalizedName);
+        meetingRepository.save(meeting);
+        return toSummary(meeting);
+    }
+
+    private MeetingSummary toSummary(MeetingEntity meeting) {
         return new MeetingSummary(
                 meeting.getId(), meeting.getName(), meeting.getStatus(),
                 meeting.getLayoutName(), meeting.getUpdatedAt(), meeting.getUpdatedByName()

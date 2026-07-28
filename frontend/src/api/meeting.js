@@ -75,4 +75,7 @@ export const meetingApi = {
   async createMeeting(name, venueTemplateId) {
     return unwrap(http.post('/meetings/create-from-venue', { name, venueTemplateId }))
   },
+  async updateMeetingName(meetingId, name) {
+    return unwrap(http.post(`/meetings/${meetingId}/name/update`, { name }))
+  },
 }

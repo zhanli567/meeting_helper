@@ -44,12 +44,7 @@ const rules = {
     { validator: validateLocationAvailability, trigger: 'blur' },
   ],
   campus: [{ max: 120, message: '园区不能超过 120 个字符', trigger: 'blur' }],
-  mainScreenResolution: [
-    { max: 80, message: '主屏分辨率不能超过 80 个字符', trigger: 'blur' },
-  ],
-  stageDimensions: [{ max: 80, message: '舞台尺寸不能超过 80 个字符', trigger: 'blur' }],
   contactInfo: [{ max: 500, message: '接口人不能超过 500 个字符', trigger: 'blur' }],
-  bookingUrl: [{ max: 1000, message: '预定链接不能超过 1000 个字符', trigger: 'blur' }],
 }
 
 watch(
@@ -103,59 +98,7 @@ defineExpose({
         <el-form-item label="接口人" prop="contactInfo">
           <el-input v-model="form.contactInfo" maxlength="500" placeholder="姓名或联系方式" />
         </el-form-item>
-        <el-form-item label="预定链接" prop="bookingUrl" class="form-grid-wide">
-          <el-input v-model="form.bookingUrl" maxlength="1000" placeholder="选填" />
-        </el-form-item>
-      </div>
-    </section>
-
-    <section class="form-section">
-      <h3>设备信息</h3>
-      <div class="form-grid">
-        <el-form-item label="主屏分辨率" prop="mainScreenResolution">
-          <el-input
-            v-model="form.mainScreenResolution"
-            maxlength="80"
-            placeholder="例如：3840 × 2160"
-          />
-        </el-form-item>
-        <el-form-item label="舞台尺寸" prop="stageDimensions">
-          <el-input v-model="form.stageDimensions" maxlength="80" placeholder="例如：8m × 3m" />
-        </el-form-item>
-        <el-form-item label="会议室功能" class="form-grid-wide">
-          <el-input
-            v-model="form.meetingRoomFunctions"
-            type="textarea"
-            :rows="3"
-            maxlength="2000"
-            show-word-limit
-          />
-        </el-form-item>
-        <el-form-item label="服务提供" class="form-grid-wide">
-          <el-input
-            v-model="form.servicesProvided"
-            type="textarea"
-            :rows="3"
-            maxlength="2000"
-            show-word-limit
-          />
-        </el-form-item>
-      </div>
-    </section>
-
-    <section class="form-section">
-      <h3>补充信息</h3>
-      <div class="form-grid">
-        <el-form-item label="说明">
-          <el-input
-            v-model="form.description"
-            type="textarea"
-            :rows="3"
-            maxlength="2000"
-            show-word-limit
-          />
-        </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item label="备注" class="form-grid-wide">
           <el-input
             v-model="form.remarks"
             type="textarea"

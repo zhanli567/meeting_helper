@@ -338,8 +338,8 @@ function exportPlan(type) {
   store.exportPlan(type, activeVersionId.value)
 }
 function resetFab() {
-  fab.x = Math.max(12, window.innerWidth - 440)
-  fab.y = Math.max(76, window.innerHeight - 100)
+  fab.x = 24
+  fab.y = Math.max(76, window.innerHeight - 96)
   fabReady.value = true
 }
 function keepFabInViewport() {

@@ -1,10 +1,12 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { Close } from '@element-plus/icons-vue'
+import { COMMON_ELEMENT_SUGGESTIONS, ELEMENT_KINDS } from '@/utils/venueModel'
 import {
-  COMMON_ELEMENT_SUGGESTIONS,
-  ELEMENT_KINDS,
-} from '@/utils/venueModel'
+  availableElementSuggestions,
+  removeCustomElementName,
+  saveCustomElementName,
+} from '@/utils/venuePreferences'
 
 const props = defineProps({
   rect: {
@@ -16,6 +18,7 @@ const props = defineProps({
 const emit = defineEmits(['choose', 'cancel'])
 const customName = ref('')
 const seatPending = ref(false)
+const suggestions = ref(availableElementSuggestions())
 const isMultiCell = computed(() => props.rect.rowSpan * props.rect.columnSpan > 1)
 
 watch(
@@ -23,9 +26,24 @@ watch(
   () => {
     customName.value = ''
     seatPending.value = false
+    refreshSuggestions()
   },
   { deep: true },
 )
+
+function refreshSuggestions() {
+  suggestions.value = availableElementSuggestions()
+}
+
+function choicePayload(suggestion) {
+  return {
+    kind:
+      suggestion.name === '座位' ? ELEMENT_KINDS.SEAT : ELEMENT_KINDS.GENERIC,
+    name: suggestion.name,
+    fillColor: suggestion.fillColor,
+    borderColor: suggestion.borderColor,
+  }
+}
 
 function chooseSuggestion(suggestion) {
   if (suggestion.kind === ELEMENT_KINDS.SEAT && isMultiCell.value) {
@@ -33,9 +51,7 @@ function chooseSuggestion(suggestion) {
     return
   }
   emit('choose', {
-    ...suggestion,
-    kind:
-      suggestion.name === '座位' ? ELEMENT_KINDS.SEAT : ELEMENT_KINDS.GENERIC,
+    ...choicePayload(suggestion),
     mode: suggestion.kind === ELEMENT_KINDS.SEAT ? 'merge' : undefined,
   })
 }
@@ -46,14 +62,20 @@ function chooseSeat(mode) {
 }
 
 function createCustom() {
-  const name = customName.value.trim()
+  const name = saveCustomElementName(customName.value)
   if (!name) return
+  refreshSuggestions()
   emit('choose', {
     kind: ELEMENT_KINDS.GENERIC,
     name,
     fillColor: '#dbeafe',
     borderColor: '#93c5fd',
   })
+}
+
+function removeCustomElement(suggestion) {
+  removeCustomElementName(suggestion.name)
+  refreshSuggestions()
 }
 </script>
 
@@ -78,20 +100,30 @@ function createCustom() {
 
     <template v-else>
       <div class="suggestion-grid">
-        <button
-          v-for="suggestion in COMMON_ELEMENT_SUGGESTIONS"
+        <div
+          v-for="suggestion in suggestions"
           :key="suggestion.name"
-          type="button"
-          @click="chooseSuggestion(suggestion)"
+          class="suggestion-card"
         >
-          <i
-            :style="{
-              backgroundColor: suggestion.fillColor,
-              borderColor: suggestion.borderColor,
-            }"
-          />
-          <span>{{ suggestion.name }}</span>
-        </button>
+          <button type="button" class="suggestion-choice" @click="chooseSuggestion(suggestion)">
+            <i
+              :style="{
+                backgroundColor: suggestion.fillColor,
+                borderColor: suggestion.borderColor,
+              }"
+            />
+            <span>{{ suggestion.name }}</span>
+          </button>
+          <button
+            v-if="suggestion.custom"
+            type="button"
+            class="custom-delete"
+            :aria-label="`删除自定义元素 ${suggestion.name}`"
+            @click="removeCustomElement(suggestion)"
+          >
+            <Close />
+          </button>
+        </div>
       </div>
 
       <form class="custom-row" @submit.prevent="createCustom">
@@ -149,16 +181,23 @@ header span {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
+  overflow-x: hidden;
   overflow-y: auto;
-  padding-right: 3px;
+  padding: 2px 8px 2px 2px;
 }
 
-.suggestion-grid button {
+.suggestion-card {
+  min-width: 0;
+  position: relative;
+}
+
+.suggestion-choice {
+  width: 100%;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 7px;
+  padding: 7px 24px 7px 8px;
   color: #35445a;
   background: #fff;
   border: 1px solid #dce5f1;
@@ -167,13 +206,13 @@ header span {
   text-align: left;
 }
 
-.suggestion-grid button:hover {
+.suggestion-choice:hover {
   color: var(--brand);
   background: #f4f8ff;
   border-color: #98bdf2;
 }
 
-.suggestion-grid i {
+.suggestion-choice i {
   width: 18px;
   height: 18px;
   flex: none;
@@ -181,11 +220,37 @@ header span {
   border-radius: 5px;
 }
 
-.suggestion-grid span {
+.suggestion-choice span {
   overflow: hidden;
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.custom-delete {
+  width: 16px;
+  height: 16px;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #9aa8ba;
+  background: #fff;
+  border: 1px solid #d7e1ee;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.custom-delete:hover {
+  color: var(--danger);
+  border-color: #fecaca;
+}
+
+.custom-delete svg {
+  width: 11px;
+  height: 11px;
 }
 
 .custom-row {

@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict'
+﻿import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
@@ -93,6 +93,13 @@ class HostElement {
   }
 
   closest(selector) {
+    if (selector.startsWith('.')) {
+      const className = selector.slice(1)
+      for (let node = this; node; node = node.parent) {
+        if (String(node.props?.class || '').split(/\s+/).includes(className)) return node
+      }
+      return undefined
+    }
     if (selector !== '[data-editor-id]') return undefined
     for (let node = this; node; node = node.parent) {
       if (node.props?.['data-editor-id'] != null) return node
@@ -473,25 +480,25 @@ test('真实组件运行时保持属性预览并支持移动缩放与撤销重�
   )
   nameInput.props.onInput({ target: { value: '贵宾席' } })
   allNodes(mounted.root)
-    .find((node) => node.props?.['aria-label'] === '填充色 #fde68a')
+    .find((node) => node.props?.['aria-label'] === '填充色 #fef3c7')
     .props.onClick()
   allNodes(mounted.root)
-    .find((node) => node.props?.['aria-label'] === '边框色 #fed7aa')
+    .find((node) => node.props?.['aria-label'] === '边框色 #fee2e2')
     .props.onClick()
   await settle()
 
   element = byClass(mounted.root, 'layout-element')[0]
   assert.match(nodeText(element), /贵宾席/)
-  assert.equal(element.props.style.backgroundColor, '#fde68a')
-  assert.equal(element.props.style.borderColor, '#fed7aa')
+  assert.equal(element.props.style.backgroundColor, '#fef3c7')
+  assert.equal(element.props.style.borderColor, '#fee2e2')
 
   element.props.onPointerdown(pointerEvent(element))
   mounted.window.dispatch('pointerup', pointerEvent(element))
   await settle()
   element = byClass(mounted.root, 'layout-element')[0]
   assert.match(nodeText(element), /贵宾席/)
-  assert.equal(element.props.style.backgroundColor, '#fde68a')
-  assert.equal(element.props.style.borderColor, '#fed7aa')
+  assert.equal(element.props.style.backgroundColor, '#fef3c7')
+  assert.equal(element.props.style.borderColor, '#fee2e2')
 
   byText(mounted.root, '取消').props.onClick()
   await settle()
@@ -508,10 +515,10 @@ test('真实组件运行时保持属性预览并支持移动缩放与撤销重�
   )
   nameInput.props.onInput({ target: { value: '贵宾席' } })
   allNodes(mounted.root)
-    .find((node) => node.props?.['aria-label'] === '填充色 #fde68a')
+    .find((node) => node.props?.['aria-label'] === '填充色 #fef3c7')
     .props.onClick()
   allNodes(mounted.root)
-    .find((node) => node.props?.['aria-label'] === '边框色 #fed7aa')
+    .find((node) => node.props?.['aria-label'] === '边框色 #fee2e2')
     .props.onClick()
   await settle()
   byText(mounted.root, '确认').props.onClick()
@@ -576,7 +583,7 @@ test('未确认属性草稿穿过真实移动并在确认时和已提交几何�
   const mounted = await mountEditor(t, VenueLayoutEditor)
   let element = byClass(mounted.root, 'layout-element')[0]
   await selectElement(mounted, element)
-  await previewProperties(mounted, '移动中的贵宾席', '#fde68a', '#fed7aa')
+  await previewProperties(mounted, '移动中的贵宾席', '#fef3c7', '#fee2e2')
 
   element = byClass(mounted.root, 'layout-element')[0]
   element.props.onPointerdown(pointerEvent(element))
@@ -592,12 +599,12 @@ test('未确认属性草稿穿过真实移动并在确认时和已提交几何�
 
   element = byClass(mounted.root, 'layout-element')[0]
   assert.match(nodeText(element), /移动中的贵宾席/)
-  assert.equal(element.props.style.backgroundColor, '#fde68a')
-  assert.equal(element.props.style.borderColor, '#fed7aa')
+  assert.equal(element.props.style.backgroundColor, '#fef3c7')
+  assert.equal(element.props.style.borderColor, '#fee2e2')
   assertPanelDraft(mounted.root, {
     name: '移动中的贵宾席',
-    fillColor: '#fde68a',
-    borderColor: '#fed7aa',
+    fillColor: '#fef3c7',
+    borderColor: '#fee2e2',
   })
   assert.deepEqual(
     {
@@ -626,8 +633,8 @@ test('未确认属性草稿穿过真实移动并在确认时和已提交几何�
     {
       column: 4,
       name: '移动中的贵宾席',
-      fillColor: '#fde68a',
-      borderColor: '#fed7aa',
+      fillColor: '#fef3c7',
+      borderColor: '#fee2e2',
     },
   )
 })
@@ -637,7 +644,7 @@ test('未确认属性草稿穿过真实缩放，取消只恢复属性且切换�
   const mounted = await mountEditor(t, VenueLayoutEditor)
   let element = byClass(mounted.root, 'layout-element')[0]
   await selectElement(mounted, element)
-  await previewProperties(mounted, '缩放中的贵宾席', '#fde68a', '#fed7aa')
+  await previewProperties(mounted, '缩放中的贵宾席', '#fef3c7', '#fee2e2')
 
   element = byClass(mounted.root, 'layout-element')[0]
   const southEast = byClass(element, 'handle-se')[0]
@@ -654,12 +661,12 @@ test('未确认属性草稿穿过真实缩放，取消只恢复属性且切换�
 
   element = byClass(mounted.root, 'layout-element')[0]
   assert.match(nodeText(element), /缩放中的贵宾席/)
-  assert.equal(element.props.style.backgroundColor, '#fde68a')
-  assert.equal(element.props.style.borderColor, '#fed7aa')
+  assert.equal(element.props.style.backgroundColor, '#fef3c7')
+  assert.equal(element.props.style.borderColor, '#fee2e2')
   assertPanelDraft(mounted.root, {
     name: '缩放中的贵宾席',
-    fillColor: '#fde68a',
-    borderColor: '#fed7aa',
+    fillColor: '#fef3c7',
+    borderColor: '#fee2e2',
   })
   assert.deepEqual(
     {
@@ -686,7 +693,7 @@ test('未确认属性草稿穿过真实缩放，取消只恢复属性且切换�
   )
 
   await selectElement(mounted, byClass(mounted.root, 'layout-element')[0])
-  await previewProperties(mounted, '不得串到舞台', '#fde68a', '#fed7aa')
+  await previewProperties(mounted, '不得串到舞台', '#fef3c7', '#fee2e2')
   await selectElement(mounted, byClass(mounted.root, 'layout-element')[1])
   assertPanelDraft(mounted.root, {
     name: '舞台',
@@ -695,4 +702,50 @@ test('未确认属性草稿穿过真实缩放，取消只恢复属性且切换�
   })
   assert.match(nodeText(byClass(mounted.root, 'layout-element')[0]), /座位/)
   assert.match(nodeText(byClass(mounted.root, 'layout-element')[1]), /舞台/)
+})
+
+test('画布缩小遇到边界冲突时保持候选尺寸预览直到松手', async (t) => {
+  const VenueLayoutEditor = await loadEditor(t)
+  const mounted = await mountEditor(t, VenueLayoutEditor)
+  const eastHandle = byClass(mounted.root, 'canvas-resize-east')[0]
+
+  eastHandle.props.onPointerdown(pointerEvent(eastHandle, {
+    clientX: 700,
+    clientY: 300,
+    currentTarget: eastHandle,
+    target: eastHandle,
+  }))
+  mounted.window.dispatch('pointermove', pointerEvent(eastHandle, {
+    clientX: 300,
+    clientY: 300,
+  }))
+  await settle()
+
+  assert.equal(byClass(mounted.root, 'conflict-banner').length, 1)
+  assert.equal(byClass(mounted.root, 'designer-canvas')[0].props.style.width, '308px')
+  assert.equal(mounted.updates.length, 0)
+
+  mounted.window.dispatch('pointerup', pointerEvent(eastHandle, {
+    clientX: 300,
+    clientY: 300,
+  }))
+  await settle()
+
+  assert.equal(byClass(mounted.root, 'conflict-banner').length, 0)
+  assert.equal(byClass(mounted.root, 'designer-canvas')[0].props.style.width, '704px')
+  assert.equal(mounted.updates.length, 0)
+})
+
+test('属性面板内打开的浮层交互不会被全局外部点击关闭', async (t) => {
+  const VenueLayoutEditor = await loadEditor(t)
+  const mounted = await mountEditor(t, VenueLayoutEditor)
+  await selectElement(mounted, byClass(mounted.root, 'layout-element')[0])
+
+  assert.ok(selectedNameInput(mounted.root))
+  const floatingControl = new HostElement('div')
+  floatingControl.props.class = 'el-popper'
+  mounted.window.dispatch('pointerdown', { target: floatingControl })
+  await settle()
+
+  assert.ok(selectedNameInput(mounted.root))
 })

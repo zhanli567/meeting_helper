@@ -29,13 +29,18 @@ test('场馆列表使用独立 API，并提供搜索、筛选、当前页分组�
   assert.match(source, /seatCount === 0/)
 })
 
-test('首页仅保留场馆模板入口', async () => {
+test('首页顶部保留场馆模板入口，会议标题右侧提供添加会议', async () => {
   const source = await readSource('src/views/HomeView.vue')
 
   assert.match(source, /场馆模板/)
   assert.match(source, /router\.push\('\/venues'\)/)
   assert.doesNotMatch(source, /开始排座/)
-  assert.doesNotMatch(source, /router\.push\('\/venues\/select'\)/)
+  assert.match(source, /添加会议/)
+  assert.match(source, /router\.push\('\/venues\/select'\)/)
+  assert.match(source, /EditPen/)
+  assert.match(source, /editMeeting\(meeting\)/)
+  assert.match(source, /meetingApi\.updateMeetingName\(editingMeeting\.id,\s*trimmedName\)/)
+  assert.match(source, /@click\.stop/)
   assert.doesNotMatch(source, /创建新会议/)
 })
 
@@ -52,7 +57,7 @@ test('路由区分场馆管理、选择、新建和布局编辑', async () => {
   assert.match(source, /name:\s*'venue-layout-edit'/)
 })
 
-test('场馆信息表单包含三个字段组，且只有地点必填', async () => {
+test('场馆信息表单只显示高频字段，且只有地点必填', async () => {
   const source = await readSource('src/components/VenueInfoForm.vue')
 
   for (const field of [
@@ -60,23 +65,27 @@ test('场馆信息表单包含三个字段组，且只有地点必填', async ()
     'campus',
     'manualCapacity',
     'contactInfo',
+    'remarks',
+  ]) {
+    assert.match(source, new RegExp(`form\\.${field}`))
+  }
+  for (const field of [
     'bookingUrl',
     'mainScreenResolution',
     'stageDimensions',
     'meetingRoomFunctions',
     'servicesProvided',
     'description',
-    'remarks',
   ]) {
-    assert.match(source, new RegExp(`form\\.${field}`))
+    assert.doesNotMatch(source, new RegExp(`v-model="form\\.${field}"`))
   }
   assert.match(source, /基本信息/)
-  assert.match(source, /设备信息/)
-  assert.match(source, /补充信息/)
+  assert.doesNotMatch(source, /设备信息/)
+  assert.doesNotMatch(source, /补充信息/)
   assert.match(source, /prop="location"/)
   assert.match(source, /required:\s*true/)
   assert.equal((source.match(/\{\s*required:\s*true,\s*message:/g) || []).length, 1)
-  assert.ok((source.match(/type="textarea"/g) || []).length >= 4)
+  assert.equal((source.match(/type="textarea"/g) || []).length, 1)
   assert.match(source, /normalizeVenueInfo/)
 })
 

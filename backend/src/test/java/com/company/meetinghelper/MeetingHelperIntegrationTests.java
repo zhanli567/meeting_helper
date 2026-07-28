@@ -17,6 +17,7 @@ import com.company.meetinghelper.common.context.CurrentUserHolder;
 import com.company.meetinghelper.common.security.CurrentUser;
 import com.company.meetinghelper.export.service.ExportService;
 import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
+import com.company.meetinghelper.meeting.api.dto.request.UpdateMeetingNameRequest;
 import com.company.meetinghelper.meeting.api.dto.response.MeetingSummary;
 import com.company.meetinghelper.meeting.repository.MeetingRepository;
 import com.company.meetinghelper.meeting.service.MeetingService;
@@ -2239,6 +2240,32 @@ class MeetingHelperIntegrationTests {
 
         assertThatThrownBy(() -> meetingService.create(request))
                 .hasMessage("会议名称已存在");
+    }
+
+    @Test
+    void meetingNameCanBeUpdatedAndStillRejectsDuplicates() {
+        VenueSummary venue = defaultVenue();
+        MeetingSummary first = meetingService.create(
+                new CreateMeetingRequest("待改名会议-" + UUID.randomUUID(), venue.id())
+        );
+        MeetingSummary second = meetingService.create(
+                new CreateMeetingRequest("已占用会议-" + UUID.randomUUID(), venue.id())
+        );
+        String updatedName = first.name() + "-更新";
+
+        MeetingSummary updated = meetingService.updateName(
+                first.id(),
+                new UpdateMeetingNameRequest(updatedName)
+        );
+
+        assertThat(updated.name()).isEqualTo(updatedName);
+        assertThat(meetingRepository.findByIdAndCreatedById(first.id(), DEFAULT_USER)
+                .orElseThrow()
+                .getName()).isEqualTo(updatedName);
+        assertThatThrownBy(() -> meetingService.updateName(
+                first.id(),
+                new UpdateMeetingNameRequest(second.name())
+        )).hasMessage("会议名称已存在");
     }
 
     private VenueDetail createVenueWithElements(

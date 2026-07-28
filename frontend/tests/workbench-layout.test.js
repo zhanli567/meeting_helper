@@ -32,3 +32,11 @@ test('加号位于右下角时菜单显示在按钮上方并保持在视口内',
     { left: 1050, top: 508 },
   )
 })
+
+test('排座工作台新增人员加号初始放在左下角', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const source = await readFile(new URL('../src/views/WorkbenchView.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /fab\.x\s*=\s*24/)
+  assert.match(source, /window\.innerHeight - 96/)
+})

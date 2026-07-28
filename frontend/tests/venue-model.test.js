@@ -149,7 +149,10 @@ test('场馆画布提供默认尺寸和最小边长', () => {
 test('常用元素建议仅使用通用元素字段', () => {
   assert.equal(ELEMENT_KINDS.SEAT, 'SEAT')
   assert.equal(ELEMENT_KINDS.GENERIC, 'GENERIC')
-  assert.ok(COMMON_ELEMENT_SUGGESTIONS.length > 1)
+  assert.deepEqual(
+    COMMON_ELEMENT_SUGGESTIONS.map((suggestion) => suggestion.name),
+    ['座位', '门', '墙', '桌子', '摄像', '舞台', '显示屏'],
+  )
   assert.deepEqual(COMMON_ELEMENT_SUGGESTIONS[0], {
     name: '座位',
     kind: 'SEAT',
@@ -233,8 +236,10 @@ test('会议创建从场馆快照接口发起，会议 API 不再暴露场馆方
 
   try {
     assert.equal(await meetingApi.createMeeting('评审会', 'v1'), 'm1')
+    assert.equal(await meetingApi.updateMeetingName('m1', '复盘会'), 'm1')
     assert.deepEqual(calls, [
       { path: '/meetings/create-from-venue', data: { name: '评审会', venueTemplateId: 'v1' } },
+      { path: '/meetings/m1/name/update', data: { name: '复盘会' } },
     ])
     assert.equal('venues' in meetingApi, false)
     assert.equal('venue' in meetingApi, false)

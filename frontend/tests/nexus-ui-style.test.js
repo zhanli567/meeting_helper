@@ -26,7 +26,7 @@ test('工作台页面使用 Nexus 风格的静态工具栏和分层内容区', a
   assert.match(source, /\.canvas-body\s*\{[^}]*overflow:\s*hidden;/s)
 })
 
-test('首页只保留场馆模板入口且不渲染演示用户信息', async () => {
+test('首页保留模板管理入口并在会议列表标题处提供添加会议', async () => {
   const source = await readSource('src/views/HomeView.vue')
 
   assert.doesNotMatch(source, /currentUser/)
@@ -35,7 +35,11 @@ test('首页只保留场馆模板入口且不渲染演示用户信息', async ()
   assert.doesNotMatch(source, />\s*开始排座\s*</)
   assert.match(source, />\s*场馆模板\s*</)
   assert.match(source, /router\.push\('\/venues'\)/)
-  assert.doesNotMatch(source, /router\.push\('\/venues\/select'\)/)
+  assert.match(source, />\s*添加会议\s*</)
+  assert.match(source, /router\.push\('\/venues\/select'\)/)
+  assert.match(source, /:icon="Collection"/)
+  assert.match(source, /:icon="CirclePlus"/)
+  assert.doesNotMatch(source, /<p>\s*每场会议拥有独立/)
 })
 
 test('预览和工作区读取通用元素字段且不渲染旋转', async () => {

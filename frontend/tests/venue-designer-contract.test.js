@@ -64,16 +64,51 @@ test('元素选择与属性编辑只使用通用模型字段并支持取消实�
   const pickerSource = await readSource('src/components/VenueElementPicker.vue')
   const panelSource = await readSource('src/components/VenueElementPanel.vue')
 
-  assert.match(pickerSource, /COMMON_ELEMENT_SUGGESTIONS/)
+  assert.match(pickerSource, /availableElementSuggestions/)
   assert.match(pickerSource, /自定义元素名称/)
+  assert.match(pickerSource, /removeCustomElement/)
+  assert.match(pickerSource, /overflow-x:\s*hidden/)
+  assert.match(pickerSource, /overflow-y:\s*auto/)
   assert.match(pickerSource, /ELEMENT_KINDS\.GENERIC/)
   assert.match(panelSource, /kind/)
   assert.match(panelSource, /name/)
   assert.match(panelSource, /fillColor/)
   assert.match(panelSource, /borderColor/)
+  assert.match(panelSource, /availableColorSwatches/)
+  assert.match(panelSource, /previewCustomColor/)
+  assert.match(panelSource, /confirmCustomColor/)
   assert.match(panelSource, /emit\('preview'/)
   assert.match(panelSource, /emit\('cancel'/)
+  assert.match(panelSource, /label="显示名称"/)
+  assert.doesNotMatch(panelSource, /label="元素名称"/)
+  assert.doesNotMatch(panelSource, /label="元素类型"|v-model="draft\.kind"/)
+  assert.doesNotMatch(panelSource, /<el-color-picker/)
   assert.doesNotMatch(panelSource, /capacity|assignable|walkable|code/)
+})
+
+test('场馆信息表单只保留高频字段', async () => {
+  const source = await readSource('src/components/VenueInfoForm.vue')
+
+  assert.match(source, /label="地点"/)
+  assert.match(source, /label="园区"/)
+  assert.match(source, /label="容纳人数"/)
+  assert.match(source, /label="接口人"/)
+  assert.match(source, /label="备注"/)
+  assert.doesNotMatch(source, /label="预定链接"/)
+  assert.doesNotMatch(source, /label="主屏分辨率"/)
+  assert.doesNotMatch(source, /label="舞台尺寸"/)
+  assert.doesNotMatch(source, /label="会议室功能"/)
+  assert.doesNotMatch(source, /label="服务提供"/)
+  assert.doesNotMatch(source, /label="说明"/)
+})
+
+test('场馆布局缩小冲突只保留编辑器内提示并固定停靠操作在底部', async () => {
+  const editorSource = await readSource('src/components/VenueLayoutEditor.vue')
+  const panelSource = await readSource('src/components/VenueElementPanel.vue')
+
+  assert.match(editorSource, /conflict-banner/)
+  assert.doesNotMatch(editorSource, /ElMessage\.warning\('画布边界内仍有元素/)
+  assert.match(panelSource, /margin-top:\s*auto/)
 })
 
 test('新建流程复用编辑器并通过统一创建载荷完成保存', async () => {
