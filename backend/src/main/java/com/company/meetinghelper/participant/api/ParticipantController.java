@@ -3,6 +3,7 @@ package com.company.meetinghelper.participant.api;
 import com.company.meetinghelper.common.api.ApiResponse;
 import com.company.meetinghelper.participant.api.dto.request.CreateParticipantRequest;
 import com.company.meetinghelper.participant.api.dto.request.UpdateAttendanceRequest;
+import com.company.meetinghelper.participant.api.dto.request.UpdateParticipantRequest;
 import com.company.meetinghelper.participant.api.dto.response.ParticipantResult;
 import com.company.meetinghelper.participant.service.ParticipantService;
 import jakarta.validation.Valid;
@@ -39,6 +40,23 @@ public class ParticipantController {
             @Valid @RequestBody CreateParticipantRequest request
     ) {
         return participantService.create(meetingId, request);
+    }
+
+    /**
+     * 更新参会人员姓名和动态字段记录。
+     *
+     * @param meetingId 会议ID
+     * @param participantId 参会人员ID
+     * @param request 人员更新请求
+     * @return 更新后的人员基础信息
+     */
+    @PostMapping("/{participantId}/update")
+    public ParticipantResult update(
+            @PathVariable String meetingId,
+            @PathVariable String participantId,
+            @Valid @RequestBody UpdateParticipantRequest request
+    ) {
+        return participantService.update(meetingId, participantId, request);
     }
 
     /**

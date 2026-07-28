@@ -5,7 +5,9 @@ import static java.util.Locale.ROOT;
 import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.meeting.service.MeetingAccessService;
 import com.company.meetinghelper.participant.api.dto.request.CreateParticipantRequest;
+import com.company.meetinghelper.participant.api.dto.request.ParticipantRecordInput;
 import com.company.meetinghelper.participant.api.dto.request.UpdateAttendanceRequest;
+import com.company.meetinghelper.participant.api.dto.request.UpdateParticipantRequest;
 import com.company.meetinghelper.participant.api.dto.response.ParticipantResult;
 import com.company.meetinghelper.participant.entity.AttendanceStatus;
 import com.company.meetinghelper.participant.entity.ParticipantEntity;
@@ -128,6 +130,62 @@ public class ParticipantService {
     }
 
     /**
+     * 更新参会人员姓名和动态记录，工号保持不可变。
+     *
+     * @param meetingId 会议ID
+     * @param participantId 参会人员ID
+     * @param request 人员更新请求
+     * @return 更新后的人员基础信息
+     */
+    @Transactional
+    public ParticipantResult update(
+            String meetingId,
+            String participantId,
+            UpdateParticipantRequest request
+    ) {
+        meetingAccessService.requireOwnedMeeting(meetingId);
+        ParticipantEntity participant = participantRepository.findByIdAndMeetingId(participantId, meetingId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "人员不存在"));
+        String name = request.name() == null ? "" : request.name().trim();
+        if (name.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "姓名不能为空");
+        }
+        List<ParticipantRecordInput> records = request.records() == null
+                ? List.of()
+                : request.records();
+        List<String> fieldNames = records.stream()
+                .flatMap(record -> recordAttributes(record).keySet().stream())
+                .map(value -> value == null ? "" : value.trim())
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .toList();
+        Map<String,String> canonicalNames = fieldRegistrationService.registerFields(meetingId, fieldNames);
+
+        participant.setName(name);
+        participantRepository.save(participant);
+        recordRepository.deleteAll(
+                recordRepository.findAllByParticipantIdOrderByRecordOrderAsc(participantId)
+        );
+
+        int order = 0;
+        for (ParticipantRecordInput source : records) {
+            Map<String,String> attributes = canonicalAttributesForUpdate(
+                    recordAttributes(source),
+                    canonicalNames
+            );
+            if (attributes.isEmpty()) {
+                continue;
+            }
+            ParticipantRecordEntity record = new ParticipantRecordEntity();
+            record.setParticipantId(participantId);
+            record.setRecordOrder(++order);
+            record.setAttributesJson(writeAttributes(attributes));
+            recordRepository.save(record);
+        }
+        return new ParticipantResult(participant.getId(), participant.getEmployeeNo(), participant.getName());
+    }
+
+    /**
      * 更新参会人员的出席状态；标记为临时不出席时同步释放其座位。
      *
      * @param meetingId 会议ID
@@ -200,6 +258,33 @@ public class ParticipantService {
             attributes.put(canonicalName, value);
         }
         return attributes;
+    }
+
+    private Map<String, String> canonicalAttributesForUpdate(
+            Map<String, String> incomingAttributes,
+            Map<String, String> canonicalNames
+    ) {
+        if (incomingAttributes == null || incomingAttributes.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String,String> attributes = new LinkedHashMap<String, String>();
+        for (Entry<String,String> entry : incomingAttributes.entrySet()) {
+            String fieldName = entry.getKey() == null ? "" : entry.getKey().trim();
+            if (fieldName.isBlank()) {
+                continue;
+            }
+            String value = entry.getValue();
+            if (value == null || value.isBlank()) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "请填写该人员在新增列中的值");
+            }
+            String canonicalName = canonicalNames.get(fieldName.toLowerCase(ROOT));
+            attributes.put(canonicalName, value.trim());
+        }
+        return attributes;
+    }
+
+    private Map<String, String> recordAttributes(ParticipantRecordInput record) {
+        return record == null || record.attributes() == null ? Map.of() : record.attributes();
     }
 
     private String writeAttributes(Map<String, String> attributes) {

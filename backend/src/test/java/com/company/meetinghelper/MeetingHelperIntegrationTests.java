@@ -566,6 +566,74 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
+    void participantCanBeUpdatedWithoutChangingEmployeeNoAndRegistersNewFields() throws Exception {
+        String meetingId = createImportMeeting();
+        ParticipantResult participant = participantService.create(
+                meetingId,
+                new CreateParticipantRequest("a90000001", "旧姓名", Map.of("部门", "研发"), null)
+        );
+
+        MvcResult result = mockMvc.perform(post(
+                        "/meetings/{meetingId}/participants/{participantId}/update",
+                        meetingId,
+                        participant.id()
+                ).header(USER_HEADER, DEFAULT_USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "新姓名",
+                                  "records": [
+                                    {"attributes": {"部门": "市场", "获奖批次": "第一批"}}
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(responseJson(result).path("name").asText()).isEqualTo("新姓名");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meetingId);
+        ParticipantView updated = workspace.participants().stream()
+                .filter(value -> value.id().equals(participant.id()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(updated.employeeNo()).isEqualTo("a90000001");
+        assertThat(updated.primaryAttributes())
+                .containsEntry("部门", "市场")
+                .containsEntry("获奖批次", "第一批");
+    }
+
+    @Test
+    void participantUpdateRejectsBlankNameAndBlankNewFieldValues() throws Exception {
+        String meetingId = createImportMeeting();
+        ParticipantResult participant = participantService.create(
+                meetingId,
+                new CreateParticipantRequest("a90000002", "待更新", Map.of(), null)
+        );
+
+        mockMvc.perform(post(
+                        "/meetings/{meetingId}/participants/{participantId}/update",
+                        meetingId,
+                        participant.id()
+                ).header(USER_HEADER, DEFAULT_USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":" ","records":[{"attributes":{"新字段":"值"}}]}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post(
+                        "/meetings/{meetingId}/participants/{participantId}/update",
+                        meetingId,
+                        participant.id()
+                ).header(USER_HEADER, DEFAULT_USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"待更新","records":[{"attributes":{"新字段":" "}}]}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void workspaceAggregatesDynamicParticipantRecordsByRecordAndFieldOrder() throws Exception {
         String meetingId = createImportMeeting();
         previewAndCommit(
