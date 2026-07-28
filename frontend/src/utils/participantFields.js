@@ -5,6 +5,10 @@ function nonEmptyValue(value) {
   return String(value).trim()
 }
 
+function normalizeFieldName(value) {
+  return nonEmptyValue(value).toLocaleLowerCase()
+}
+
 export function primaryFieldValue(participant, fieldName) {
   return nonEmptyValue(participant?.primaryAttributes?.[fieldName]) || '未填写'
 }
@@ -66,11 +70,51 @@ export function firstParticipantSummary(participant, fieldDefinitions) {
 }
 
 export function createParticipantPayload(form, targetElementId) {
+  const extraAttributes = normalizeExtraFields(form.extraFields, form.fieldDefinitions)
   return {
     employeeNo: form.employeeNo,
     name: form.name,
-    attributes: form.attributes || {},
+    attributes: {
+      ...(form.attributes || {}),
+      ...extraAttributes,
+    },
     targetElementId,
+  }
+}
+
+export function normalizeExtraFields(extraFields = [], existingFields = []) {
+  const existing = new Set(
+    (existingFields || []).map((field) => normalizeFieldName(field.code || field.label)),
+  )
+  const seen = new Set()
+  const attributes = {}
+
+  for (const row of extraFields || []) {
+    const name = nonEmptyValue(row?.name)
+    const value = nonEmptyValue(row?.value)
+    if (!name) throw new Error('请输入列名')
+    const key = normalizeFieldName(name)
+    if (existing.has(key) || seen.has(key)) throw new Error('该字段已存在，请使用其他列名')
+    if (!value) throw new Error('请填写该人员在新增列中的值')
+    seen.add(key)
+    attributes[name] = value
+  }
+
+  return attributes
+}
+
+export function createParticipantUpdatePayload(form) {
+  const extraAttributes = normalizeExtraFields(form.extraFields, form.fieldDefinitions)
+  const records = (form.records?.length ? form.records : [{ attributes: {} }]).map((record) => ({
+    id: record.id,
+    attributes: {
+      ...(record.attributes || {}),
+      ...extraAttributes,
+    },
+  }))
+  return {
+    name: nonEmptyValue(form.name),
+    records,
   }
 }
 

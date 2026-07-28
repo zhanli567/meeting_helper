@@ -15,6 +15,7 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AddParticipantDialog from '@/components/AddParticipantDialog.vue'
+import EditParticipantDialog from '@/components/EditParticipantDialog.vue'
 import ImportDialog from '@/components/ImportDialog.vue'
 import ParticipantPanel from '@/components/ParticipantPanel.vue'
 import PublishVersionDialog from '@/components/PublishVersionDialog.vue'
@@ -41,6 +42,8 @@ const publishing = ref(false)
 const publishVisible = ref(false)
 const addMenuVisible = ref(false)
 const addTargetElementId = ref()
+const editParticipantVisible = ref(false)
+const editingParticipant = ref()
 const participantPanelCollapsed = ref(false)
 const autoSaveSeconds = ref(0)
 const fabReady = ref(false)
@@ -288,6 +291,12 @@ async function onSeatClick(element) {
 function selectParticipant(person) {
   store.selectParticipant(person)
 }
+async function openParticipantEdit(person) {
+  if (readonlyMode.value || !person) return
+  if (!(await saveDraft(true))) return
+  editingParticipant.value = person
+  editParticipantVisible.value = true
+}
 async function updateParticipantAttendance(person, attendanceStatus) {
   if (readonlyMode.value) return
   if (attendanceStatus === 'TEMPORARILY_ABSENT' && person.assignedElementId) {
@@ -416,6 +425,12 @@ async function onParticipantAdded(participant) {
     const added = store.workspace?.participants.find((person) => person.id === participant.id)
     if (added) store.selectParticipant(added)
   }
+}
+async function onParticipantUpdated(participant) {
+  const participantId = participant?.id || editingParticipant.value?.id
+  await store.loadWorkspace()
+  const updated = store.workspace?.participants.find((person) => person.id === participantId)
+  if (updated) store.selectParticipant(updated)
 }
 </script>
 
@@ -605,6 +620,7 @@ async function onParticipantAdded(participant) {
           @unassign="performUnassign"
           @attendance="updateParticipantAttendance"
           @remove="removeParticipant"
+          @edit="openParticipantEdit"
           @drag-state="draggingParticipantId = $event"
         />
       </div>
@@ -656,6 +672,14 @@ async function onParticipantAdded(participant) {
       v-model="importVisible"
       :meeting-id="store.workspace.meeting.id"
       @done="store.loadWorkspace"
+    />
+    <EditParticipantDialog
+      v-if="store.workspace && !readonlyMode && editingParticipant"
+      v-model="editParticipantVisible"
+      :meeting-id="store.workspace.meeting.id"
+      :participant="editingParticipant"
+      :field-definitions="store.workspace.fieldDefinitions"
+      @done="onParticipantUpdated"
     />
     <PublishVersionDialog
       v-if="store.workspace && !readonlyMode"

@@ -1,8 +1,16 @@
-import { createParticipantPayload, participantDragData } from './participantFields.js'
+import {
+  createParticipantPayload,
+  createParticipantUpdatePayload,
+  participantDragData,
+} from './participantFields.js'
 import { isTemporarilyAbsent } from './participantRules.js'
 
 export function submitParticipant({ addParticipant, meetingId, form, targetElementId }) {
   return addParticipant(meetingId, createParticipantPayload(form, targetElementId))
+}
+
+export function updateParticipantDetails({ updateParticipant, meetingId, participantId, form }) {
+  return updateParticipant(meetingId, participantId, createParticipantUpdatePayload(form))
 }
 
 export function canStartParticipantDrag({ readonly, locked, participant }) {

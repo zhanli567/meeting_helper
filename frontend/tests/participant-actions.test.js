@@ -9,6 +9,7 @@ import {
   resetParticipantPage,
   startParticipantDrag,
   submitParticipant,
+  updateParticipantDetails,
 } from '../src/utils/participantActions.js'
 
 function dragEvent(participantId = 'person-7') {
@@ -63,6 +64,32 @@ test('新增动作调用注入 API 并返回新增人员', async () => {
         targetElementId: 'seat-12',
       },
     ],
+  ])
+})
+
+test('更新人员动作调用注入 API 并返回更新结果', async () => {
+  const calls = []
+  const updated = { id: 'person-7', name: '王创新' }
+  const updateParticipant = async (...args) => {
+    calls.push(args)
+    return updated
+  }
+
+  const result = await updateParticipantDetails({
+    updateParticipant,
+    meetingId: 'meeting-1',
+    participantId: 'person-7',
+    form: {
+      name: '王创新',
+      records: [{ id: 'record-1', attributes: { 部门: '研发' } }],
+      extraFields: [],
+      fieldDefinitions: [],
+    },
+  })
+
+  assert.equal(result, updated)
+  assert.deepEqual(calls, [
+    ['meeting-1', 'person-7', { name: '王创新', records: [{ id: 'record-1', attributes: { 部门: '研发' } }] }],
   ])
 })
 

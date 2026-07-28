@@ -3,11 +3,13 @@ import test from 'node:test'
 
 import {
   createParticipantPayload,
+  createParticipantUpdatePayload,
   filteredParticipants,
   firstParticipantSummary,
   groupParticipants,
   groupableFields,
   matchesParticipant,
+  normalizeExtraFields,
   paginateParticipants,
   participantSummary,
   participantDragData,
@@ -80,6 +82,40 @@ test('新增人员请求仅传递后端 DTO 字段和动态属性', () => {
     attributes: {},
     targetElementId: undefined,
   })
+})
+
+test('新增人员列名和值必须非空且不能重名', () => {
+  assert.throws(
+    () => normalizeExtraFields([{ name: '部门', value: '秘书处' }], [{ code: '部门' }]),
+    /字段已存在|列已存在/,
+  )
+  assert.throws(
+    () => normalizeExtraFields([{ name: ' ', value: '秘书处' }], []),
+    /请输入列名/,
+  )
+  assert.throws(
+    () => normalizeExtraFields([{ name: '部门', value: ' ' }], []),
+    /请填写该人员在新增列中的值/,
+  )
+  assert.deepEqual(
+    normalizeExtraFields([{ name: '部门', value: ' 秘书处 ' }], []),
+    { 部门: '秘书处' },
+  )
+})
+
+test('人员更新载荷保留姓名和动态记录并携带新增列', () => {
+  assert.deepEqual(
+    createParticipantUpdatePayload({
+      name: '王创新',
+      records: [{ id: 'record-1', attributes: { 部门: '研发' } }],
+      extraFields: [{ name: '获奖批次', value: '第一批' }],
+      fieldDefinitions: [{ code: '部门' }],
+    }),
+    {
+      name: '王创新',
+      records: [{ id: 'record-1', attributes: { 部门: '研发', 获奖批次: '第一批' } }],
+    },
+  )
 })
 
 test('待排列表保留临时不出席人员，排座人员仅在全部列表显示', () => {

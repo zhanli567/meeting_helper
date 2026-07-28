@@ -32,6 +32,9 @@ export const meetingApi = {
   async addParticipant(meetingId, data) {
     return unwrap(http.post(`/meetings/${meetingId}/participants`, data))
   },
+  async updateParticipant(meetingId, participantId, data) {
+    return unwrap(http.post(`/meetings/${meetingId}/participants/${participantId}/update`, data))
+  },
   async deleteParticipant(meetingId, participantId) {
     return unwrap(http.post(`/meetings/${meetingId}/participants/${participantId}/delete`))
   },

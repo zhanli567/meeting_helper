@@ -1,6 +1,13 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { CircleCheckFilled, CircleCloseFilled, Delete, Search, UploadFilled } from '@element-plus/icons-vue'
+import {
+  CircleCheckFilled,
+  CircleCloseFilled,
+  Delete,
+  Edit,
+  Search,
+  UploadFilled,
+} from '@element-plus/icons-vue'
 import {
   filteredParticipants,
   groupParticipants,
@@ -24,7 +31,7 @@ const props = defineProps({
   saving: { type: Boolean, required: true },
   readonly: { type: Boolean, default: false },
 })
-const emit = defineEmits(['select', 'unassign', 'dragState', 'attendance', 'remove'])
+const emit = defineEmits(['select', 'unassign', 'dragState', 'attendance', 'remove', 'edit'])
 const tab = ref(props.readonly ? 'all' : 'pending')
 const search = ref('')
 const groupField = ref('')
@@ -193,25 +200,33 @@ function leavePanel(event) {
                 </template>
               </small>
             </div>
-            <div v-if="!readonly" class="person-actions" @click.stop>
+            <div v-if="!readonly" class="person-actions icon-actions" @click.stop>
               <el-button
-                link
+                text
+                circle
+                size="small"
+                :icon="Edit"
+                title="编辑人员"
+                @click="emit('edit', person)"
+              />
+              <el-button
+                text
+                circle
                 size="small"
                 :type="isTemporarilyAbsent(person) ? 'success' : 'warning'"
                 :icon="isTemporarilyAbsent(person) ? CircleCheckFilled : CircleCloseFilled"
+                :title="isTemporarilyAbsent(person) ? '恢复出席' : '临时不来'"
                 @click="changeAttendance(person)"
-              >
-                {{ isTemporarilyAbsent(person) ? '恢复出席' : '临时不来' }}
-              </el-button>
+              />
               <el-button
-                link
+                text
+                circle
                 size="small"
                 type="danger"
                 :icon="Delete"
+                title="移出会议"
                 @click="removeParticipant(person)"
-              >
-                移出会议
-              </el-button>
+              />
             </div>
             <span v-if="person.assignedElementId" class="assigned-dot" title="已排座" />
           </article>
@@ -410,21 +425,21 @@ function leavePanel(event) {
 }
 
 .person-actions {
-  width: 78px;
+  width: 38px;
   flex: none;
   display: grid;
   align-content: center;
-  justify-items: start;
-  gap: 2px;
-  padding: 5px 6px 5px 0;
+  justify-items: center;
+  gap: 4px;
+  padding: 5px;
   border-left: 1px solid var(--line);
 }
 
 .person-actions .el-button {
-  height: 23px;
+  width: 26px;
+  height: 26px;
   margin: 0;
-  padding: 0 3px;
-  font-size: 10px;
+  padding: 0;
 }
 
 .person-main > div {

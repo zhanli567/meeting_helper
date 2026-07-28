@@ -1,16 +1,15 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 import { groupableFields } from '@/utils/participantFields'
-import { submitParticipant } from '@/utils/participantActions'
-import { hasDuplicateEmployeeNo, isValidEmployeeNo } from '@/utils/participantRules'
+import { updateParticipantDetails } from '@/utils/participantActions'
+
 const visible = defineModel({ required: true })
 const props = defineProps({
   meetingId: { type: String, required: true },
-  targetElementId: { type: String, default: undefined },
-  participants: { type: Array, default: () => [] },
+  participant: { type: Object, default: undefined },
   fieldDefinitions: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['done'])
@@ -19,49 +18,72 @@ const submitting = ref(false)
 const form = reactive({
   employeeNo: '',
   name: '',
-  attributes: {},
+  records: [],
   extraFields: [],
   fieldDefinitions: [],
 })
 const dynamicFields = computed(() => groupableFields(props.fieldDefinitions))
+const multiRecord = computed(() => form.records.length > 1)
 const rules = {
-  employeeNo: [
-    { required: true, message: '请输入工号', trigger: 'blur' },
-    {
-      validator: (_rule, value, callback) =>
-        !isValidEmployeeNo(value)
-          ? callback(new Error('工号必须为8位数字或1个小写字母加8位数字'))
-          : hasDuplicateEmployeeNo(value, props.participants)
-            ? callback(new Error('该工号已在当前会议名单中'))
-            : callback(),
-      trigger: ['blur', 'change'],
-    },
-  ],
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
 }
+
+function normalizeRecords(participant) {
+  if (participant?.records?.length) {
+    return participant.records.map((record, index) => ({
+      id: record.id,
+      recordOrder: record.recordOrder || index + 1,
+      attributes: { ...(record.attributes || {}) },
+    }))
+  }
+  return [
+    {
+      id: undefined,
+      recordOrder: 1,
+      attributes: { ...(participant?.primaryAttributes || {}) },
+    },
+  ]
+}
+
+function resetForm() {
+  form.employeeNo = props.participant?.employeeNo || ''
+  form.name = props.participant?.name || ''
+  form.records = normalizeRecords(props.participant)
+  form.extraFields = []
+  form.fieldDefinitions = props.fieldDefinitions
+}
+
+watch(
+  () => [visible.value, props.participant, props.fieldDefinitions],
+  () => {
+    if (visible.value) resetForm()
+  },
+  { immediate: true },
+)
+
+function addExtraField() {
+  form.extraFields.push({ name: '', value: '' })
+}
+
+function removeExtraField(index) {
+  form.extraFields.splice(index, 1)
+}
+
 async function submit() {
+  if (!props.participant?.id) return
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
   form.fieldDefinitions = props.fieldDefinitions
   submitting.value = true
   try {
-    const participant = await submitParticipant({
-      addParticipant: meetingApi.addParticipant,
+    const participant = await updateParticipantDetails({
+      updateParticipant: meetingApi.updateParticipant,
       meetingId: props.meetingId,
+      participantId: props.participant.id,
       form,
-      targetElementId: props.targetElementId,
     })
-    ElMessage.success(
-      props.targetElementId ? '人员已添加并安排到所选座位' : '人员已加入待排列表',
-    )
+    ElMessage.success('人员信息已更新')
     visible.value = false
-    Object.assign(form, {
-      employeeNo: '',
-      name: '',
-      attributes: {},
-      extraFields: [],
-      fieldDefinitions: [],
-    })
     emit('done', participant)
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
@@ -69,32 +91,46 @@ async function submit() {
     submitting.value = false
   }
 }
-function addExtraField() {
-  form.extraFields.push({ name: '', value: '' })
-}
-function removeExtraField(index) {
-  form.extraFields.splice(index, 1)
-}
 </script>
 
 <template>
-  <el-dialog
-    v-model="visible"
-    :title="targetElementId ? '在所选空座新增人员' : '新增参会人员'"
-    width="520px"
-  >
+  <el-dialog v-model="visible" title="编辑人员" width="720px">
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
       <div class="form-grid">
-        <el-form-item label="工号" prop="employeeNo">
-          <el-input v-model="form.employeeNo" placeholder="12345678 或 a12345678" maxlength="9" />
+        <el-form-item label="工号">
+          <el-input v-model="form.employeeNo" disabled />
         </el-form-item>
         <el-form-item label="姓名" prop="name">
           <el-input v-model="form.name" placeholder="请输入姓名" />
         </el-form-item>
       </div>
-      <el-form-item v-for="field in dynamicFields" :key="field.code" :label="field.label">
-        <el-input v-model="form.attributes[field.code]" />
-      </el-form-item>
+
+      <template v-if="multiRecord">
+        <el-table :data="form.records" border size="small" class="records-table">
+          <el-table-column prop="recordOrder" label="记录" width="72" />
+          <el-table-column
+            v-for="field in dynamicFields"
+            :key="field.code"
+            :label="field.label"
+            min-width="140"
+          >
+            <template #default="{ row }">
+              <el-input v-model="row.attributes[field.code]" size="small" />
+            </template>
+          </el-table-column>
+        </el-table>
+      </template>
+
+      <template v-else>
+        <el-form-item
+          v-for="field in dynamicFields"
+          :key="field.code"
+          :label="field.label"
+        >
+          <el-input v-model="form.records[0].attributes[field.code]" />
+        </el-form-item>
+      </template>
+
       <div class="extra-field-section">
         <div class="extra-field-heading">
           <span>新增列</span>
@@ -111,11 +147,10 @@ function removeExtraField(index) {
         </div>
       </div>
     </el-form>
+
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="submitting" @click="submit">
-        {{ targetElementId ? '添加并安排到该座位' : '加入待排列表' }}
-      </el-button>
+      <el-button type="primary" :loading="submitting" @click="submit">保存</el-button>
     </template>
   </el-dialog>
 </template>
@@ -125,6 +160,10 @@ function removeExtraField(index) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0 18px;
+}
+
+.records-table {
+  margin-bottom: 12px;
 }
 
 .extra-field-section {
