@@ -155,6 +155,16 @@ export function rgbLabel(value) {
   return `RGB(${red}, ${green}, ${blue})`
 }
 
+export function textColorForBackground(value) {
+  const color = normalizeHexColor(value)
+  if (!color) return '#172033'
+  const red = Number.parseInt(color.slice(1, 3), 16)
+  const green = Number.parseInt(color.slice(3, 5), 16)
+  const blue = Number.parseInt(color.slice(5, 7), 16)
+  const luminance = (red * 299 + green * 587 + blue * 114) / 1000
+  return luminance > 170 ? '#172033' : '#ffffff'
+}
+
 export function customColorValues(scopeOrStorage = 'fillColor', storage = browserStorage()) {
   const args = resolveColorListArgs(scopeOrStorage, storage)
   const seen = new Set(BASIC_COLOR_VALUES)

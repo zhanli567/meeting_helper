@@ -13,6 +13,7 @@ const props = defineProps({
   draggingParticipantId: { type: String, default: undefined },
   readonly: { type: Boolean, default: false },
   markerMode: { type: Boolean, default: false },
+  markerRectEnabled: { type: Boolean, default: false },
   markerSelectionIds: { type: Array, default: () => [] },
   participantColorById: { type: Object, default: () => ({}) },
 })
@@ -25,17 +26,24 @@ const emit = defineEmits([
   'zoomChange',
   'marker-seat-toggle',
   'marker-select',
+  'marker-rect-select',
   'canvas-clear',
 ])
 const scrollRef = ref()
+const canvasRef = ref()
 const dragTargetId = ref()
 const tooltipSuppressed = ref(false)
 const isPanning = ref(false)
+const markerDrawing = ref(false)
+const markerRectStart = ref()
+const markerRectCurrent = ref()
 let panMoved = false
 let panStartX = 0
 let panStartY = 0
 let panScrollLeft = 0
 let panScrollTop = 0
+let markerMoved = false
+let markerSuppressClick = false
 const participantById = computed(
   () => new Map(props.workspace.participants.map((person) => [person.id, person])),
 )
@@ -78,7 +86,13 @@ const rowLabelBounds = computed(() => {
   return bounds
 })
 const unit = computed(() => displayCellUnit(props.zoom))
-const seatTooltipDisabled = computed(() => Boolean(props.draggingParticipantId) || tooltipSuppressed.value)
+const markerSelectionRect = computed(() => {
+  if (!markerDrawing.value || !markerRectStart.value || !markerRectCurrent.value) return undefined
+  return normalizeMarkerRect(markerRectStart.value, markerRectCurrent.value)
+})
+const seatTooltipDisabled = computed(() =>
+  Boolean(props.draggingParticipantId) || tooltipSuppressed.value || markerDrawing.value,
+)
 const canvasStyle = computed(() => ({
   width: `${props.workspace.layout.gridColumns * unit.value}px`,
   height: `${props.workspace.layout.gridRows * unit.value}px`,
@@ -162,6 +176,115 @@ function regionAnchorStyle(anchor) {
     fontWeight: anchor.bold ? '700' : undefined,
   }
 }
+function canvasPointFromEvent(event) {
+  const canvas = canvasRef.value
+  if (!canvas) return undefined
+  const rect = canvas.getBoundingClientRect()
+  return {
+    x: Math.min(Math.max(event.clientX - rect.left, 0), rect.width),
+    y: Math.min(Math.max(event.clientY - rect.top, 0), rect.height),
+  }
+}
+function normalizeMarkerRect(start, current) {
+  const left = Math.min(start.x, current.x)
+  const top = Math.min(start.y, current.y)
+  return {
+    left,
+    top,
+    width: Math.abs(current.x - start.x),
+    height: Math.abs(current.y - start.y),
+  }
+}
+function markerRectStyle(rect) {
+  return {
+    left: `${rect.left}px`,
+    top: `${rect.top}px`,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+  }
+}
+function elementOverlapsRect(element, rect) {
+  const box = elementBox(element, unit.value)
+  return (
+    box.left < rect.left + rect.width &&
+    box.left + box.width > rect.left &&
+    box.top < rect.top + rect.height &&
+    box.top + box.height > rect.top
+  )
+}
+function seatIdsInMarkerRect(rect) {
+  if (!rect || (rect.width < 2 && rect.height < 2)) return []
+  return (props.workspace.layout.elements || [])
+    .filter((element) => isSeat(element) && elementOverlapsRect(element, rect))
+    .map((element) => element.id)
+}
+function canStartMarkerRectSelection(event) {
+  return (
+    props.markerMode &&
+    props.markerRectEnabled &&
+    !props.readonly &&
+    event.button === 0 &&
+    !event.target?.closest?.('.region-label')
+  )
+}
+function startMarkerRectSelection(event) {
+  if (!canStartMarkerRectSelection(event)) return
+  const point = canvasPointFromEvent(event)
+  if (!point) return
+  markerDrawing.value = true
+  markerMoved = false
+  markerRectStart.value = point
+  markerRectCurrent.value = point
+  tooltipSuppressed.value = true
+  window.addEventListener('pointermove', moveMarkerRectSelection)
+  window.addEventListener('pointerup', finishMarkerRectSelection)
+  window.addEventListener('pointercancel', cancelMarkerRectSelection)
+  event.preventDefault()
+}
+function moveMarkerRectSelection(event) {
+  if (!markerDrawing.value) return
+  const point = canvasPointFromEvent(event)
+  if (!point) return
+  markerRectCurrent.value = point
+  if (
+    !markerMoved &&
+    markerRectStart.value &&
+    Math.hypot(point.x - markerRectStart.value.x, point.y - markerRectStart.value.y) > 4
+  ) {
+    markerMoved = true
+  }
+}
+function cleanupMarkerRectSelection() {
+  markerDrawing.value = false
+  markerRectStart.value = undefined
+  markerRectCurrent.value = undefined
+  window.removeEventListener('pointermove', moveMarkerRectSelection)
+  window.removeEventListener('pointerup', finishMarkerRectSelection)
+  window.removeEventListener('pointercancel', cancelMarkerRectSelection)
+  window.setTimeout(() => {
+    tooltipSuppressed.value = false
+  }, 0)
+}
+function finishMarkerRectSelection(event) {
+  if (!markerDrawing.value) return
+  const point = canvasPointFromEvent(event)
+  if (point) markerRectCurrent.value = point
+  const rect = markerSelectionRect.value
+  const shouldEmit = markerMoved && rect
+  const elementIds = shouldEmit ? seatIdsInMarkerRect(rect) : []
+  cleanupMarkerRectSelection()
+  if (!shouldEmit) return
+  markerSuppressClick = true
+  emit('marker-rect-select', elementIds)
+  window.setTimeout(() => {
+    markerSuppressClick = false
+    markerMoved = false
+  }, 0)
+}
+function cancelMarkerRectSelection() {
+  cleanupMarkerRectSelection()
+  markerMoved = false
+}
 function onDragStart(event, participant) {
   performParticipantDrag({
     event,
@@ -218,7 +341,7 @@ function onSeatClick(element) {
   else if (!item) emit('seatClick', element)
 }
 function onCanvasClear() {
-  if (panMoved) return
+  if (panMoved || markerSuppressClick) return
   emit('canvas-clear')
 }
 function onMarkerSeatToggle(element) {
@@ -307,7 +430,10 @@ watch(
     }
   },
 )
-onBeforeUnmount(endPan)
+onBeforeUnmount(() => {
+  endPan()
+  cancelMarkerRectSelection()
+})
 </script>
 
 <template>
@@ -320,7 +446,14 @@ onBeforeUnmount(endPan)
     @wheel="onWheel"
   >
     <div class="canvas-content">
-      <div class="venue-canvas" :style="canvasStyle" @click="onCanvasClear">
+      <div
+        ref="canvasRef"
+        class="venue-canvas"
+        :class="{ 'marker-rect-enabled': markerMode && markerRectEnabled }"
+        :style="canvasStyle"
+        @pointerdown="startMarkerRectSelection"
+        @click="onCanvasClear"
+      >
         <template v-for="element in workspace.layout.elements" :key="element.id">
         <el-tooltip
           v-if="isSeat(element)"
@@ -415,10 +548,16 @@ onBeforeUnmount(endPan)
           type="button"
           class="region-label"
           :style="regionAnchorStyle(anchor)"
+          @pointerdown.stop
           @click.stop="emit('marker-select', anchor.source)"
         >
           {{ anchor.label }}
         </button>
+        <div
+          v-if="markerSelectionRect"
+          class="marker-selection-preview"
+          :style="markerRectStyle(markerSelectionRect)"
+        />
         <template v-for="rowLabel in seatNumbering.rows" :key="rowLabel.sourceRow">
           <span class="row-label row-label-left" :style="rowLabelStyle(rowLabel, 'left')">
             {{ rowLabel.displayRow }}排
@@ -467,6 +606,20 @@ onBeforeUnmount(endPan)
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: var(--shadow);
+}
+
+.venue-canvas.marker-rect-enabled {
+  cursor: crosshair;
+}
+
+.marker-selection-preview {
+  position: absolute;
+  z-index: 32;
+  pointer-events: none;
+  background: rgba(10, 89, 247, 0.1);
+  border: 1px solid rgba(10, 89, 247, 0.8);
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.75) inset;
 }
 
 .layout-element {

@@ -1,15 +1,15 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { Close, Plus } from '@element-plus/icons-vue'
+import {
+  availableColorSwatches,
+  normalizeHexColor,
+  removeCustomColor,
+  saveCustomColor,
+  textColorForBackground,
+} from '@/utils/venuePreferences'
 
-const markerSwatches = [
-  { name: '浅黄', value: '#FEF3C7', textColor: '#7C2D12' },
-  { name: '浅蓝', value: '#DBEAFE', textColor: '#1D4ED8' },
-  { name: '浅绿', value: '#DCFCE7', textColor: '#166534' },
-  { name: '浅粉', value: '#FCE7F3', textColor: '#BE185D' },
-  { name: '浅紫', value: '#EDE9FE', textColor: '#6D28D9' },
-  { name: '浅橙', value: '#FFEDD5', textColor: '#C2410C' },
-  { name: '浅青', value: '#CCFBF1', textColor: '#0F766E' },
-]
+const colorSwatches = ref(availableColorSwatches('fillColor'))
 
 const props = defineProps({
   modelValue: {
@@ -39,12 +39,38 @@ function patchMarker(value) {
   })
 }
 
+function refreshColors() {
+  colorSwatches.value = availableColorSwatches('fillColor')
+}
+
 function selectSwatch(swatch) {
   patchMarker({
     backgroundColor: swatch.value,
-    textColor: swatch.textColor,
+    textColor: textColorForBackground(swatch.value),
     bold: true,
   })
+}
+
+function previewCustomColor(value) {
+  const color = normalizeHexColor(value)
+  if (!color) return
+  patchMarker({
+    backgroundColor: color,
+    textColor: textColorForBackground(color),
+    bold: true,
+  })
+}
+
+function confirmCustomColor(value) {
+  const color = saveCustomColor('fillColor', value)
+  if (!color) return
+  refreshColors()
+  selectSwatch({ value: color })
+}
+
+function removeColor(color) {
+  removeCustomColor('fillColor', color.value)
+  refreshColors()
 }
 </script>
 
@@ -52,7 +78,7 @@ function selectSwatch(swatch) {
   <aside class="region-marker-panel">
     <header class="panel-header">
       <div>
-        <h2>{{ isEditing ? '编辑区域标记' : '新建区域标记' }}</h2>
+        <h2>{{ isEditing ? '编辑区域' : '新建区域' }}</h2>
         <p>已选座位 {{ selectedSeatCount }}</p>
       </div>
       <el-button text @click="emit('cancel')">重置</el-button>
@@ -60,8 +86,8 @@ function selectSwatch(swatch) {
 
     <section class="marker-list-section">
       <div class="section-title">
-        <span>已有标记</span>
-        <el-button link size="small" @click="emit('new')">新建标记</el-button>
+        <span>已有区域</span>
+        <el-button link size="small" @click="emit('new')">新建区域</el-button>
       </div>
       <div v-if="markers.length" class="marker-list">
         <button
@@ -73,15 +99,15 @@ function selectSwatch(swatch) {
           @click="emit('select', marker)"
         >
           <i :style="{ backgroundColor: marker.backgroundColor || '#FEF3C7' }" />
-          <span>{{ marker.label || '未命名标记' }}</span>
+          <span>{{ marker.label || '未命名区域' }}</span>
           <small>{{ (marker.targetElementIds || []).length }} 座</small>
         </button>
       </div>
-      <p v-else class="empty-markers">暂无区域标记</p>
+      <p v-else class="empty-markers">暂无区域</p>
     </section>
 
     <el-form label-position="top" class="marker-form">
-      <el-form-item label="标记名称" required>
+      <el-form-item label="区域名称" required>
         <el-input
           :model-value="modelValue.label"
           maxlength="20"
@@ -94,15 +120,33 @@ function selectSwatch(swatch) {
       <el-form-item label="区域颜色">
         <div class="swatch-row">
           <button
-            v-for="swatch in markerSwatches"
+            v-for="swatch in colorSwatches"
             :key="swatch.value"
             type="button"
             class="marker-swatch"
             :class="{ active: modelValue.backgroundColor === swatch.value }"
-            :title="swatch.name"
-            :style="{ backgroundColor: swatch.value, color: swatch.textColor }"
+            :title="swatch.title || swatch.name"
+            :style="{ backgroundColor: swatch.value }"
             @click="selectSwatch(swatch)"
-          />
+          >
+            <el-icon
+              v-if="swatch.custom"
+              class="swatch-delete"
+              @click.stop="removeColor(swatch)"
+            >
+              <Close />
+            </el-icon>
+          </button>
+          <label class="marker-swatch color-add" title="添加自定义颜色">
+            <Plus />
+            <input
+              type="color"
+              :value="modelValue.backgroundColor"
+              aria-label="添加区域颜色"
+              @input="previewCustomColor($event.target.value)"
+              @change="confirmCustomColor($event.target.value)"
+            >
+          </label>
         </div>
       </el-form-item>
 
@@ -114,14 +158,14 @@ function selectSwatch(swatch) {
         :disabled="!isEditing || submitting"
         @click="emit('delete')"
       >
-        删除标记
+        删除区域
       </el-button>
       <el-button
         type="primary"
         :loading="submitting"
         @click="emit('save')"
       >
-        保存标记
+        保存区域
       </el-button>
     </div>
   </aside>
@@ -247,7 +291,11 @@ function selectSwatch(swatch) {
 .marker-swatch {
   width: 30px;
   height: 30px;
+  position: relative;
+  display: grid;
+  place-items: center;
   padding: 0;
+  color: #64748b;
   border: 1px solid rgba(100, 116, 139, 0.26);
   border-radius: 8px;
   cursor: pointer;
@@ -257,6 +305,34 @@ function selectSwatch(swatch) {
   box-shadow:
     0 0 0 2px #fff,
     0 0 0 4px var(--brand);
+}
+
+.color-add {
+  overflow: hidden;
+}
+
+.color-add input {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.swatch-delete {
+  width: 16px;
+  height: 16px;
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: grid;
+  place-items: center;
+  color: #64748b;
+  background: #fff;
+  border: 1px solid #d6e2f3;
+  border-radius: 50%;
+  font-size: 10px;
 }
 
 .panel-actions {

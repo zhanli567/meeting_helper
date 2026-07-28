@@ -19,6 +19,7 @@ import EditParticipantDialog from '@/components/EditParticipantDialog.vue'
 import ImportDialog from '@/components/ImportDialog.vue'
 import ParticipantPanel from '@/components/ParticipantPanel.vue'
 import PublishVersionDialog from '@/components/PublishVersionDialog.vue'
+import RegionCreateDialog from '@/components/RegionCreateDialog.vue'
 import RegionMarkerPanel from '@/components/RegionMarkerPanel.vue'
 import VenueCanvas from '@/components/VenueCanvas.vue'
 import VenueLayoutEditor from '@/components/VenueLayoutEditor.vue'
@@ -72,6 +73,7 @@ const defaultMarkerDraft = {
   textColor: '#7C2D12',
   bold: true,
 }
+const regionCreateVisible = ref(false)
 const markerDraft = reactive({ ...defaultMarkerDraft })
 const markerSelection = ref(new Set())
 const markerSubmitting = ref(false)
@@ -219,9 +221,35 @@ function currentMarkerInput() {
 function resetMarkerDraft() {
   Object.assign(markerDraft, defaultMarkerDraft)
   markerSelection.value = new Set()
+  regionCreateVisible.value = false
 }
 function updateMarkerDraft(value) {
   Object.assign(markerDraft, value)
+}
+function selectedRegionSeatIdsFromRect(elementIds) {
+  return (elementIds || []).filter((id) => !markerBlockingItem(id))
+}
+function openRegionCreateDialog(elementIds) {
+  if (readonlyMode.value || workbenchMode.value !== 'marker') return
+  const availableIds = selectedRegionSeatIdsFromRect(elementIds)
+  if (!availableIds.length) {
+    ElMessage.warning('框选范围内没有可用座位')
+    return
+  }
+  resetMarkerDraft()
+  markerSelection.value = new Set(availableIds)
+  regionCreateVisible.value = true
+}
+async function createReservedAreaFromDialog(payload) {
+  Object.assign(markerDraft, {
+    id: '',
+    label: payload.label || '',
+    backgroundColor: payload.backgroundColor || defaultMarkerDraft.backgroundColor,
+    textColor: payload.textColor || '#172033',
+    bold: payload.bold !== false,
+  })
+  const saved = await saveReservedAreas()
+  if (saved) regionCreateVisible.value = false
 }
 function selectReservedMarker(item) {
   if (readonlyMode.value || workbenchMode.value !== 'marker' || !item || item.type !== 'RESERVED') return
@@ -252,7 +280,7 @@ async function toggleMarkerSeat(element) {
   if (blockingItem) {
     if (blockingItem.type === 'RESERVED') {
       selectReservedMarker(blockingItem)
-      ElMessage.info(`已选中“${blockingItem.label || '区域标记'}”，再次双击可移除该座位`)
+      ElMessage.info(`已选中“${blockingItem.label || '区域'}”，再次双击可移除该座位`)
       return
     }
     ElMessage.warning('该座位已有人员或其他占用')
@@ -260,7 +288,7 @@ async function toggleMarkerSeat(element) {
   }
   const removing = markerSelection.value.has(element.id)
   if (!removing && !markerDraft.label.trim()) {
-    ElMessage.warning('请先填写标记名称')
+    ElMessage.warning('请先框选座位创建区域')
     return
   }
   markerSelection.value = toggleSeatSelection(markerSelection.value, element.id)
@@ -269,20 +297,19 @@ async function toggleMarkerSeat(element) {
   }
 }
 async function saveReservedAreas() {
-  if (!store.workspace || readonlyMode.value) return
+  if (!store.workspace || readonlyMode.value) return false
   if (markerDraft.id && !markerSelection.value.size) {
-    await deleteReservedMarker(true)
-    return
+    return deleteReservedMarker(true)
   }
   if (!markerDraft.label.trim()) {
-    ElMessage.warning('请填写标记名称')
-    return
+    ElMessage.warning('请填写区域名称')
+    return false
   }
   if (!markerSelection.value.size) {
     ElMessage.warning('请至少选择一个座位')
-    return
+    return false
   }
-  if (!(await saveDraft(true))) return
+  if (!(await saveDraft(true))) return false
   markerSubmitting.value = true
   try {
     await meetingApi.saveReservedAreas(store.workspace.plan.id, {
@@ -295,31 +322,33 @@ async function saveReservedAreas() {
     resetMarkerDraft()
     undoStack.value = []
     redoStack.value = []
-    ElMessage.success('区域标记已保存')
+    ElMessage.success('区域已保存')
+    return true
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
+    return false
   } finally {
     markerSubmitting.value = false
   }
 }
 async function deleteReservedMarker(skipConfirm = false) {
-  if (!store.workspace || readonlyMode.value) return
+  if (!store.workspace || readonlyMode.value) return false
   if (!markerDraft.id) {
     resetMarkerDraft()
-    return
+    return false
   }
   if (!skipConfirm) {
     try {
-      await ElMessageBox.confirm(`确认删除“${markerDraft.label}”区域标记吗？`, '删除标记', {
+      await ElMessageBox.confirm(`确认删除“${markerDraft.label}”区域吗？`, '删除区域', {
         type: 'warning',
         confirmButtonText: '确认删除',
         cancelButtonText: '取消',
       })
     } catch {
-      return
+      return false
     }
   }
-  if (!(await saveDraft(true))) return
+  if (!(await saveDraft(true))) return false
   markerSubmitting.value = true
   try {
     await meetingApi.saveReservedAreas(store.workspace.plan.id, {
@@ -329,9 +358,11 @@ async function deleteReservedMarker(skipConfirm = false) {
     resetMarkerDraft()
     undoStack.value = []
     redoStack.value = []
-    ElMessage.success(skipConfirm ? '区域座位已清空，标记已删除' : '区域标记已删除')
+    ElMessage.success(skipConfirm ? '区域座位已清空，区域已删除' : '区域已删除')
+    return true
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
+    return false
   } finally {
     markerSubmitting.value = false
   }
@@ -629,7 +660,7 @@ function exportPlan() {
 async function confirmDeleteProtectedElement(element) {
   try {
     await ElMessageBox.confirm(
-      `“${element.name}”已有人员或区域标记占用，删除后相关座位会回到待排或被清空。`,
+      `“${element.name}”已有人员或区域占用，删除后相关座位会回到待排或被清空。`,
       '确认删除布局元素',
       {
         type: 'warning',
@@ -944,6 +975,7 @@ async function onParticipantUpdated(participant) {
             :zoom="zoom"
             :readonly="readonlyMode"
             :marker-mode="workbenchMode === 'marker'"
+            :marker-rect-enabled="workbenchMode === 'marker' && !markerDraft.id"
             :marker-selection-ids="workbenchMode === 'marker' ? markerSelectionIds : []"
             :participant-color-by-id="participantColorById"
             :selected-participant-id="store.selectedParticipantId"
@@ -955,6 +987,7 @@ async function onParticipantUpdated(participant) {
             @drag-state="draggingParticipantId = $event"
             @marker-seat-toggle="toggleMarkerSeat"
             @marker-select="selectReservedMarker"
+            @marker-rect-select="openRegionCreateDialog"
             @canvas-clear="clearCanvasSelection"
             @zoom-change="changeZoom($event)"
           />
@@ -1066,6 +1099,14 @@ async function onParticipantUpdated(participant) {
       :versions="store.workspace.versions"
       :submitting="publishing"
       @publish="confirmPublish"
+    />
+    <RegionCreateDialog
+      v-if="store.workspace && !readonlyMode"
+      v-model="regionCreateVisible"
+      :selected-seat-count="markerSelection.size"
+      :submitting="markerSubmitting"
+      @submit="createReservedAreaFromDialog"
+      @cancel="resetMarkerDraft"
     />
   </div>
 </template>
