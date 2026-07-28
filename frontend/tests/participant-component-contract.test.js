@@ -49,11 +49,14 @@ test('座位画布保持悬浮信息和拖放包装器的完整接线', () => {
   const canvas = normalize(rawCanvas)
 
   assert.match(canvas, /participantTooltipRows\(participantFor\(element\.id\)\)/)
+  assert.match(canvas, /tooltipSuppressed/)
+  assert.match(canvas, /:disabled="seatTooltipDisabled"/)
   assert.match(
     canvas,
     /performParticipantDrag\(\{ event, participant, readonly: props\.readonly, locked: participant\.locked, onSelect: \(person\) => emit\('select', person\), onDragState: \(participantId\) => emit\('dragState', participantId\), \}\)/,
   )
   assert.match(canvas, /@dragstart="startParticipantDrag\(\$event, element\.id\)"/)
+  assert.doesNotMatch(rawCanvas, /drop-copy/)
   assert.doesNotMatch(rawCanvas, /participantSeatSummary/)
 })
 
@@ -90,4 +93,13 @@ test('排座工作台仅允许通用座位元素接收人员且保留只读与�
   assert.match(workbench, /resetAutoSaveTimer/)
   assert.match(workbench, /<h1>\{\{ workspace\.meeting\.layoutName \}\}<\/h1>/)
   assert.doesNotMatch(workbench, /venueApi/)
+})
+
+test('排号贴近有元素区域两侧而不是画布外沿', () => {
+  const canvas = source('../src/components/VenueCanvas.vue')
+
+  assert.match(canvas, /rowLabelBounds/)
+  assert.match(canvas, /bounds\.minColumn/)
+  assert.match(canvas, /bounds\.maxColumn/)
+  assert.doesNotMatch(canvas, /\[side\]: '-34px'/)
 })

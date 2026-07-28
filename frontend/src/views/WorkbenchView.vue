@@ -130,6 +130,10 @@ const addMenuStyle = computed(() => {
     top: `${position.top}px`,
   }
 })
+const layoutDirty = computed(() => {
+  if (!workspace.value?.layout) return false
+  return JSON.stringify(layoutDraft.value) !== JSON.stringify(cloneLayout(workspace.value.layout))
+})
 function cloneLayout(layout) {
   return {
     gridRows: Number(layout?.gridRows || 20),
@@ -146,6 +150,32 @@ function cloneLayout(layout) {
       borderColor: element.borderColor,
     })),
   }
+}
+function resetLayoutDraft() {
+  if (workspace.value?.layout) layoutDraft.value = cloneLayout(workspace.value.layout)
+}
+async function confirmDiscardLayoutChanges() {
+  if (!layoutDirty.value) return true
+  try {
+    await ElMessageBox.confirm(
+      '布局编辑模式有未保存修改，切换模式后这些修改会被放弃。',
+      '离开布局编辑模式',
+      {
+        type: 'warning',
+        confirmButtonText: '放弃修改',
+        cancelButtonText: '继续编辑',
+      },
+    )
+    resetLayoutDraft()
+    return true
+  } catch {
+    return false
+  }
+}
+async function changeWorkbenchMode(nextMode) {
+  if (readonlyMode.value || nextMode === workbenchMode.value) return
+  if (workbenchMode.value === 'layout' && !(await confirmDiscardLayoutChanges())) return
+  workbenchMode.value = nextMode
 }
 function reservedAreaInputs(excludedId) {
   return reservedItems(workspace.value?.items || [])
@@ -406,7 +436,7 @@ function resetAutoSaveTimer() {
   }, autoSaveSeconds.value * 1000)
 }
 function warnUnsavedChanges(event) {
-  if (!store.dirty) return
+  if (!store.dirty && !layoutDirty.value) return
   event.preventDefault()
   event.returnValue = ''
 }
@@ -812,10 +842,11 @@ async function onParticipantUpdated(participant) {
             {{ activePublishedVersion?.versionName }}
           </el-tag>
           <el-radio-group
-            v-model="workbenchMode"
+            :model-value="workbenchMode"
             class="workbench-mode-switch"
             :disabled="readonlyMode"
             size="small"
+            @change="changeWorkbenchMode"
           >
             <el-radio-button label="排座模式" value="seating" />
             <el-radio-button label="布局编辑模式" value="layout" />

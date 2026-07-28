@@ -971,6 +971,7 @@ onBeforeUnmount(() => {
                 <div
                   ref="canvasRef"
                   class="designer-canvas"
+                  :class="{ selecting: Boolean(drawing) }"
                   :style="canvasStyle"
                   @pointerdown="startSelection"
                 >
@@ -982,6 +983,7 @@ onBeforeUnmount(() => {
                       selected: element.editorId === selectedId,
                       seat: renderedElement(element).kind === ELEMENT_KINDS.SEAT,
                       conflict: isElementConflict(element),
+                      dragging: manipulation?.editorId === element.editorId && manipulation?.mode === 'move',
                     }"
                     :style="elementStyle(element)"
                     :data-editor-id="element.editorId"
@@ -1199,6 +1201,10 @@ onBeforeUnmount(() => {
   background-size: var(--editor-cell) var(--editor-cell);
   border: 1px solid #b9cbe2;
   box-shadow: 0 14px 34px rgba(40, 75, 118, 0.13);
+  cursor: default;
+}
+
+.designer-canvas.selecting {
   cursor: crosshair;
 }
 
@@ -1211,8 +1217,12 @@ onBeforeUnmount(() => {
   overflow: hidden;
   color: #26364b;
   border: 1px solid;
-  cursor: move;
+  cursor: pointer;
   user-select: none;
+}
+
+.layout-element.dragging {
+  cursor: grabbing;
 }
 
 .layout-element.seat {

@@ -28,6 +28,7 @@ const emit = defineEmits([
 ])
 const scrollRef = ref()
 const dragTargetId = ref()
+const tooltipSuppressed = ref(false)
 const isPanning = ref(false)
 let panMoved = false
 let panStartX = 0
@@ -59,7 +60,24 @@ const regionAnchors = computed(() =>
 )
 const markerSelectionSet = computed(() => new Set(props.markerSelectionIds || []))
 const seatNumbering = computed(() => computeSeatLabels(props.workspace.layout.elements || []))
+const rowLabelBounds = computed(() => {
+  const bounds = new Map()
+  ;(props.workspace.layout.elements || [])
+    .filter(isSeat)
+    .forEach((element) => {
+      const row = Number(element.row)
+      const column = Number(element.column)
+      if (!Number.isFinite(row) || !Number.isFinite(column)) return
+      const columnSpan = Math.max(1, Number(element.columnSpan || 1))
+      const current = bounds.get(row) || { minColumn: column, maxColumn: column + columnSpan - 1 }
+      current.minColumn = Math.min(current.minColumn, column)
+      current.maxColumn = Math.max(current.maxColumn, column + columnSpan - 1)
+      bounds.set(row, current)
+    })
+  return bounds
+})
 const unit = computed(() => displayCellUnit(props.zoom))
+const seatTooltipDisabled = computed(() => Boolean(props.draggingParticipantId) || tooltipSuppressed.value)
 const canvasStyle = computed(() => ({
   width: `${props.workspace.layout.gridColumns * unit.value}px`,
   height: `${props.workspace.layout.gridRows * unit.value}px`,
@@ -122,9 +140,16 @@ function visualStyle(element) {
   }
 }
 function rowLabelStyle(rowLabel, side) {
+  const bounds = rowLabelBounds.value.get(rowLabel.sourceRow) || {
+    minColumn: 1,
+    maxColumn: props.workspace.layout.gridColumns,
+  }
   return {
     top: `${(rowLabel.sourceRow - 0.5) * unit.value}px`,
-    [side]: '-34px',
+    left:
+      side === 'left'
+        ? `${(bounds.minColumn - 1) * unit.value - 34}px`
+        : `${bounds.maxColumn * unit.value + 6}px`,
   }
 }
 function regionAnchorStyle(anchor) {
@@ -148,7 +173,17 @@ function onDragStart(event, participant) {
 }
 function startParticipantDrag(event, elementId) {
   const participant = participantFor(elementId)
-  if (participant) onDragStart(event, participant)
+  if (participant) {
+    tooltipSuppressed.value = true
+    onDragStart(event, participant)
+  }
+}
+function endParticipantDrag() {
+  dragTargetId.value = undefined
+  emit('dragState', undefined)
+  window.setTimeout(() => {
+    tooltipSuppressed.value = false
+  }, 0)
 }
 function onDragOver(event, element) {
   if (props.readonly || props.markerMode || !isSeat(element) || reservedItemByElementId.value.has(element.id)) {
@@ -171,13 +206,11 @@ function onDrop(event, element) {
   if (participantId) emit('assign', participantId, element.id)
   dragTargetId.value = undefined
   emit('dragState', undefined)
+  tooltipSuppressed.value = false
 }
 function onSeatClick(element) {
   if (panMoved || !isSeat(element)) return
-  if (props.markerMode) {
-    onMarkerSeatToggle(element)
-    return
-  }
+  if (props.markerMode) return
   const item = itemFor(element.id)
   const person = participantFor(element.id)
   if (person) emit('select', person)
@@ -259,6 +292,16 @@ watch(
   ],
   centerCanvasAfterRender,
 )
+watch(
+  () => props.draggingParticipantId,
+  (participantId) => {
+    if (!participantId) {
+      window.setTimeout(() => {
+        tooltipSuppressed.value = false
+      }, 0)
+    }
+  },
+)
 onBeforeUnmount(endPan)
 </script>
 
@@ -276,6 +319,7 @@ onBeforeUnmount(endPan)
         <template v-for="element in workspace.layout.elements" :key="element.id">
         <el-tooltip
           v-if="isSeat(element)"
+          :disabled="seatTooltipDisabled"
           :show-after="360"
           placement="top"
           effect="light"
@@ -338,7 +382,7 @@ onBeforeUnmount(endPan)
                 :draggable="!readonly && !itemFor(element.id)?.locked"
                 :title="readonly ? '已发布版本仅供查看' : '双击移回待排列表'"
                 @dragstart="startParticipantDrag($event, element.id)"
-                @dragend="emit('dragState', undefined)"
+                @dragend="endParticipantDrag"
               >
                 {{ participantFor(element.id)?.name }}
               </span>
@@ -346,9 +390,6 @@ onBeforeUnmount(endPan)
             </template>
             <span v-else-if="itemFor(element.id) && itemFor(element.id)?.type !== 'RESERVED'" class="seat-device">
               {{ itemFor(element.id)?.label }}
-            </span>
-            <span v-if="dragTargetId === element.id" class="drop-copy">
-              {{ participantFor(element.id) ? '交换到这里' : '放到这里' }}
             </span>
           </div>
         </el-tooltip>
@@ -405,7 +446,7 @@ onBeforeUnmount(endPan)
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 26px 30px 38px;
+  padding: 26px 46px 38px;
 }
 
 .canvas-scroll.panning {
@@ -446,7 +487,7 @@ onBeforeUnmount(endPan)
 }
 
 .canvas-scroll.marker-mode .seat-element {
-  cursor: crosshair;
+  cursor: pointer;
 }
 
 .seat-element.reserved {
@@ -538,21 +579,6 @@ onBeforeUnmount(endPan)
   bottom: 1px;
   color: #334155;
   font-size: 8px;
-}
-
-.drop-copy {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: grid;
-  place-items: center;
-  padding: 2px;
-  color: #fff;
-  background: rgba(10, 89, 247, 0.9);
-  font-size: max(7px, calc(var(--unit) * 0.22));
-  font-weight: 700;
-  line-height: 1.1;
-  text-align: center;
 }
 
 .region-label {
