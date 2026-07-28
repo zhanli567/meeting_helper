@@ -12,6 +12,8 @@ test('全局样式使用 Agent Nexus 工作台 token，顶部栏不再使用蓝�
   assert.match(css, /--brand:\s*#0a59f7;/)
   assert.match(css, /--workspace:\s*#f1f3f5;/)
   assert.match(css, /--radius-md:\s*16px;/)
+  assert.doesNotMatch(css, /HarmonyOS/)
+  assert.match(css, /font-family:\s*system-ui,/)
   assert.doesNotMatch(css, /\.app-header\s*\{[^}]*linear-gradient/s)
 })
 

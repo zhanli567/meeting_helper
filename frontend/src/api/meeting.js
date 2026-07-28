@@ -73,11 +73,16 @@ export const meetingApi = {
   async commitImport(meetingId, token) {
     return unwrap(http.post(importContract.commitPath(meetingId, token)))
   },
-  async exportExcel(meetingId, versionId) {
+  async exportExcel(meetingId, versionId, options = {}) {
     return raw(
       http.get(`/meetings/${meetingId}/exports/excel`, {
         responseType: 'arraybuffer',
-        params: { versionId },
+        params: {
+          versionId,
+          fieldCodes: Array.isArray(options.fieldCodes) ? options.fieldCodes.join(',') : undefined,
+          includeAttendance: options.includeAttendance,
+          includeSeatLabel: options.includeSeatLabel,
+        },
       }),
     )
   },

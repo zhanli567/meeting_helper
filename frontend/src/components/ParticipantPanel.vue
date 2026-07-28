@@ -357,8 +357,7 @@ function leavePanel(event) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 4px;
-  scrollbar-gutter: stable;
+  padding-right: 0;
   transition: opacity 0.15s;
 }
 
@@ -514,7 +513,8 @@ function leavePanel(event) {
   position: absolute;
   top: 9px;
   right: 9px;
-  background: var(--success);
+  background: #86efac;
+  border: 1px solid #bbf7d0;
   border-radius: 50%;
 }
 

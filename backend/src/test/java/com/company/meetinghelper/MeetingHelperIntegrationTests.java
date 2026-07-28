@@ -1244,18 +1244,74 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
-    void draftWorkspaceCannotBeExported() throws Exception {
+    void draftWorkspaceCanBeExportedWithSelectedParticipantColumns() throws Exception {
         VenueSummary venue = defaultVenue();
         MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
-                "草稿导出限制测试-" + UUID.randomUUID(),
+                "草稿导出测试-" + UUID.randomUUID(),
                 venue.id()
         ));
+        previewAndCommit(
+                meeting.id(),
+                "工号,姓名,部门,批次",
+                "12345678,草稿导出人员,研发部,第一批"
+        );
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        ElementView seat = workspace.layout().elements().stream()
+                .filter(value -> "SEAT".equals(value.kind()))
+                .findFirst()
+                .orElseThrow();
+        ParticipantView participant = workspace.participants().getFirst();
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(participant.id(), seat.id())
+        );
 
-        assertThatThrownBy(() -> exportService.exportExcel(meeting.id(), null))
-                .hasMessageContaining("草稿版本不支持导出");
+        byte[] exported = exportService.exportExcel(
+                meeting.id(),
+                null,
+                new ExportService.ExportOptions(List.of("部门"), true, true)
+        );
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(exported))) {
+            assertThat(cellValues(workbook.getSheet("人员名单").getRow(0)))
+                    .containsExactly("工号", "姓名", "部门", "出席情况", "座位编号");
+            assertThat(cellValues(workbook.getSheet("人员名单").getRow(1)))
+                    .containsExactly("12345678", "草稿导出人员", "研发部", "出席", "1排1");
+        }
+
         mockMvc.perform(get("/meetings/{meetingId}/exports/excel", meeting.id())
                         .header(USER_HEADER, DEFAULT_USER))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void exportedSeatDetailsShowReservedRegionName() throws Exception {
+        VenueSummary venue = defaultVenue();
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "区域明细导出-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        ElementView seat = workspace.layout().elements().stream()
+                .filter(value -> "SEAT".equals(value.kind()))
+                .findFirst()
+                .orElseThrow();
+        mockMvc.perform(post("/plans/{planId}/reserved-areas/save", workspace.plan().id())
+                        .header(USER_HEADER, DEFAULT_USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reservedAreas":[{"label":"嘉宾","backgroundColor":"#FEF3C7","textColor":"#172033","bold":true,"targetElementIds":["%s"]}]}
+                                """.formatted(seat.id())))
+                .andExpect(status().isOk());
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(
+                exportService.exportExcel(meeting.id(), null)
+        ))) {
+            XSSFSheet sheet = workbook.getSheet("座位明细");
+            assertThat(cellValues(sheet.getRow(0)))
+                    .contains("座位编号", "元素类型", "区域名称", "人员工号", "姓名");
+            assertThat(cellValues(sheet.getRow(1)))
+                    .contains("1排1", "区域", "嘉宾");
+        }
     }
 
     @Test

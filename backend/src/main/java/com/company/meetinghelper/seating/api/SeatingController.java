@@ -69,10 +69,10 @@ public class SeatingController {
     }
 
     /**
-     * 保存草稿中的区域标记。
+     * 保存草稿中的区域。
      *
      * @param planId 排座方案ID
-     * @param request 完整区域标记集合
+     * @param request 完整区域集合
      * @return 空响应
      */
     @PostMapping("/{planId}/reserved-areas/save")

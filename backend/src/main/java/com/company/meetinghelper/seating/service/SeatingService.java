@@ -259,10 +259,10 @@ public class SeatingService {
     }
 
     /**
-     * 使用完整区域标记集合替换当前草稿中的预留区域。
+     * 使用完整区域集合替换当前草稿中的预留区域。
      *
      * @param planId 排座方案ID
-     * @param request 区域标记集合
+     * @param request 区域集合
      */
     @Transactional
     public void replaceReservedAreas(String planId, SaveReservedAreasRequest request) {
@@ -279,10 +279,10 @@ public class SeatingService {
             for (String elementId : area.targetElementIds()) {
                 MeetingElementEntity element = elements.get(elementId);
                 if (element == null || element.getElementKind() != ElementKind.SEAT) {
-                    throw new ApiException(HttpStatus.BAD_REQUEST, "区域标记只能选择座位");
+                    throw new ApiException(HttpStatus.BAD_REQUEST, "区域只能选择座位");
                 }
                 if (!requestedTargetIds.add(elementId)) {
-                    throw new ApiException(HttpStatus.CONFLICT, "同一座位不能加入多个区域标记");
+                    throw new ApiException(HttpStatus.CONFLICT, "同一座位不能加入多个区域");
                 }
             }
         }
@@ -301,7 +301,7 @@ public class SeatingService {
                 .map(PlanItemTargetEntity::getMeetingElementId)
                 .collect(Collectors.toSet());
         if (requestedTargetIds.stream().anyMatch(occupiedTargetIds::contains)) {
-            throw new ApiException(HttpStatus.CONFLICT, "区域标记不能覆盖已排人员或其他占用");
+            throw new ApiException(HttpStatus.CONFLICT, "区域不能覆盖已排人员或其他占用");
         }
 
         List<PlanItemEntity> reservedItems = currentItems.stream()

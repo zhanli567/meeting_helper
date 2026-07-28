@@ -16,6 +16,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AddParticipantDialog from '@/components/AddParticipantDialog.vue'
 import EditParticipantDialog from '@/components/EditParticipantDialog.vue'
+import ExportOptionsDialog from '@/components/ExportOptionsDialog.vue'
 import ImportDialog from '@/components/ImportDialog.vue'
 import ParticipantPanel from '@/components/ParticipantPanel.vue'
 import PublishVersionDialog from '@/components/PublishVersionDialog.vue'
@@ -36,6 +37,7 @@ const route = useRoute()
 const store = useWorkspaceStore()
 const zoom = ref(0.92)
 const importVisible = ref(false)
+const exportOptionsVisible = ref(false)
 const addVisible = ref(false)
 const undoStack = ref([])
 const redoStack = ref([])
@@ -674,8 +676,13 @@ async function removeParticipant(person) {
 function changeZoom(delta) {
   zoom.value = Math.min(2.5, Math.max(0.4, Number((zoom.value + delta).toFixed(2))))
 }
-function exportPlan() {
-  store.exportPlan(activeVersionId.value)
+function openExportOptions() {
+  exportOptionsVisible.value = true
+}
+async function exportPlan(options) {
+  if (!readonlyMode.value && !(await saveDraft(true))) return
+  exportOptionsVisible.value = false
+  await store.exportPlan(activeVersionId.value, options)
 }
 async function confirmDeleteProtectedElement(element) {
   try {
@@ -965,11 +972,10 @@ async function onParticipantUpdated(participant) {
             <el-button :icon="ZoomIn" :disabled="zoom >= 2.5" @click="changeZoom(0.1)" />
           </el-button-group>
           <el-button
-            v-if="readonlyMode"
             type="primary"
             plain
             :icon="Download"
-            @click="exportPlan"
+            @click="openExportOptions"
           >
             导出Excel
           </el-button>
@@ -1119,6 +1125,13 @@ async function onParticipantUpdated(participant) {
       :versions="store.workspace.versions"
       :submitting="publishing"
       @publish="confirmPublish"
+    />
+    <ExportOptionsDialog
+      v-if="workspace"
+      v-model="exportOptionsVisible"
+      :field-definitions="workspace.fieldDefinitions"
+      :submitting="store.saving"
+      @export="exportPlan"
     />
     <RegionCreateDialog
       v-if="store.workspace && !readonlyMode"
