@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.company.meetinghelper.common.repository.AbstractMyBatisRepository;
 import com.company.meetinghelper.meeting.entity.MeetingElementEntity;
 import com.company.meetinghelper.meeting.mapper.MeetingElementMapper;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
@@ -44,5 +45,26 @@ public class MeetingElementRepository extends AbstractMyBatisRepository<MeetingE
                 .eq(MeetingElementEntity::getId, id)
                 .eq(MeetingElementEntity::getMeetingId, meetingId)
                 .last("limit 1")));
+    }
+
+    /**
+     * 物理删除会议快照中的全部元素。
+     *
+     * @param meetingId 会议ID
+     */
+    public void deleteAllByMeetingId(String meetingId) {
+        deleteAll(findAllByMeetingIdOrderByStartRowAscStartColumnAsc(meetingId));
+    }
+
+    /**
+     * 物理删除会议元素，避免重新保存布局时被软删除记录占位。
+     *
+     * @param elements 待删除元素
+     */
+    @Override
+    public void deleteAll(Collection<MeetingElementEntity> elements) {
+        for (MeetingElementEntity element : elements) {
+            elementMapper.physicalDeleteById(element.getId());
+        }
     }
 }

@@ -634,6 +634,81 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
+    void reservedAreasOccupySeatsAndBlockPersonAssignments() throws Exception {
+        VenueSummary venue = defaultVenue();
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "区域标记-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        String planId = workspace.plan().id();
+        String seatId = workspace.layout().elements().stream()
+                .filter(value -> value.kind().equals("SEAT"))
+                .findFirst()
+                .orElseThrow()
+                .id();
+
+        mockMvc.perform(post("/plans/{planId}/reserved-areas/save", planId)
+                        .header(USER_HEADER, DEFAULT_USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reservedAreas":[{"label":"嘉宾","backgroundColor":"#FEF3C7","textColor":"#172033","bold":true,"targetElementIds":["%s"]}]}
+                                """.formatted(seatId)))
+                .andExpect(status().isOk());
+
+        ParticipantResult participant = participantService.create(
+                meeting.id(),
+                new CreateParticipantRequest("a91000001", "王嘉宾", Map.of(), null)
+        );
+        assertThatThrownBy(() -> seatingService.assign(
+                planId,
+                new AssignmentRequest(participant.id(), seatId)
+        )).hasMessageContaining("目标座位已被设备、预留或禁用状态占用");
+    }
+
+    @Test
+    void draftLayoutUpdateRemovesAssignmentsForDeletedSeatsButNotVenueTemplate() throws Exception {
+        VenueSummary venue = defaultVenue();
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "布局编辑-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        String planId = workspace.plan().id();
+        ElementView removedSeat = workspace.layout().elements().stream()
+                .filter(value -> value.kind().equals("SEAT"))
+                .findFirst()
+                .orElseThrow();
+        ParticipantResult participant = participantService.create(
+                meeting.id(),
+                new CreateParticipantRequest("a91000002", "待退回", Map.of(), null)
+        );
+        seatingService.assign(planId, new AssignmentRequest(participant.id(), removedSeat.id()));
+
+        String elementsJson = workspace.layout().elements().stream()
+                .filter(value -> !value.id().equals(removedSeat.id()))
+                .map(value -> """
+                        {"id":"%s","kind":"%s","name":"%s","row":%d,"column":%d,"rowSpan":%d,"columnSpan":%d,"fillColor":"%s","borderColor":"%s"}
+                        """.formatted(
+                        value.id(), value.kind(), value.name(), value.row(), value.column(),
+                        value.rowSpan(), value.columnSpan(), value.fillColor(), value.borderColor()
+                ))
+                .collect(Collectors.joining(","));
+
+        mockMvc.perform(post("/meetings/{meetingId}/layout/update", meeting.id())
+                        .header(USER_HEADER, DEFAULT_USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"gridRows":5,"gridColumns":5,"elements":[%s]}
+                                """.formatted(elementsJson)))
+                .andExpect(status().isOk());
+
+        WorkspaceResponse updated = workspaceService.getWorkspace(meeting.id());
+        assertThat(updated.participants().getFirst().assignedElementId()).isNull();
+        assertThat(venueService.getLayout(venue.id()).seatCount()).isEqualTo(25);
+    }
+
+    @Test
     void workspaceAggregatesDynamicParticipantRecordsByRecordAndFieldOrder() throws Exception {
         String meetingId = createImportMeeting();
         previewAndCommit(

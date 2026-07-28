@@ -4,6 +4,7 @@ import com.company.meetinghelper.common.api.ApiResponse;
 import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
 import com.company.meetinghelper.seating.api.dto.request.CreateVersionRequest;
 import com.company.meetinghelper.seating.api.dto.request.SaveAssignmentsRequest;
+import com.company.meetinghelper.seating.api.dto.request.SaveReservedAreasRequest;
 import com.company.meetinghelper.seating.api.dto.response.RestoreVersionResult;
 import com.company.meetinghelper.seating.api.dto.response.VersionResult;
 import com.company.meetinghelper.seating.service.PlanVersionService;
@@ -64,6 +65,22 @@ public class SeatingController {
             @Valid @RequestBody SaveAssignmentsRequest request
     ) {
         seatingService.replaceAssignments(planId, request);
+        return ApiResponse.success(null);
+    }
+
+    /**
+     * 保存草稿中的区域标记。
+     *
+     * @param planId 排座方案ID
+     * @param request 完整区域标记集合
+     * @return 空响应
+     */
+    @PostMapping("/{planId}/reserved-areas/save")
+    public ApiResponse<Void> replaceReservedAreas(
+            @PathVariable String planId,
+            @Valid @RequestBody SaveReservedAreasRequest request
+    ) {
+        seatingService.replaceReservedAreas(planId, request);
         return ApiResponse.success(null);
     }
 

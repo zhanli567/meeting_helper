@@ -1,6 +1,7 @@
 package com.company.meetinghelper.meeting.api;
 
 import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
+import com.company.meetinghelper.meeting.api.dto.request.UpdateMeetingLayoutRequest;
 import com.company.meetinghelper.meeting.api.dto.request.UpdateMeetingNameRequest;
 import com.company.meetinghelper.meeting.api.dto.response.MeetingSummary;
 import com.company.meetinghelper.meeting.service.MeetingService;
@@ -67,6 +68,21 @@ public class MeetingController {
             @Valid @RequestBody UpdateMeetingNameRequest request
     ) {
         return meetingService.updateName(meetingId, request);
+    }
+
+    /**
+     * 更新会议草稿布局。
+     *
+     * @param meetingId 会议ID
+     * @param request 布局更新请求
+     * @return 更新后的工作区数据
+     */
+    @PostMapping("/{meetingId}/layout/update")
+    public WorkspaceResponse updateLayout(
+            @PathVariable String meetingId,
+            @Valid @RequestBody UpdateMeetingLayoutRequest request
+    ) {
+        return meetingService.updateLayout(meetingId, request);
     }
 
     /**

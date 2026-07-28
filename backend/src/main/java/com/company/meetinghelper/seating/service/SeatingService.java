@@ -9,7 +9,9 @@ import com.company.meetinghelper.participant.entity.ParticipantEntity;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
 import com.company.meetinghelper.seating.api.dto.request.AssignmentInput;
 import com.company.meetinghelper.seating.api.dto.request.AssignmentRequest;
+import com.company.meetinghelper.seating.api.dto.request.ReservedAreaInput;
 import com.company.meetinghelper.seating.api.dto.request.SaveAssignmentsRequest;
+import com.company.meetinghelper.seating.api.dto.request.SaveReservedAreasRequest;
 import com.company.meetinghelper.seating.entity.PlanItemEntity;
 import com.company.meetinghelper.seating.entity.PlanItemTargetEntity;
 import com.company.meetinghelper.seating.entity.PlanItemType;
@@ -253,6 +255,116 @@ public class SeatingService {
             itemRepository.save(item);
             targetRepository.save(createTarget(item.getId(), assignment.targetElementId()));
         }
+        touch(plan);
+    }
+
+    /**
+     * 使用完整区域标记集合替换当前草稿中的预留区域。
+     *
+     * @param planId 排座方案ID
+     * @param request 区域标记集合
+     */
+    @Transactional
+    public void replaceReservedAreas(String planId, SaveReservedAreasRequest request) {
+        SeatingPlanEntity plan = requirePlan(planId);
+        Map<String,MeetingElementEntity> elements = elementRepository
+                .findAllByMeetingIdOrderByStartRowAscStartColumnAsc(plan.getMeetingId())
+                .stream()
+                .collect(Collectors.toMap(MeetingElementEntity::getId, Function.identity()));
+        List<ReservedAreaInput> reservedAreas = request.reservedAreas() == null
+                ? List.of()
+                : request.reservedAreas();
+        HashSet<String> requestedTargetIds = new HashSet<String>();
+        for (ReservedAreaInput area : reservedAreas) {
+            for (String elementId : area.targetElementIds()) {
+                MeetingElementEntity element = elements.get(elementId);
+                if (element == null || element.getElementKind() != ElementKind.SEAT) {
+                    throw new ApiException(HttpStatus.BAD_REQUEST, "区域标记只能选择座位");
+                }
+                if (!requestedTargetIds.add(elementId)) {
+                    throw new ApiException(HttpStatus.CONFLICT, "同一座位不能加入多个区域标记");
+                }
+            }
+        }
+
+        List<PlanItemEntity> currentItems = itemRepository.findAllByPlanIdOrderByCreatedAtAsc(planId);
+        List<String> currentItemIds = currentItems.stream().map(PlanItemEntity::getId).toList();
+        List<PlanItemTargetEntity> currentTargets = currentItemIds.isEmpty()
+                ? List.<PlanItemTargetEntity>of()
+                : targetRepository.findAllByPlanItemIdIn(currentItemIds);
+        Set<String> reservedItemIds = currentItems.stream()
+                .filter(item -> item.getItemType() == PlanItemType.RESERVED)
+                .map(PlanItemEntity::getId)
+                .collect(Collectors.toSet());
+        Set<String> occupiedTargetIds = currentTargets.stream()
+                .filter(target -> !reservedItemIds.contains(target.getPlanItemId()))
+                .map(PlanItemTargetEntity::getMeetingElementId)
+                .collect(Collectors.toSet());
+        if (requestedTargetIds.stream().anyMatch(occupiedTargetIds::contains)) {
+            throw new ApiException(HttpStatus.CONFLICT, "区域标记不能覆盖已排人员或其他占用");
+        }
+
+        List<PlanItemEntity> reservedItems = currentItems.stream()
+                .filter(item -> item.getItemType() == PlanItemType.RESERVED)
+                .toList();
+        reservedItems.forEach(item -> targetRepository.deleteAllByPlanItemId(item.getId()));
+        itemRepository.deleteAll(reservedItems);
+        for (ReservedAreaInput area : reservedAreas) {
+            PlanItemEntity item = new PlanItemEntity();
+            item.setPlanId(planId);
+            item.setItemType(PlanItemType.RESERVED);
+            item.setLabel(area.label().trim());
+            item.setBackgroundColor(area.backgroundColor());
+            item.setTextColor(area.textColor());
+            item.setBold(area.bold());
+            itemRepository.save(item);
+            for (String targetId : area.targetElementIds()) {
+                targetRepository.save(createTarget(item.getId(), targetId));
+            }
+        }
+        touch(plan);
+    }
+
+    /**
+     * 布局元素被删除或不再是座位时，释放指向这些元素的占用关系。
+     *
+     * @param meetingId 会议ID
+     * @param removedElementIds 已删除或不可排座的元素ID
+     */
+    @Transactional
+    public void releaseTargetsForRemovedElements(String meetingId, Set<String> removedElementIds) {
+        if (removedElementIds == null || removedElementIds.isEmpty()) {
+            return;
+        }
+        SeatingPlanEntity plan = planRepository.findFirstByMeetingIdOrderByCreatedAtAsc(meetingId).orElse(null);
+        if (plan == null) {
+            return;
+        }
+        List<PlanItemEntity> currentItems = itemRepository.findAllByPlanIdOrderByCreatedAtAsc(plan.getId());
+        List<String> itemIds = currentItems.stream().map(PlanItemEntity::getId).toList();
+        if (itemIds.isEmpty()) {
+            return;
+        }
+        List<PlanItemTargetEntity> currentTargets = targetRepository.findAllByPlanItemIdIn(itemIds);
+        List<PlanItemTargetEntity> removedTargets = currentTargets.stream()
+                .filter(target -> removedElementIds.contains(target.getMeetingElementId()))
+                .toList();
+        if (removedTargets.isEmpty()) {
+            return;
+        }
+        Set<String> removedTargetIds = removedTargets.stream()
+                .map(PlanItemTargetEntity::getId)
+                .collect(Collectors.toSet());
+        targetRepository.deleteAll(removedTargets);
+        targetRepository.flush();
+        Set<String> itemIdsWithTargets = currentTargets.stream()
+                .filter(target -> !removedTargetIds.contains(target.getId()))
+                .map(PlanItemTargetEntity::getPlanItemId)
+                .collect(Collectors.toSet());
+        List<PlanItemEntity> emptyItems = currentItems.stream()
+                .filter(item -> !itemIdsWithTargets.contains(item.getId()))
+                .toList();
+        itemRepository.deleteAll(emptyItems);
         touch(plan);
     }
 

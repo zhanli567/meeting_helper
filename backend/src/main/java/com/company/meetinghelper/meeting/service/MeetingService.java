@@ -3,7 +3,9 @@ package com.company.meetinghelper.meeting.service;
 import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.common.user.CurrentUserProvider;
 import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
+import com.company.meetinghelper.meeting.api.dto.request.MeetingElementInput;
 import com.company.meetinghelper.meeting.api.dto.request.UpdateMeetingNameRequest;
+import com.company.meetinghelper.meeting.api.dto.request.UpdateMeetingLayoutRequest;
 import com.company.meetinghelper.meeting.api.dto.response.MeetingSummary;
 import com.company.meetinghelper.meeting.entity.MeetingElementEntity;
 import com.company.meetinghelper.meeting.entity.MeetingEntity;
@@ -11,14 +13,22 @@ import com.company.meetinghelper.meeting.repository.MeetingElementRepository;
 import com.company.meetinghelper.meeting.repository.MeetingRepository;
 import com.company.meetinghelper.seating.entity.SeatingPlanEntity;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
+import com.company.meetinghelper.seating.service.SeatingService;
 import com.company.meetinghelper.venue.api.dto.ElementInput;
 import com.company.meetinghelper.venue.api.dto.response.VenueLayout;
 import com.company.meetinghelper.venue.entity.ElementKind;
 import com.company.meetinghelper.venue.entity.VenueElementEntity;
 import com.company.meetinghelper.venue.repository.VenueElementRepository;
 import com.company.meetinghelper.venue.service.VenueService;
+import com.company.meetinghelper.venue.validation.VenueLayoutValidator;
+import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse;
+import com.company.meetinghelper.workspace.service.WorkspaceService;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +41,9 @@ public class MeetingService {
     private final VenueElementRepository venueElementRepository;
     private final SeatingPlanRepository planRepository;
     private final CurrentUserProvider currentUserProvider;
+    private final SeatingService seatingService;
+    private final WorkspaceService workspaceService;
+    private final VenueLayoutValidator layoutValidator;
 
     /**
      * 创建会议聚合服务。
@@ -41,6 +54,9 @@ public class MeetingService {
      * @param venueElementRepository 场馆元素仓储
      * @param planRepository 排座方案仓储
      * @param currentUserProvider 当前用户提供器
+     * @param seatingService 排座服务
+     * @param workspaceService 工作区服务
+     * @param layoutValidator 布局校验器
      */
     public MeetingService(
             MeetingRepository meetingRepository,
@@ -48,7 +64,10 @@ public class MeetingService {
             VenueService venueService,
             VenueElementRepository venueElementRepository,
             SeatingPlanRepository planRepository,
-            CurrentUserProvider currentUserProvider
+            CurrentUserProvider currentUserProvider,
+            SeatingService seatingService,
+            WorkspaceService workspaceService,
+            VenueLayoutValidator layoutValidator
     ) {
         this.meetingRepository = meetingRepository;
         this.meetingElementRepository = meetingElementRepository;
@@ -56,6 +75,9 @@ public class MeetingService {
         this.venueElementRepository = venueElementRepository;
         this.planRepository = planRepository;
         this.currentUserProvider = currentUserProvider;
+        this.seatingService = seatingService;
+        this.workspaceService = workspaceService;
+        this.layoutValidator = layoutValidator;
     }
 
     /**
@@ -152,6 +174,89 @@ public class MeetingService {
         meeting.setName(normalizedName);
         meetingRepository.save(meeting);
         return toSummary(meeting);
+    }
+
+    /**
+     * 更新会议自己的草稿布局快照，不修改来源场馆模板。
+     *
+     * @param meetingId 会议ID
+     * @param request 草稿布局请求
+     * @return 更新后的工作区
+     */
+    @Transactional
+    public WorkspaceResponse updateLayout(String meetingId, UpdateMeetingLayoutRequest request) {
+        String userId = currentUserProvider.requireUserId();
+        MeetingEntity meeting = meetingRepository.findByIdAndCreatedById(meetingId, userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议不存在"));
+        List<ElementInput> normalizedElements = validateMeetingLayout(request);
+        List<MeetingElementInput> requestedElements = request.elements();
+        List<MeetingElementEntity> before = meetingElementRepository
+                .findAllByMeetingIdOrderByStartRowAscStartColumnAsc(meetingId);
+        Map<String,MeetingElementEntity> existingById = before.stream()
+                .collect(Collectors.toMap(MeetingElementEntity::getId, value -> value));
+        Set<String> retainedIds = requestedElements.stream()
+                .map(MeetingElementInput::id)
+                .filter(value -> value != null && existingById.containsKey(value))
+                .collect(Collectors.toSet());
+        Set<String> targetsToRelease = before.stream()
+                .map(MeetingElementEntity::getId)
+                .filter(id -> !retainedIds.contains(id))
+                .collect(Collectors.toSet());
+        for (int index = 0; index < requestedElements.size(); index++) {
+            MeetingElementInput input = requestedElements.get(index);
+            if (input.id() != null && existingById.containsKey(input.id())
+                    && !ElementKind.SEAT.name().equals(normalizedElements.get(index).kind())) {
+                targetsToRelease.add(input.id());
+            }
+        }
+        seatingService.releaseTargetsForRemovedElements(meetingId, targetsToRelease);
+        meetingElementRepository.deleteAll(before.stream()
+                .filter(element -> !retainedIds.contains(element.getId()))
+                .toList());
+
+        for (int index = 0; index < normalizedElements.size(); index++) {
+            MeetingElementInput input = requestedElements.get(index);
+            ElementInput normalized = normalizedElements.get(index);
+            MeetingElementEntity element = input.id() == null
+                    ? null
+                    : existingById.get(input.id());
+            if (element == null) {
+                element = new MeetingElementEntity();
+                element.setMeetingId(meetingId);
+            }
+            applyLayoutElement(element, normalized);
+            meetingElementRepository.save(element);
+        }
+        meeting.setGridRows(request.gridRows());
+        meeting.setGridColumns(request.gridColumns());
+        meeting.setLayoutVersion(meeting.getLayoutVersion() + 1);
+        meetingRepository.save(meeting);
+        return workspaceService.getWorkspace(meetingId);
+    }
+
+    private List<ElementInput> validateMeetingLayout(UpdateMeetingLayoutRequest request) {
+        List<ElementInput> elements = request.elements() == null
+                ? null
+                : request.elements().stream()
+                        .map(input -> input == null
+                                ? null
+                                : new ElementInput(
+                                        input.kind(), input.name(), input.row(), input.column(),
+                                        input.rowSpan(), input.columnSpan(), input.fillColor(), input.borderColor()
+                                ))
+                        .toList();
+        return layoutValidator.validate(request.gridRows(), request.gridColumns(), elements).elements();
+    }
+
+    private void applyLayoutElement(MeetingElementEntity element, ElementInput source) {
+        element.setElementKind(ElementKind.valueOf(source.kind()));
+        element.setElementName(source.name());
+        element.setStartRow(source.row());
+        element.setStartColumn(source.column());
+        element.setRowSpan(source.rowSpan());
+        element.setColumnSpan(source.columnSpan());
+        element.setFillColor(source.fillColor());
+        element.setBorderColor(source.borderColor());
     }
 
     private MeetingSummary toSummary(MeetingEntity meeting) {
