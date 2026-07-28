@@ -108,7 +108,7 @@ async function saveMeetingName() {
             <div>
               <h2>我的会议</h2>
             </div>
-            <el-button type="primary" :icon="CirclePlus" @click="router.push('/venues/select')">
+            <el-button type="primary" :icon="CirclePlus" @click="router.push('/venues')">
               添加会议
             </el-button>
           </div>
@@ -152,7 +152,7 @@ async function saveMeetingName() {
             <Calendar />
             <h3>还没有会议</h3>
             <p>选择一个可用场馆模板，创建会议后即可导入人员并排座。</p>
-            <el-button type="primary" :icon="CirclePlus" @click="router.push('/venues/select')">
+            <el-button type="primary" :icon="CirclePlus" @click="router.push('/venues')">
               添加会议
             </el-button>
           </div>

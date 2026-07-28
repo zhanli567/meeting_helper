@@ -15,13 +15,6 @@ const Passthrough = defineComponent({
   },
 })
 
-const LinkStub = defineComponent({
-  inheritAttrs: false,
-  setup(_props, { attrs, slots }) {
-    return () => h('a', attrs, slots.default?.())
-  },
-})
-
 async function loadDetailDrawer(t) {
   const server = await createServer({
     root: frontendRoot,
@@ -32,13 +25,23 @@ async function loadDetailDrawer(t) {
   return (await server.ssrLoadModule('/src/components/VenueDetailDrawer.vue')).default
 }
 
-async function renderBookingUrl(component, bookingUrl) {
+async function renderVenueDetail(component, venue = {}) {
   const app = createSSRApp(component, {
     modelValue: true,
     venue: {
       location: 'A101',
-      bookingUrl,
+      campus: '总部园区',
+      manualCapacity: 36,
+      contactInfo: '张三',
+      remarks: '靠近南门',
+      bookingUrl: 'https://example.test/booking?q=1',
+      mainScreenResolution: '3840×2160',
+      stageDimensions: '8m×3m',
+      meetingRoomFunctions: '视频会议',
+      servicesProvided: '会务支持',
+      description: '旧说明',
       seatCount: 0,
+      ...venue,
     },
   })
   app.config.warnHandler = () => {}
@@ -46,38 +49,26 @@ async function renderBookingUrl(component, bookingUrl) {
   app.component('el-drawer', Passthrough)
   app.component('el-descriptions', Passthrough)
   app.component('el-descriptions-item', Passthrough)
-  app.component('el-link', LinkStub)
   return renderToString(app)
 }
 
-test('安全的绝对 HTTPS 预定链接才渲染为带隔离关系的锚点', async (t) => {
+test('场馆详情只渲染新建表单保留的高频字段', async (t) => {
   const VenueDetailDrawer = await loadDetailDrawer(t)
 
-  const html = await renderBookingUrl(
-    VenueDetailDrawer,
-    '  https://example.test/booking?q=1  ',
-  )
+  const html = await renderVenueDetail(VenueDetailDrawer)
 
-  assert.match(html, /<a[^>]+href="https:\/\/example\.test\/booking\?q=1"/)
-  assert.match(html, /target="_blank"/)
-  assert.match(html, /rel="noopener noreferrer"/)
-  assert.match(html, />\s*打开链接\s*<\/a>/)
-})
-
-test('危险或非绝对预定链接只渲染普通文本且不产生锚点', async (t) => {
-  const VenueDetailDrawer = await loadDetailDrawer(t)
-  const unsafeUrls = [
-    'javascript:alert(1)',
-    'data:text/html,unsafe',
-    'file:///tmp/unsafe',
-    '//example.test/booking',
-    'https:/missing-host',
-    'https://example.test/\nunsafe',
-  ]
-
-  for (const unsafeUrl of unsafeUrls) {
-    const html = await renderBookingUrl(VenueDetailDrawer, unsafeUrl)
-    assert.doesNotMatch(html, /<a(?:\s|>)/)
-    assert.match(html, new RegExp(unsafeUrl.split('\n')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  for (const value of ['A101', '总部园区', '36', '张三', '靠近南门']) {
+    assert.match(html, new RegExp(value))
   }
+  for (const hidden of [
+    'https://example.test/booking',
+    '3840×2160',
+    '8m×3m',
+    '视频会议',
+    '会务支持',
+    '旧说明',
+  ]) {
+    assert.doesNotMatch(html, new RegExp(hidden.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+  assert.doesNotMatch(html, /<a(?:\s|>)/)
 })

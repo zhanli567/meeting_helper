@@ -36,7 +36,7 @@ test('首页顶部保留场馆模板入口，会议标题右侧提供添加会�
   assert.match(source, /router\.push\('\/venues'\)/)
   assert.doesNotMatch(source, /开始排座/)
   assert.match(source, /添加会议/)
-  assert.match(source, /router\.push\('\/venues\/select'\)/)
+  assert.doesNotMatch(source, /router\.push\('\/venues\/select'\)/)
   assert.match(source, /EditPen/)
   assert.match(source, /editMeeting\(meeting\)/)
   assert.match(source, /meetingApi\.updateMeetingName\(editingMeeting\.id,\s*trimmedName\)/)
@@ -96,11 +96,45 @@ test('详情抽屉只读，信息抽屉携带行版本更新并通知列表刷�
   assert.match(detailSource, /<el-drawer/)
   assert.match(detailSource, /<el-descriptions/)
   assert.doesNotMatch(detailSource, /venueApi\.updateInfo/)
+  for (const label of ['地点', '园区', '容纳人数', '接口人', '备注']) {
+    assert.match(detailSource, new RegExp(`label="${label}"`))
+  }
+  for (const hidden of [
+    '设备信息',
+    '补充信息',
+    '主屏分辨率',
+    '舞台尺寸',
+    '会议室功能',
+    '服务提供',
+    '预定链接',
+    '说明',
+    '最近更新',
+  ]) {
+    assert.doesNotMatch(detailSource, new RegExp(hidden))
+  }
   assert.match(editSource, /<VenueInfoForm/)
   assert.match(editSource, /venueApi\.updateInfo\(props\.venue\.id/)
   assert.match(editSource, /\.\.\.normalizeVenueInfo\(form\)/)
   assert.match(editSource, /rowVersion:\s*props\.venue\.rowVersion/)
   assert.match(editSource, /emit\('saved'/)
+})
+
+test('场馆模板表格列宽、溢出提示和操作按钮保持统一展开', async () => {
+  const source = await readSource('src/views/VenueLibraryView.vue')
+
+  assert.match(source, /prop="location" label="地点" width="220"/)
+  assert.match(source, /prop="campus" label="园区" width="130"/)
+  assert.match(source, /prop="manualCapacity" label="容纳人数" width="100"/)
+  assert.match(source, /prop="seatCount" label="布局座位数" width="120"/)
+  assert.match(source, /prop="updatedByName" label="更新人" width="110"/)
+  assert.match(source, /prop="updatedAt" label="更新时间" width="140"/)
+  assert.match(source, /label="操作" width="420"/)
+  assert.match(source, /show-overflow-tooltip/)
+  assert.match(source, /class="cell-ellipsis"/)
+  assert.doesNotMatch(source, /MoreFilled|<el-dropdown|el-dropdown-item/)
+  for (const action of ['使用模板', '详情', '预览', '编辑信息', '编辑布局', '删除']) {
+    assert.match(source, new RegExp(`>\\s*${action}\\s*<`))
+  }
 })
 
 test('场馆新建保留信息和默认布局草稿并在第二步统一保存', async () => {

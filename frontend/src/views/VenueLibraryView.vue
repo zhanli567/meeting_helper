@@ -3,12 +3,8 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
-  Delete,
-  EditPen,
-  MoreFilled,
   Plus,
   Search,
-  View,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import VenueDetailDrawer from '@/components/VenueDetailDrawer.vue'
@@ -281,21 +277,30 @@ function formatTime(value) {
             :row-class-name="rowClassName"
             empty-text="暂无场馆模板"
           >
-            <el-table-column prop="location" label="地点" min-width="190">
+            <el-table-column prop="location" label="地点" width="220" show-overflow-tooltip>
               <template #default="{ row }">
                 <strong v-if="row.__group" class="group-title">{{ row.campus }}</strong>
-                <button v-else class="location-link" @click="loadDetail(row, 'detail')">
+                <button
+                  v-else
+                  class="location-link cell-ellipsis"
+                  :title="row.location"
+                  @click="loadDetail(row, 'detail')"
+                >
                   {{ row.location }}
                 </button>
               </template>
             </el-table-column>
-            <el-table-column prop="campus" label="园区" min-width="130">
-              <template #default="{ row }">{{ row.campus || '未填写园区' }}</template>
+            <el-table-column prop="campus" label="园区" width="130" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span class="cell-ellipsis" :title="row.campus || '未填写园区'">
+                  {{ row.campus || '未填写园区' }}
+                </span>
+              </template>
             </el-table-column>
-            <el-table-column prop="manualCapacity" label="容纳人数" width="110" align="right">
+            <el-table-column prop="manualCapacity" label="容纳人数" width="100" align="right">
               <template #default="{ row }">{{ row.manualCapacity ?? '—' }}</template>
             </el-table-column>
-            <el-table-column prop="seatCount" label="布局座位数" width="130" align="right">
+            <el-table-column prop="seatCount" label="布局座位数" width="120" align="right">
               <template #default="{ row }">
                 <el-tag v-if="row.seatCount === 0" type="warning" effect="plain">
                   布局未完成
@@ -303,11 +308,11 @@ function formatTime(value) {
                 <span v-else>{{ row.seatCount }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="updatedByName" label="更新人" min-width="120" />
-            <el-table-column prop="updatedAt" label="更新时间" width="150">
+            <el-table-column prop="updatedByName" label="更新人" width="110" show-overflow-tooltip />
+            <el-table-column prop="updatedAt" label="更新时间" width="140">
               <template #default="{ row }">{{ formatTime(row.updatedAt) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="310" fixed="right">
+            <el-table-column label="操作" width="420" fixed="right">
               <template #default="{ row }">
                 <div class="row-actions">
                   <el-tooltip
@@ -317,8 +322,8 @@ function formatTime(value) {
                   >
                     <span>
                       <el-button
-                        type="primary"
                         link
+                        size="small"
                         :disabled="row.seatCount === 0"
                         @click="startMeeting(row)"
                       >
@@ -326,27 +331,23 @@ function formatTime(value) {
                       </el-button>
                     </span>
                   </el-tooltip>
-                  <el-button link :icon="View" @click="loadDetail(row, 'detail')">详情</el-button>
-                  <el-button link @click="previewVenue(row)">预览</el-button>
-                  <el-dropdown v-if="!isSelectMode" trigger="click">
-                    <el-button link :icon="MoreFilled">更多</el-button>
-                    <template #dropdown>
-                      <el-dropdown-menu>
-                        <el-dropdown-item :icon="EditPen" @click="loadDetail(row, 'edit')">
-                          编辑信息
-                        </el-dropdown-item>
-                        <el-dropdown-item
-                          :icon="EditPen"
-                          @click="router.push(`/venues/${row.id}/layout/edit`)"
-                        >
-                          编辑布局
-                        </el-dropdown-item>
-                        <el-dropdown-item :icon="Delete" divided @click="deleteVenue(row)">
-                          <span class="danger-action">删除</span>
-                        </el-dropdown-item>
-                      </el-dropdown-menu>
-                    </template>
-                  </el-dropdown>
+                  <el-button link size="small" @click="loadDetail(row, 'detail')">详情</el-button>
+                  <el-button link size="small" @click="previewVenue(row)">预览</el-button>
+                  <template v-if="!isSelectMode">
+                    <el-button link size="small" @click="loadDetail(row, 'edit')">
+                      编辑信息
+                    </el-button>
+                    <el-button
+                      link
+                      size="small"
+                      @click="router.push(`/venues/${row.id}/layout/edit`)"
+                    >
+                      编辑布局
+                    </el-button>
+                    <el-button link size="small" class="danger-action" @click="deleteVenue(row)">
+                      删除
+                    </el-button>
+                  </template>
                 </div>
               </template>
             </el-table-column>
@@ -480,12 +481,14 @@ function formatTime(value) {
 }
 
 .location-link {
+  width: 100%;
   padding: 0;
   color: var(--brand);
   background: transparent;
   border: 0;
   cursor: pointer;
   font-weight: 650;
+  text-align: left;
 }
 
 .group-title {
@@ -496,15 +499,31 @@ function formatTime(value) {
 .row-actions {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .row-actions :deep(.el-button) {
   margin-left: 0;
+  padding: 0;
+  color: var(--brand);
+  font-size: 12px;
 }
 
 .danger-action {
   color: var(--danger);
+}
+
+.row-actions :deep(.danger-action) {
+  color: var(--danger);
+}
+
+.cell-ellipsis {
+  min-width: 0;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pagination-bar {

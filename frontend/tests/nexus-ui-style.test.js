@@ -36,7 +36,7 @@ test('首页保留模板管理入口并在会议列表标题处提供添加会�
   assert.match(source, />\s*场馆模板\s*</)
   assert.match(source, /router\.push\('\/venues'\)/)
   assert.match(source, />\s*添加会议\s*</)
-  assert.match(source, /router\.push\('\/venues\/select'\)/)
+  assert.doesNotMatch(source, /router\.push\('\/venues\/select'\)/)
   assert.match(source, /:icon="Collection"/)
   assert.match(source, /:icon="CirclePlus"/)
   assert.doesNotMatch(source, /<p>\s*每场会议拥有独立/)
