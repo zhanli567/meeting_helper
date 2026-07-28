@@ -92,6 +92,9 @@ const assignedCount = computed(
 const pendingCount = computed(
   () => attendingPendingCount(workspace.value?.participants),
 )
+const seatCount = computed(
+  () => workspace.value?.layout?.elements.filter((element) => element.kind === 'SEAT').length || 0,
+)
 const activePublishedVersion = computed(() =>
   store.workspace?.versions.find((version) => version.id === activeVersionKey.value),
 )
@@ -100,6 +103,20 @@ const protectedElementIds = computed(() => [
 ])
 const markerSelectionIds = computed(() => [...markerSelection.value])
 const markerItems = computed(() => reservedItems(workspace.value?.items || []))
+const showAssignmentSave = computed(() => !readonlyMode.value && workbenchMode.value === 'seating')
+const saveStatusText = computed(() => {
+  if (readonlyMode.value) return '已发布版本'
+  if (workbenchMode.value === 'layout') {
+    if (layoutSaving.value) return '布局保存中'
+    return layoutDirty.value ? '布局未保存' : '布局已保存'
+  }
+  if (workbenchMode.value === 'marker') {
+    if (markerSubmitting.value) return '区域保存中'
+    return '区域模式'
+  }
+  if (store.saving) return '排座保存中'
+  return store.dirty ? '排座未保存' : '排座已保存'
+})
 const colorFieldOptions = computed(() =>
   (workspace.value?.fieldDefinitions || []).filter(
     (field) => !['name', 'employeeNo'].includes(field.code),
@@ -207,7 +224,11 @@ function updateMarkerDraft(value) {
   Object.assign(markerDraft, value)
 }
 function selectReservedMarker(item) {
-  if (readonlyMode.value || !item || item.type !== 'RESERVED') return
+  if (readonlyMode.value || workbenchMode.value !== 'marker' || !item || item.type !== 'RESERVED') return
+  if (markerDraft.id === item.id) {
+    resetMarkerDraft()
+    return
+  }
   Object.assign(markerDraft, {
     id: item.id,
     label: item.label || '',
@@ -544,7 +565,11 @@ async function onSeatClick(element) {
   addVisible.value = true
 }
 function selectParticipant(person) {
-  store.selectParticipant(person)
+  store.selectParticipant(store.selectedParticipantId === person?.id ? undefined : person)
+}
+function clearCanvasSelection() {
+  store.selectParticipant(undefined)
+  resetMarkerDraft()
 }
 async function openParticipantEdit(person) {
   if (readonlyMode.value || workbenchMode.value !== 'seating' || !person) return
@@ -733,10 +758,7 @@ async function onParticipantUpdated(participant) {
   <div class="app-page workbench-page" v-loading="store.loading || loadingVersion">
     <header class="app-header">
       <button class="home-brand" title="返回首页" @click="goHome">
-        <span class="brand-mark">席</span>
-        <span class="brand-copy">
-          <strong>会议排座助手</strong>
-        </span>
+        <span class="brand-slot" aria-hidden="true" />
       </button>
       <span class="header-divider" />
 
@@ -777,14 +799,11 @@ async function onParticipantUpdated(participant) {
         首页
       </el-button>
       <span class="save-state">
-        <i :class="{ active: store.saving, dirty: store.dirty }" />
-        <template v-if="readonlyMode">已发布版本</template>
-        <template v-else>
-          {{ store.saving ? '保存中' : store.dirty ? '有未保存改动' : '草稿已保存' }}
-        </template>
+        <i :class="{ active: store.saving || layoutSaving || markerSubmitting, dirty: store.dirty || layoutDirty }" />
+        {{ saveStatusText }}
       </span>
-      <div v-if="!readonlyMode" class="header-save-control">
-        <el-button type="primary" @click="saveDraft(false)">保存</el-button>
+      <div v-if="showAssignmentSave" class="header-save-control">
+        <el-button type="primary" @click="saveDraft(false)">保存排座</el-button>
         <el-select
           v-model="autoSaveSeconds"
           class="header-auto-save"
@@ -833,12 +852,12 @@ async function onParticipantUpdated(participant) {
           </div>
           <div class="canvas-stats">
             <span
-              ><b>{{ workspace.participants.length }}</b
-              ><small>总人数</small></span
+              ><b>{{ seatCount }}</b
+              ><small>座位数</small></span
             >
             <span
-              ><b>{{ assignedCount }}</b
-              ><small>已排</small></span
+              ><b>{{ workspace.participants.length }}</b
+              ><small>总人数</small></span
             >
             <span
               ><b>{{ pendingCount }}</b
@@ -857,7 +876,7 @@ async function onParticipantUpdated(participant) {
           >
             <el-radio-button label="排座模式" value="seating" />
             <el-radio-button label="布局编辑模式" value="layout" />
-            <el-radio-button label="区域标记模式" value="marker" />
+            <el-radio-button label="区域模式" value="marker" />
           </el-radio-group>
           <el-select
             v-if="workbenchMode === 'seating' && colorFieldOptions.length"
@@ -925,7 +944,7 @@ async function onParticipantUpdated(participant) {
             :zoom="zoom"
             :readonly="readonlyMode"
             :marker-mode="workbenchMode === 'marker'"
-            :marker-selection-ids="markerSelectionIds"
+            :marker-selection-ids="workbenchMode === 'marker' ? markerSelectionIds : []"
             :participant-color-by-id="participantColorById"
             :selected-participant-id="store.selectedParticipantId"
             :dragging-participant-id="draggingParticipantId"
@@ -936,6 +955,7 @@ async function onParticipantUpdated(participant) {
             @drag-state="draggingParticipantId = $event"
             @marker-seat-toggle="toggleMarkerSeat"
             @marker-select="selectReservedMarker"
+            @canvas-clear="clearCanvasSelection"
             @zoom-change="changeZoom($event)"
           />
         </div>
@@ -1059,9 +1079,11 @@ async function onParticipantUpdated(participant) {
 }
 
 .home-brand {
+  width: 148px;
+  min-width: 148px;
+  min-height: 34px;
   display: flex;
   align-items: center;
-  gap: 10px;
   padding: 0;
   color: var(--ink);
   background: transparent;
@@ -1070,8 +1092,11 @@ async function onParticipantUpdated(participant) {
   text-align: left;
 }
 
-.home-brand .brand-copy {
+.brand-slot {
+  width: 100%;
+  height: 34px;
   display: block;
+  border-radius: 8px;
 }
 
 .meeting-selector {
@@ -1380,9 +1405,10 @@ async function onParticipantUpdated(participant) {
     padding-inline: 16px;
   }
 
-  .home-brand .brand-copy {
-    min-width: 132px;
-  }
+    .home-brand {
+      width: 132px;
+      min-width: 132px;
+    }
 
   .save-state {
     display: none;

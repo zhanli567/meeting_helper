@@ -8,8 +8,34 @@ test('排座工作台提供三段模式且发布版本只读', async () => {
   assert.match(source, /workbenchMode\s*=\s*ref\('seating'\)/)
   assert.match(source, /label="排座模式"/)
   assert.match(source, /label="布局编辑模式"/)
-  assert.match(source, /label="区域标记模式"/)
+  assert.match(source, /label="区域模式"/)
+  assert.doesNotMatch(source, /区域标记模式/)
   assert.match(source, /:disabled="readonlyMode"/)
+})
+
+test('工作台按模式拆分保存入口并清空品牌占位', async () => {
+  const source = await readFile(new URL('../src/views/WorkbenchView.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /showAssignmentSave/)
+  assert.match(source, /保存排座/)
+  assert.match(source, /saveStatusText/)
+  assert.match(source, /seatCount/)
+  assert.match(source, />\s*座位数\s*</)
+  assert.doesNotMatch(source, /<span class="brand-mark">席<\/span>/)
+  assert.doesNotMatch(source, /会议排座助手<\/strong>/)
+  assert.match(source, /class="brand-slot"/)
+})
+
+test('工作台和画布支持取消已选人员与区域', async () => {
+  const workbenchSource = await readFile(new URL('../src/views/WorkbenchView.vue', import.meta.url), 'utf8')
+  const canvasSource = await readFile(new URL('../src/components/VenueCanvas.vue', import.meta.url), 'utf8')
+
+  assert.match(workbenchSource, /clearCanvasSelection/)
+  assert.match(workbenchSource, /store\.selectedParticipantId === person\?\.id/)
+  assert.match(workbenchSource, /markerDraft\.id === item\.id/)
+  assert.match(canvasSource, /canvas-clear/)
+  assert.match(canvasSource, /@click="onCanvasClear"/)
+  assert.match(canvasSource, /@click\.stop="onSeatClick\(element\)"/)
 })
 
 test('布局编辑模式复用编辑器并保存会议布局', async () => {

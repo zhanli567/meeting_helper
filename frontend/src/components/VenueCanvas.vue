@@ -25,6 +25,7 @@ const emit = defineEmits([
   'zoomChange',
   'marker-seat-toggle',
   'marker-select',
+  'canvas-clear',
 ])
 const scrollRef = ref()
 const dragTargetId = ref()
@@ -216,6 +217,10 @@ function onSeatClick(element) {
   if (person) emit('select', person)
   else if (!item) emit('seatClick', element)
 }
+function onCanvasClear() {
+  if (panMoved) return
+  emit('canvas-clear')
+}
 function onMarkerSeatToggle(element) {
   if (props.markerMode) {
     if (props.readonly || !isSeat(element)) return
@@ -315,7 +320,7 @@ onBeforeUnmount(endPan)
     @wheel="onWheel"
   >
     <div class="canvas-content">
-      <div class="venue-canvas" :style="canvasStyle">
+      <div class="venue-canvas" :style="canvasStyle" @click="onCanvasClear">
         <template v-for="element in workspace.layout.elements" :key="element.id">
         <el-tooltip
           v-if="isSeat(element)"
@@ -370,7 +375,7 @@ onBeforeUnmount(endPan)
             @dragover="onDragOver($event, element)"
             @dragleave="onDragLeave($event, element)"
             @drop="onDrop($event, element)"
-            @click="onSeatClick(element)"
+            @click.stop="onSeatClick(element)"
             @dblclick.stop="onMarkerSeatToggle(element)"
           >
             <span v-if="!reservedItemByElementId.has(element.id)" class="seat-code">
@@ -399,6 +404,7 @@ onBeforeUnmount(endPan)
           class="layout-element structural-element"
           :style="visualStyle(element)"
           :title="element.name"
+          @click.stop
         >
           <span>{{ element.name }}</span>
         </div>
