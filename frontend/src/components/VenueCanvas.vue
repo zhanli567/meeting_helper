@@ -69,22 +69,19 @@ const regionAnchors = computed(() =>
 )
 const markerSelectionSet = computed(() => new Set(props.markerSelectionIds || []))
 const seatNumbering = computed(() => computeSeatLabels(props.workspace.layout.elements || []))
-const rowLabelBounds = computed(() => {
-  const bounds = new Map()
-  ;(props.workspace.layout.elements || [])
+const rowLabelColumnBounds = computed(() =>
+  (props.workspace.layout.elements || [])
     .filter(isSeat)
-    .forEach((element) => {
-      const row = Number(element.row)
+    .reduce((current, element) => {
       const column = Number(element.column)
-      if (!Number.isFinite(row) || !Number.isFinite(column)) return
+      if (!Number.isFinite(column)) return current
       const columnSpan = Math.max(1, Number(element.columnSpan || 1))
-      const current = bounds.get(row) || { minColumn: column, maxColumn: column + columnSpan - 1 }
-      current.minColumn = Math.min(current.minColumn, column)
-      current.maxColumn = Math.max(current.maxColumn, column + columnSpan - 1)
-      bounds.set(row, current)
-    })
-  return bounds
-})
+      return {
+        minColumn: Math.min(current.minColumn, column),
+        maxColumn: Math.max(current.maxColumn, column + columnSpan - 1),
+      }
+    }, { minColumn: props.workspace.layout.gridColumns, maxColumn: 1 }),
+)
 const unit = computed(() => displayCellUnit(props.zoom))
 const markerSelectionRect = computed(() => {
   if (!markerDrawing.value || !markerRectStart.value || !markerRectCurrent.value) return undefined
@@ -155,10 +152,10 @@ function visualStyle(element) {
   }
 }
 function rowLabelStyle(rowLabel, side) {
-  const bounds = rowLabelBounds.value.get(rowLabel.sourceRow) || {
-    minColumn: 1,
-    maxColumn: props.workspace.layout.gridColumns,
-  }
+  const bounds =
+    rowLabelColumnBounds.value.minColumn <= rowLabelColumnBounds.value.maxColumn
+      ? rowLabelColumnBounds.value
+      : { minColumn: 1, maxColumn: props.workspace.layout.gridColumns }
   return {
     top: `${(rowLabel.sourceRow - 0.5) * unit.value}px`,
     left:
@@ -334,11 +331,18 @@ function onDrop(event, element) {
 }
 function onSeatClick(element) {
   if (panMoved || !isSeat(element)) return
-  if (props.markerMode) return
+  if (props.markerMode) {
+    selectReservedRegionFromSeat(element)
+    return
+  }
   const item = itemFor(element.id)
   const person = participantFor(element.id)
   if (person) emit('select', person)
   else if (!item) emit('seatClick', element)
+}
+function selectReservedRegionFromSeat(element) {
+  const reservedItem = reservedItemByElementId.value.get(element.id)
+  if (reservedItem) emit('marker-select', reservedItem)
 }
 function onCanvasClear() {
   if (panMoved || markerSuppressClick) return
@@ -542,17 +546,14 @@ onBeforeUnmount(() => {
           <span>{{ element.name }}</span>
         </div>
         </template>
-        <button
+        <span
           v-for="anchor in regionAnchors"
           :key="anchor.id"
-          type="button"
           class="region-label"
           :style="regionAnchorStyle(anchor)"
-          @pointerdown.stop
-          @click.stop="emit('marker-select', anchor.source)"
         >
           {{ anchor.label }}
-        </button>
+        </span>
         <div
           v-if="markerSelectionRect"
           class="marker-selection-preview"
@@ -754,9 +755,9 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(15, 23, 42, 0.18);
   border-radius: 999px;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
-  cursor: pointer;
   font-size: max(9px, calc(var(--unit) * 0.24));
   line-height: 1;
+  pointer-events: none;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

@@ -251,6 +251,26 @@ async function createReservedAreaFromDialog(payload) {
   const saved = await saveReservedAreas()
   if (saved) regionCreateVisible.value = false
 }
+async function mergeReservedAreaFromDialog(payload) {
+  const target = markerItems.value.find((item) => item.id === payload?.targetMarkerId)
+  if (!target) {
+    ElMessage.warning('请选择要合并的区域')
+    return
+  }
+  Object.assign(markerDraft, {
+    id: target.id,
+    label: target.label || '',
+    backgroundColor: target.backgroundColor || defaultMarkerDraft.backgroundColor,
+    textColor: target.textColor || '#172033',
+    bold: Boolean(target.bold),
+  })
+  markerSelection.value = new Set([
+    ...(target.targetElementIds || []),
+    ...markerSelectionIds.value,
+  ])
+  const saved = await saveReservedAreas()
+  if (saved) regionCreateVisible.value = false
+}
 function selectReservedMarker(item) {
   if (readonlyMode.value || workbenchMode.value !== 'marker' || !item || item.type !== 'RESERVED') return
   if (markerDraft.id === item.id) {
@@ -1104,8 +1124,10 @@ async function onParticipantUpdated(participant) {
       v-if="store.workspace && !readonlyMode"
       v-model="regionCreateVisible"
       :selected-seat-count="markerSelection.size"
+      :markers="markerItems"
       :submitting="markerSubmitting"
       @submit="createReservedAreaFromDialog"
+      @merge="mergeReservedAreaFromDialog"
       @cancel="resetMarkerDraft"
     />
   </div>

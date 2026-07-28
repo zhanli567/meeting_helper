@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { Close, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
@@ -15,12 +15,16 @@ const defaultColor = '#fef3c7'
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   selectedSeatCount: { type: Number, default: 0 },
+  markers: { type: Array, default: () => [] },
   submitting: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update:modelValue', 'submit', 'cancel'])
+const emit = defineEmits(['update:modelValue', 'submit', 'merge', 'cancel'])
 
 const colorSwatches = ref(availableColorSwatches('fillColor'))
+const mode = ref('create')
+const mergeTargetId = ref('')
+const hasMarkers = computed(() => props.markers.length > 0)
 const form = reactive({
   label: '',
   backgroundColor: defaultColor,
@@ -33,6 +37,8 @@ function resetForm() {
   form.backgroundColor = defaultColor
   form.textColor = textColorForBackground(defaultColor)
   form.bold = true
+  mode.value = 'create'
+  mergeTargetId.value = ''
   refreshColors()
 }
 
@@ -85,13 +91,21 @@ function handleVisibleChange(value) {
 }
 
 function submit() {
+  if (!props.selectedSeatCount) {
+    ElMessage.warning('请先框选座位')
+    return
+  }
+  if (mode.value === 'merge') {
+    if (!mergeTargetId.value) {
+      ElMessage.warning('请选择要合并的区域')
+      return
+    }
+    emit('merge', { targetMarkerId: mergeTargetId.value })
+    return
+  }
   const label = form.label.trim()
   if (!label) {
     ElMessage.warning('请填写区域名称')
-    return
-  }
-  if (!props.selectedSeatCount) {
-    ElMessage.warning('请先框选座位')
     return
   }
   emit('submit', {
@@ -107,6 +121,16 @@ watch(
   (visible) => {
     if (visible) resetForm()
   },
+)
+
+watch(
+  () => [mode.value, props.markers],
+  () => {
+    if (mode.value !== 'merge') return
+    if (props.markers.some((marker) => marker.id === mergeTargetId.value)) return
+    mergeTargetId.value = props.markers[0]?.id || ''
+  },
+  { deep: true },
 )
 </script>
 
@@ -124,8 +148,33 @@ watch(
       <b>{{ selectedSeatCount }}</b>
     </div>
 
+    <el-radio-group
+      v-if="hasMarkers"
+      v-model="mode"
+      class="region-mode-tabs"
+      size="small"
+    >
+      <el-radio-button label="create">新建区域</el-radio-button>
+      <el-radio-button label="merge">合并到已有区域</el-radio-button>
+    </el-radio-group>
+
     <el-form label-position="top" class="region-create-form">
-      <el-form-item label="区域名称" required>
+      <el-form-item v-if="mode === 'merge'" label="选择已有区域" required>
+        <el-select
+          v-model="mergeTargetId"
+          class="merge-target-select"
+          aria-label="合并到已有区域"
+        >
+          <el-option
+            v-for="marker in markers"
+            :key="marker.id"
+            :label="marker.label || '未命名区域'"
+            :value="marker.id"
+          />
+        </el-select>
+      </el-form-item>
+
+      <el-form-item v-if="mode === 'create'" label="区域名称" required>
         <el-input
           v-model="form.label"
           maxlength="20"
@@ -135,7 +184,7 @@ watch(
         />
       </el-form-item>
 
-      <el-form-item label="区域颜色">
+      <el-form-item v-if="mode === 'create'" label="区域颜色">
         <div class="swatch-row">
           <button
             v-for="swatch in colorSwatches"
@@ -171,7 +220,9 @@ watch(
 
     <template #footer>
       <el-button :disabled="submitting" @click="closeDialog">取消</el-button>
-      <el-button type="primary" :loading="submitting" @click="submit">创建区域</el-button>
+      <el-button type="primary" :loading="submitting" @click="submit">
+        {{ mode === 'merge' ? '合并到已有区域' : '创建区域' }}
+      </el-button>
     </template>
   </el-dialog>
 </template>
@@ -198,6 +249,23 @@ watch(
 .region-create-form {
   display: grid;
   gap: 4px;
+}
+
+.region-mode-tabs {
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.region-mode-tabs :deep(.el-radio-button) {
+  flex: 1;
+}
+
+.region-mode-tabs :deep(.el-radio-button__inner) {
+  width: 100%;
+}
+
+.merge-target-select {
+  width: 100%;
 }
 
 .swatch-row {
