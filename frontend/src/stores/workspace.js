@@ -9,13 +9,47 @@ import {
   TEMPORARILY_ABSENT,
 } from '@/utils/participantRules'
 const recentMeetingStorageKey = `meeting-helper:recent-meeting:${currentUser.tenantId}:${currentUser.id}`
-function readRecentMeetingId() {
-  if (typeof window === 'undefined') return ''
+function readRecentMeetingSession() {
+  const fallback = { meetingId: '', versionKey: 'draft' }
+  if (typeof window === 'undefined') return fallback
   try {
-    return window.localStorage.getItem(recentMeetingStorageKey) || ''
+    const raw = window.localStorage.getItem(recentMeetingStorageKey) || ''
+    if (!raw) return fallback
+    if (!raw.trim().startsWith('{')) return { meetingId: raw, versionKey: 'draft' }
+    const parsed = JSON.parse(raw)
+    return {
+      meetingId: typeof parsed.meetingId === 'string' ? parsed.meetingId : '',
+      versionKey: typeof parsed.versionKey === 'string' ? parsed.versionKey : 'draft',
+    }
   } catch {
-    return ''
+    return fallback
   }
+}
+const exportTimestampPattern = 'yyyyMMddHHmm'
+function padTime(value) {
+  return String(value).padStart(2, '0')
+}
+function formatExportTimestamp(date = new Date()) {
+  return `${date.getFullYear()}${padTime(date.getMonth() + 1)}${padTime(date.getDate())}${padTime(date.getHours())}${padTime(date.getMinutes())}`
+}
+function safeFilenamePart(value, fallback) {
+  const name = String(value || fallback)
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, ' ')
+    .slice(0, 80)
+  return name || fallback
+}
+function buildExportFilename(workspace, versionId, date = new Date()) {
+  const meetingName = safeFilenamePart(workspace?.meeting?.name, '会议')
+  const versionName = safeFilenamePart(
+    versionId
+      ? workspace?.versions?.find((version) => version.id === versionId)?.versionName
+      : '草稿',
+    '草稿',
+  )
+  const timestamp = formatExportTimestamp(date)
+  return `${meetingName}-${versionName}-${timestamp}.xlsx`
 }
 function normalizeWorkspace(value) {
   return {
@@ -30,8 +64,10 @@ function normalizeWorkspace(value) {
   }
 }
 function createWorkspaceStore() {
+  const initialRecentSession = readRecentMeetingSession()
   const meetings = ref([])
-  const activeMeetingId = ref(readRecentMeetingId())
+  const activeMeetingId = ref(initialRecentSession.meetingId)
+  const recentVersionKey = ref(initialRecentSession.versionKey)
   const workspace = ref()
   const loading = ref(false)
   const saving = ref(false)
@@ -51,7 +87,7 @@ function createWorkspaceStore() {
     try {
       meetings.value = await meetingApi.meetings()
       if (!meetings.value.some((meeting) => meeting.id === activeMeetingId.value)) {
-        rememberMeeting(meetings.value[0]?.id || '')
+        rememberMeeting(meetings.value[0]?.id || '', 'draft')
       }
       if (activeMeetingId.value) {
         await loadWorkspace()
@@ -72,7 +108,7 @@ function createWorkspaceStore() {
     dirty.value = false
   }
   async function switchMeeting(meetingId) {
-    rememberMeeting(meetingId)
+    rememberMeeting(meetingId, 'draft')
     selectedParticipantId.value = undefined
     loading.value = true
     try {
@@ -216,7 +252,7 @@ function createWorkspaceStore() {
       const data = await meetingApi.exportExcel(workspace.value.meeting.id, versionId, options)
       downloadBlob(
         data,
-        `${workspace.value.meeting.name}-排座.xlsx`,
+        buildExportFilename(workspace.value, versionId),
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       )
       ElMessage.success('导出完成')
@@ -250,12 +286,19 @@ function createWorkspaceStore() {
     }
     return item
   }
-  function rememberMeeting(meetingId) {
+  function rememberMeeting(meetingId, versionKey = 'draft') {
     activeMeetingId.value = meetingId
+    recentVersionKey.value = versionKey || 'draft'
     if (typeof window === 'undefined') return
     try {
-      if (meetingId) window.localStorage.setItem(recentMeetingStorageKey, meetingId)
-      else window.localStorage.removeItem(recentMeetingStorageKey)
+      if (meetingId) {
+        window.localStorage.setItem(
+          recentMeetingStorageKey,
+          JSON.stringify({ meetingId, versionKey: recentVersionKey.value }),
+        )
+      } else {
+        window.localStorage.removeItem(recentMeetingStorageKey)
+      }
     } catch {
       // 浏览器禁用本地存储时仍保留当前会话内的最近会议。
     }
@@ -263,6 +306,7 @@ function createWorkspaceStore() {
   return {
     meetings,
     activeMeetingId,
+    recentVersionKey,
     workspace,
     loading,
     saving,

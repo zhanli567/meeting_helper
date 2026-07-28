@@ -770,21 +770,25 @@ onBeforeUnmount(() => {
 }
 
 .row-label {
-  width: 28px;
-  height: calc(var(--unit) * 0.6);
+  width: auto;
+  min-width: 32px;
+  height: 20px;
   position: absolute;
   transform: translateY(-50%);
   display: grid;
   place-items: center;
+  padding: 0 6px;
   color: #475569;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(148, 163, 184, 0.34);
   border-radius: 7px;
   box-shadow: 0 2px 7px rgba(15, 23, 42, 0.08);
-  font-size: max(8px, calc(var(--unit) * 0.2));
+  font-size: clamp(8px, calc(var(--unit) * 0.2), 12px);
   font-weight: 650;
   line-height: 1;
   pointer-events: none;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
 }
 
 .tooltip-card {

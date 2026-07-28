@@ -20,9 +20,16 @@ const recentMeeting = computed(
     store.meetings.find((meeting) => meeting.id === store.activeMeetingId) || store.meetings[0],
 )
 onMounted(() => store.initialize())
-function openMeeting(meetingId) {
-  store.rememberMeeting(meetingId)
-  router.push(`/workbench/${meetingId}`)
+function openMeeting(meetingId, versionKey = 'draft') {
+  store.rememberMeeting(meetingId, versionKey)
+  router.push({
+    path: `/workbench/${meetingId}`,
+    query: versionKey && versionKey !== 'draft' ? { version: versionKey } : {},
+  })
+}
+function openRecentMeeting() {
+  if (!recentMeeting.value) return
+  openMeeting(recentMeeting.value.id, store.recentVersionKey)
 }
 function formatTime(value) {
   return new Intl.DateTimeFormat('zh-CN', {
@@ -88,7 +95,7 @@ async function saveMeetingName() {
               v-if="recentMeeting"
               size="large"
               :icon="ArrowRight"
-              @click="openMeeting(recentMeeting.id)"
+              @click="openRecentMeeting"
             >
               继续最近会议
             </el-button>
@@ -122,7 +129,6 @@ async function saveMeetingName() {
             >
               <div class="meeting-icon"><Calendar /></div>
               <div class="meeting-copy">
-                <el-tag size="small" effect="light">{{ meeting.status }}</el-tag>
                 <h3>{{ meeting.name }}</h3>
                 <p>{{ meeting.layoutName }}</p>
                 <span
@@ -197,17 +203,23 @@ async function saveMeetingName() {
 .home-scroll {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .home-content {
   width: min(1280px, calc(100% - 64px));
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   margin: 0 auto;
   padding: 32px 0 64px;
 }
 
 .home-hero {
   min-height: 160px;
+  flex: none;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -234,10 +246,15 @@ async function saveMeetingName() {
 }
 
 .home-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   margin-top: 34px;
 }
 
 .section-heading {
+  flex: none;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -250,9 +267,15 @@ async function saveMeetingName() {
 }
 
 .meeting-grid {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
   gap: 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .meeting-card {

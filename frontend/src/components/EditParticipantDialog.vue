@@ -95,7 +95,13 @@ async function submit() {
 
 <template>
   <el-dialog v-model="visible" title="编辑人员" width="720px">
-    <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
+    <el-form
+      ref="formRef"
+      :model="form"
+      :rules="rules"
+      label-position="top"
+      class="participant-form-scroll"
+    >
       <div class="form-grid">
         <el-form-item label="工号">
           <el-input v-model="form.employeeNo" disabled />
@@ -106,7 +112,7 @@ async function submit() {
       </div>
 
       <template v-if="multiRecord">
-        <el-table :data="form.records" border size="small" class="records-table">
+        <el-table :data="form.records" border size="small" class="records-table" max-height="260">
           <el-table-column prop="recordOrder" label="记录" width="72" />
           <el-table-column
             v-for="field in dynamicFields"
@@ -156,6 +162,13 @@ async function submit() {
 </template>
 
 <style scoped>
+.participant-form-scroll {
+  max-height: min(62vh, 620px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

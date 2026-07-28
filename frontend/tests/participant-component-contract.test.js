@@ -21,7 +21,8 @@ test('新增弹窗将完整上下文和提交事件接入可注入动作', () =>
 })
 
 test('人员面板保持筛选、分页、分组和操作包装器的完整接线', () => {
-  const panel = normalize(source('../src/components/ParticipantPanel.vue'))
+  const rawPanel = source('../src/components/ParticipantPanel.vue')
+  const panel = normalize(rawPanel)
 
   assert.match(panel, /from '@\/utils\/participantActions'/)
   assert.match(panel, /return filteredParticipants\(props\.participants, tab\.value, keyword\)/)
@@ -46,6 +47,13 @@ test('人员面板保持筛选、分页、分组和操作包装器的完整接�
   assert.match(panel, /@dragstart="dragStart\(\$event, person\)"/)
   assert.match(panel, /@click="changeAttendance\(person\)"/)
   assert.match(panel, /@click="removeParticipant\(person\)"/)
+  assert.match(rawPanel, /participantStatus\(person\)/)
+  assert.match(rawPanel, /participantStatusTitle\(person\)/)
+  assert.match(rawPanel, /class="participant-status-dot"/)
+  assert.match(rawPanel, /\.participant-status-dot\.status-assigned\s*\{[\s\S]*background:\s*#86efac;/)
+  assert.match(rawPanel, /\.participant-status-dot\.status-absent\s*\{[\s\S]*background:\s*#fecaca;/)
+  assert.match(rawPanel, /\.participant-status-dot\.status-pending\s*\{[\s\S]*background:\s*#fde68a;/)
+  assert.doesNotMatch(rawPanel, /assigned-dot/)
 })
 
 test('座位画布保持悬浮信息和拖放包装器的完整接线', () => {
@@ -106,6 +114,9 @@ test('排号贴近有元素区域两侧而不是画布外沿', () => {
   assert.match(canvas, /bounds\.minColumn/)
   assert.match(canvas, /bounds\.maxColumn/)
   assert.match(canvas, /\.reduce\(\(current, element\) =>/)
+  assert.match(canvas, /white-space:\s*nowrap/)
+  assert.match(canvas, /font-size:\s*clamp\(8px,\s*calc\(var\(--unit\) \* 0\.2\),\s*12px\)/)
+  assert.match(canvas, /writing-mode:\s*horizontal-tb/)
   assert.doesNotMatch(canvas, /\[side\]: '-34px'/)
   assert.doesNotMatch(canvas, /rowLabelBounds\.value\.get\(rowLabel\.sourceRow\)/)
 })

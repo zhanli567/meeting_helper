@@ -279,13 +279,20 @@ function removeColor(color) {
 .marker-form {
   flex: 1;
   min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding-top: 16px;
+  padding-right: 2px;
 }
 
 .swatch-row {
+  max-height: min(180px, 28vh);
   display: flex;
   flex-wrap: wrap;
   gap: 9px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 2px 2px 2px 0;
 }
 
 .marker-swatch {

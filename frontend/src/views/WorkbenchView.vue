@@ -30,6 +30,7 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { buildParticipantColorMap } from '@/utils/groupColors'
 import { attendingPendingCount } from '@/utils/participantRules'
 import { reservedItems, toggleSeatSelection } from '@/utils/seatRegions'
+import { normalizeHexColor } from '@/utils/venuePreferences'
 import { toElementPayload } from '@/utils/venueModel'
 import { placeFloatingMenu } from '@/utils/workbenchLayout'
 const router = useRouter()
@@ -221,6 +222,35 @@ function currentMarkerInput() {
     targetElementIds: markerSelectionIds.value,
   }
 }
+function normalizedMarkerLabel(value) {
+  return String(value || '').trim().toLocaleLowerCase()
+}
+function normalizedMarkerColor(value) {
+  return normalizeHexColor(value) || ''
+}
+function validateMarkerUniqueness(marker, excludedId) {
+  const label = normalizedMarkerLabel(marker?.label)
+  const color = normalizedMarkerColor(marker?.backgroundColor)
+  if (
+    label &&
+    markerItems.value.some(
+      (item) => item.id !== excludedId && normalizedMarkerLabel(item.label) === label,
+    )
+  ) {
+    ElMessage.warning('区域名称已存在，请使用其他名称')
+    return false
+  }
+  if (
+    color &&
+    markerItems.value.some(
+      (item) => item.id !== excludedId && normalizedMarkerColor(item.backgroundColor) === color,
+    )
+  ) {
+    ElMessage.warning('区域颜色已被其他区域使用，请选择其他颜色')
+    return false
+  }
+  return true
+}
 function resetMarkerDraft() {
   Object.assign(markerDraft, defaultMarkerDraft)
   markerSelection.value = new Set()
@@ -244,6 +274,7 @@ function openRegionCreateDialog(elementIds) {
   regionCreateVisible.value = true
 }
 async function createReservedAreaFromDialog(payload) {
+  if (!validateMarkerUniqueness(payload)) return
   Object.assign(markerDraft, {
     id: '',
     label: payload.label || '',
@@ -332,6 +363,7 @@ async function saveReservedAreas() {
     ElMessage.warning('请至少选择一个座位')
     return false
   }
+  if (!validateMarkerUniqueness(markerDraft, markerDraft.id)) return false
   if (!(await saveDraft(true))) return false
   markerSubmitting.value = true
   try {
@@ -390,12 +422,34 @@ async function deleteReservedMarker(skipConfirm = false) {
     markerSubmitting.value = false
   }
 }
+function routeVersionKey() {
+  return typeof route.query.version === 'string' ? route.query.version : ''
+}
+function workbenchRoute(meetingId, versionKey = 'draft') {
+  return {
+    path: `/workbench/${meetingId}`,
+    query: versionKey && versionKey !== 'draft' ? { version: versionKey } : {},
+  }
+}
 onMounted(async () => {
   const meetingId = typeof route.params.meetingId === 'string' ? route.params.meetingId : ''
-  if (meetingId) store.rememberMeeting(meetingId)
+  const requestedVersionKey = routeVersionKey()
+  if (meetingId) store.rememberMeeting(meetingId, requestedVersionKey || 'draft')
   await store.initialize()
   if (store.activeMeetingId && store.activeMeetingId !== meetingId) {
-    await router.replace(`/workbench/${store.activeMeetingId}`)
+    await router.replace(workbenchRoute(store.activeMeetingId, store.recentVersionKey))
+  }
+  const initialVersionKey = requestedVersionKey || store.recentVersionKey || 'draft'
+  if (
+    initialVersionKey !== 'draft' &&
+    store.workspace?.versions.some((version) => version.id === initialVersionKey)
+  ) {
+    await switchVersion(initialVersionKey)
+  } else if (store.activeMeetingId) {
+    activeVersionKey.value = 'draft'
+    publishedWorkspace.value = undefined
+    store.rememberMeeting(store.activeMeetingId, 'draft')
+    await router.replace(workbenchRoute(store.activeMeetingId, 'draft'))
   }
   resetFab()
   window.addEventListener('resize', keepFabInViewport)
@@ -417,24 +471,38 @@ async function switchMeeting(meetingId) {
   undoStack.value = []
   redoStack.value = []
   await store.switchMeeting(meetingId)
-  await router.replace(`/workbench/${meetingId}`)
+  await router.replace(workbenchRoute(meetingId, 'draft'))
 }
 async function switchVersion(versionKey) {
   if (versionKey !== 'draft' && !(await saveDraft(true))) return
+  const meetingId = store.workspace?.meeting?.id || store.activeMeetingId
   activeVersionKey.value = versionKey
   if (versionKey !== 'draft') workbenchMode.value = 'seating'
   store.selectParticipant(undefined)
   draggingParticipantId.value = undefined
   if (versionKey === 'draft') {
     publishedWorkspace.value = undefined
+    if (meetingId) {
+      store.rememberMeeting(meetingId, 'draft')
+      await router.replace(workbenchRoute(meetingId, 'draft'))
+    }
     return
   }
   if (!store.workspace) return
   loadingVersion.value = true
   try {
     publishedWorkspace.value = await meetingApi.versionSnapshot(store.workspace.plan.id, versionKey)
+    if (meetingId) {
+      store.rememberMeeting(meetingId, versionKey)
+      await router.replace(workbenchRoute(meetingId, versionKey))
+    }
   } catch (error) {
     activeVersionKey.value = 'draft'
+    publishedWorkspace.value = undefined
+    if (meetingId) {
+      store.rememberMeeting(meetingId, 'draft')
+      await router.replace(workbenchRoute(meetingId, 'draft'))
+    }
     ElMessage.error(apiErrorMessage(error))
   } finally {
     loadingVersion.value = false
@@ -491,6 +559,8 @@ async function overwriteDraftFromVersion() {
     activeVersionKey.value = 'draft'
     publishedWorkspace.value = undefined
     store.selectParticipant(undefined)
+    store.rememberMeeting(store.workspace.meeting.id, 'draft')
+    await router.replace(workbenchRoute(store.workspace.meeting.id, 'draft'))
     undoStack.value = []
     redoStack.value = []
     ElMessage.success(`已使用“${versionName}”覆盖草稿`)
@@ -505,6 +575,9 @@ async function saveDraft(silent = false) {
 }
 async function goHome() {
   if (!(await saveDraft(true))) return
+  if (store.workspace?.meeting?.id) {
+    store.rememberMeeting(store.workspace.meeting.id, activeVersionKey.value)
+  }
   await router.push('/')
 }
 function resetAutoSaveTimer() {

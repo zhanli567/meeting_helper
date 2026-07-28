@@ -171,6 +171,13 @@ async function commit() {
   gap: 14px;
 }
 
+.import-layout {
+  max-height: min(68vh, 640px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .import-card {
   padding: 14px;
   background: #fff;

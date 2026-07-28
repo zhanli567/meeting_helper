@@ -83,7 +83,13 @@ function removeExtraField(index) {
     :title="targetElementId ? '在所选空座新增人员' : '新增参会人员'"
     width="520px"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
+    <el-form
+      ref="formRef"
+      :model="form"
+      :rules="rules"
+      label-position="top"
+      class="participant-form-scroll"
+    >
       <div class="form-grid">
         <el-form-item label="工号" prop="employeeNo">
           <el-input v-model="form.employeeNo" maxlength="9" />
@@ -121,6 +127,13 @@ function removeExtraField(index) {
 </template>
 
 <style scoped>
+.participant-form-scroll {
+  max-height: min(58vh, 560px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

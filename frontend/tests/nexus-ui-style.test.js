@@ -30,6 +30,8 @@ test('工作台页面使用 Nexus 风格的静态工具栏和分层内容区', a
 
 test('首页保留模板管理入口并在会议列表标题处提供添加会议', async () => {
   const source = await readSource('src/views/HomeView.vue')
+  const store = await readSource('src/stores/workspace.js')
+  const workbench = await readSource('src/views/WorkbenchView.vue')
 
   assert.doesNotMatch(source, /currentUser/)
   assert.doesNotMatch(source, /User/)
@@ -41,7 +43,36 @@ test('首页保留模板管理入口并在会议列表标题处提供添加会�
   assert.doesNotMatch(source, /router\.push\('\/venues\/select'\)/)
   assert.match(source, /:icon="Collection"/)
   assert.match(source, /:icon="CirclePlus"/)
+  assert.match(source, /openRecentMeeting/)
+  assert.match(source, /recentVersionKey/)
+  assert.doesNotMatch(source, /meeting\.status/)
+  assert.doesNotMatch(source, />\s*DRAFT\s*</)
+  assert.match(store, /recentVersionKey/)
+  assert.match(store, /readRecentMeetingSession/)
+  assert.match(store, /versionKey/)
+  assert.match(workbench, /route\.query\.version/)
+  assert.match(workbench, /store\.rememberMeeting\(.*activeVersionKey\.value/s)
   assert.doesNotMatch(source, /<p>\s*每场会议拥有独立/)
+})
+
+test('主要列表容器固定高度并在内部滚动', async () => {
+  const home = await readSource('src/views/HomeView.vue')
+  const addDialog = await readSource('src/components/AddParticipantDialog.vue')
+  const editDialog = await readSource('src/components/EditParticipantDialog.vue')
+  const importDialog = await readSource('src/components/ImportDialog.vue')
+  const regionPanel = await readSource('src/components/RegionMarkerPanel.vue')
+  const regionCreate = await readSource('src/components/RegionCreateDialog.vue')
+
+  assert.match(home, /\.home-scroll\s*\{[\s\S]*overflow:\s*hidden;/)
+  assert.match(home, /\.home-content\s*\{[\s\S]*height:\s*100%;[\s\S]*display:\s*flex;/)
+  assert.match(home, /\.meeting-grid\s*\{[\s\S]*flex:\s*1;[\s\S]*overflow-y:\s*auto;/)
+  assert.match(addDialog, /class="participant-form-scroll"/)
+  assert.match(addDialog, /\.participant-form-scroll\s*\{[\s\S]*max-height:[\s\S]*overflow-y:\s*auto;/)
+  assert.match(editDialog, /class="participant-form-scroll"/)
+  assert.match(editDialog, /max-height="260"/)
+  assert.match(importDialog, /\.import-layout\s*\{[\s\S]*max-height:[\s\S]*overflow-y:\s*auto;/)
+  assert.match(regionPanel, /\.marker-form\s*\{[\s\S]*overflow-y:\s*auto;/)
+  assert.match(regionCreate, /\.swatch-row\s*\{[\s\S]*max-height:[\s\S]*overflow-y:\s*auto;/)
 })
 
 test('预览和工作区读取通用元素字段且不渲染旋转', async () => {

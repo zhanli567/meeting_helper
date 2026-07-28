@@ -77,6 +77,26 @@ function removeColor(swatch) {
   }
 }
 
+function normalizedLabel(value) {
+  return String(value || '').trim().toLocaleLowerCase()
+}
+
+function normalizedColor(value) {
+  return normalizeHexColor(value) || ''
+}
+
+function isDuplicateLabel(label) {
+  const value = normalizedLabel(label)
+  return Boolean(value && props.markers.some((marker) => normalizedLabel(marker.label) === value))
+}
+
+function isDuplicateColor(color) {
+  const value = normalizedColor(color)
+  return Boolean(
+    value && props.markers.some((marker) => normalizedColor(marker.backgroundColor) === value),
+  )
+}
+
 function closeDialog() {
   emit('cancel')
   emit('update:modelValue', false)
@@ -106,6 +126,14 @@ function submit() {
   const label = form.label.trim()
   if (!label) {
     ElMessage.warning('请填写区域名称')
+    return
+  }
+  if (isDuplicateLabel(label)) {
+    ElMessage.warning('区域名称已存在，请使用其他名称')
+    return
+  }
+  if (isDuplicateColor(form.backgroundColor)) {
+    ElMessage.warning('区域颜色已被其他区域使用，请选择其他颜色')
     return
   }
   emit('submit', {
@@ -269,9 +297,13 @@ watch(
 }
 
 .swatch-row {
+  max-height: min(180px, 26vh);
   display: flex;
   flex-wrap: wrap;
   gap: 9px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 2px 2px 2px 0;
 }
 
 .region-swatch {

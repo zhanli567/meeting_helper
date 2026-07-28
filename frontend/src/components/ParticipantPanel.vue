@@ -99,6 +99,18 @@ function removeParticipant(participant) {
 function participantDynamicSummary(person) {
   return participantSummary(person, props.fieldDefinitions)
 }
+function participantStatus(person) {
+  if (isTemporarilyAbsent(person)) return 'absent'
+  if (person.assignedElementId) return 'assigned'
+  return 'pending'
+}
+function participantStatusTitle(person) {
+  return {
+    assigned: '已排座',
+    absent: '临时不出席',
+    pending: '待排',
+  }[participantStatus(person)]
+}
 function dragOverPanel(event) {
   if (props.readonly) return
   event.preventDefault()
@@ -240,7 +252,11 @@ function leavePanel(event) {
                 @click="removeParticipant(person)"
               />
             </div>
-            <span v-if="person.assignedElementId" class="assigned-dot" title="已排座" />
+            <span
+              class="participant-status-dot"
+              :class="`status-${participantStatus(person)}`"
+              :title="participantStatusTitle(person)"
+            />
           </article>
         </section>
       </template>
@@ -487,7 +503,7 @@ function leavePanel(event) {
   font-size: 11px;
 }
 
-.person-card.assigned .person-employee-no {
+.person-employee-no {
   margin-right: 16px;
 }
 
@@ -511,15 +527,28 @@ function leavePanel(event) {
   white-space: nowrap;
 }
 
-.assigned-dot {
+.participant-status-dot {
   width: 7px;
   height: 7px;
   position: absolute;
   top: 9px;
   right: 9px;
+  border-radius: 50%;
+}
+
+.participant-status-dot.status-assigned {
   background: #86efac;
   border: 1px solid #bbf7d0;
-  border-radius: 50%;
+}
+
+.participant-status-dot.status-absent {
+  background: #fecaca;
+  border: 1px solid #fee2e2;
+}
+
+.participant-status-dot.status-pending {
+  background: #fde68a;
+  border: 1px solid #fef3c7;
 }
 
 .empty-copy {
