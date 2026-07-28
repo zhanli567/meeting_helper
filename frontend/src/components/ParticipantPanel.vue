@@ -204,14 +204,7 @@ function leavePanel(event) {
                 <strong>{{ person.name }}</strong>
                 <span class="person-employee-no">工号 {{ person.employeeNo }}</span>
               </div>
-              <div
-                v-if="
-                  isTemporarilyAbsent(person) ||
-                  participantDynamicSummary(person).length ||
-                  person.records?.length > 1
-                "
-                class="person-dynamic"
-              >
+              <div class="person-dynamic">
                 <el-tag v-if="isTemporarilyAbsent(person)" size="small" type="info">临时不出席</el-tag>
                 <span
                   v-for="summary in participantDynamicSummary(person)"
@@ -446,7 +439,8 @@ function leavePanel(event) {
   flex: 1;
   min-width: 0;
   display: grid;
-  align-content: center;
+  grid-template-rows: auto minmax(20px, auto);
+  align-content: start;
   gap: 6px;
   padding: 8px 10px;
 }
@@ -508,6 +502,7 @@ function leavePanel(event) {
 }
 
 .person-dynamic {
+  min-height: 20px;
   display: flex;
   flex-wrap: wrap;
   gap: 4px 6px;

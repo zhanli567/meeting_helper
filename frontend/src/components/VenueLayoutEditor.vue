@@ -1129,6 +1129,9 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   display: flex;
+  gap: 14px;
+  padding: 14px;
+  background: var(--workspace);
   overflow: hidden;
 }
 
@@ -1140,12 +1143,23 @@ onBeforeUnmount(() => {
   order: 0;
 }
 
+.editor-body .venue-element-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+}
+
 .canvas-pane {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   position: relative;
   order: 1;
   display: flex;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
   overflow: hidden;
 }
 
@@ -1154,6 +1168,8 @@ onBeforeUnmount(() => {
   min-width: 0;
   height: 100%;
   position: relative;
+  overflow: hidden;
+  border-radius: inherit;
 }
 
 .canvas-viewport {

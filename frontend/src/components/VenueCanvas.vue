@@ -161,8 +161,8 @@ function rowLabelStyle(rowLabel, side) {
     top: `${(rowLabel.sourceRow - 0.5) * unit.value}px`,
     left:
       side === 'left'
-        ? `${(bounds.minColumn - 1) * unit.value - 34}px`
-        : `${bounds.maxColumn * unit.value + 6}px`,
+        ? `${(bounds.minColumn - 1) * unit.value - 52}px`
+        : `${bounds.maxColumn * unit.value + 18}px`,
   }
 }
 function regionAnchorStyle(anchor) {
@@ -561,10 +561,10 @@ onBeforeUnmount(() => {
         />
         <template v-for="rowLabel in seatNumbering.rows" :key="rowLabel.sourceRow">
           <span class="row-label row-label-left" :style="rowLabelStyle(rowLabel, 'left')">
-            {{ rowLabel.displayRow }}排
+            第{{ rowLabel.displayRow }}排
           </span>
           <span class="row-label row-label-right" :style="rowLabelStyle(rowLabel, 'right')">
-            {{ rowLabel.displayRow }}排
+            第{{ rowLabel.displayRow }}排
           </span>
         </template>
       </div>
@@ -592,7 +592,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 26px 46px 38px;
+  padding: 26px 68px 38px;
 }
 
 .canvas-scroll.panning {
@@ -767,7 +767,7 @@ onBeforeUnmount(() => {
 
 .row-label {
   width: auto;
-  min-width: 32px;
+  min-width: 42px;
   height: 20px;
   position: absolute;
   transform: translateY(-50%);
