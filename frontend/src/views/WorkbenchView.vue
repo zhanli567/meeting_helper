@@ -19,12 +19,14 @@ import EditParticipantDialog from '@/components/EditParticipantDialog.vue'
 import ImportDialog from '@/components/ImportDialog.vue'
 import ParticipantPanel from '@/components/ParticipantPanel.vue'
 import PublishVersionDialog from '@/components/PublishVersionDialog.vue'
+import RegionMarkerPanel from '@/components/RegionMarkerPanel.vue'
 import VenueCanvas from '@/components/VenueCanvas.vue'
 import VenueLayoutEditor from '@/components/VenueLayoutEditor.vue'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { attendingPendingCount } from '@/utils/participantRules'
+import { reservedItems, toggleSeatSelection } from '@/utils/seatRegions'
 import { toElementPayload } from '@/utils/venueModel'
 import { placeFloatingMenu } from '@/utils/workbenchLayout'
 const router = useRouter()
@@ -61,6 +63,17 @@ const layoutDraft = ref({
   gridColumns: 30,
   elements: [],
 })
+const defaultMarkerDraft = {
+  id: '',
+  label: '',
+  backgroundColor: '#FEF3C7',
+  textColor: '#7C2D12',
+  bold: true,
+}
+const markerDraft = reactive({ ...defaultMarkerDraft })
+const markerSelection = ref(new Set())
+const markerSeatMode = ref('add')
+const markerSubmitting = ref(false)
 let fabOffsetX = 0
 let fabOffsetY = 0
 let fabPointerStartX = 0
@@ -84,6 +97,7 @@ const activePublishedVersion = computed(() =>
 const protectedElementIds = computed(() => [
   ...new Set((workspace.value?.items || []).flatMap((item) => item.targetElementIds || [])),
 ])
+const markerSelectionIds = computed(() => [...markerSelection.value])
 const fabStyle = computed(() => ({
   left: `${fab.x}px`,
   top: `${fab.y}px`,
@@ -118,6 +132,137 @@ function cloneLayout(layout) {
     })),
   }
 }
+function reservedAreaInputs(excludedId) {
+  return reservedItems(workspace.value?.items || [])
+    .filter((item) => item.id !== excludedId)
+    .map((item) => ({
+      id: item.id,
+      label: item.label,
+      backgroundColor: item.backgroundColor || '#FEF3C7',
+      textColor: item.textColor || '#7C2D12',
+      bold: item.bold,
+      targetElementIds: item.targetElementIds || [],
+    }))
+}
+function currentMarkerInput() {
+  return {
+    id: markerDraft.id || undefined,
+    label: markerDraft.label.trim(),
+    backgroundColor: markerDraft.backgroundColor,
+    textColor: markerDraft.textColor,
+    bold: Boolean(markerDraft.bold),
+    targetElementIds: markerSelectionIds.value,
+  }
+}
+function resetMarkerDraft() {
+  Object.assign(markerDraft, defaultMarkerDraft)
+  markerSelection.value = new Set()
+  markerSeatMode.value = 'add'
+}
+function updateMarkerDraft(value) {
+  Object.assign(markerDraft, value)
+}
+function selectReservedMarker(item) {
+  if (readonlyMode.value || !item || item.type !== 'RESERVED') return
+  Object.assign(markerDraft, {
+    id: item.id,
+    label: item.label || '',
+    backgroundColor: item.backgroundColor || '#FEF3C7',
+    textColor: item.textColor || '#7C2D12',
+    bold: Boolean(item.bold),
+  })
+  markerSelection.value = new Set(item.targetElementIds || [])
+  markerSeatMode.value = 'add'
+}
+function markerBlockingItem(elementId) {
+  const item = (workspace.value?.items || []).find((value) =>
+    (value.targetElementIds || []).includes(elementId),
+  )
+  if (!item) return undefined
+  if (item.type === 'RESERVED' && item.id === markerDraft.id) return undefined
+  return item
+}
+function toggleMarkerSeat(element) {
+  if (readonlyMode.value || workbenchMode.value !== 'marker' || !element?.id) return
+  const blockingItem = markerBlockingItem(element.id)
+  if (blockingItem) {
+    ElMessage.warning(
+      blockingItem.type === 'RESERVED'
+        ? '该座位已属于其他区域标记'
+        : '该座位已有人员或其他占用',
+    )
+    return
+  }
+  if (markerSeatMode.value === 'remove') {
+    const next = new Set(markerSelection.value)
+    next.delete(element.id)
+    markerSelection.value = next
+    return
+  }
+  markerSelection.value = toggleSeatSelection(markerSelection.value, element.id)
+}
+async function saveReservedAreas() {
+  if (!store.workspace || readonlyMode.value) return
+  if (!markerDraft.label.trim()) {
+    ElMessage.warning('请填写标记名称')
+    return
+  }
+  if (!markerSelection.value.size) {
+    ElMessage.warning('请至少选择一个座位')
+    return
+  }
+  if (!(await saveDraft(true))) return
+  markerSubmitting.value = true
+  try {
+    await meetingApi.saveReservedAreas(store.workspace.plan.id, {
+      reservedAreas: [
+        ...reservedAreaInputs(markerDraft.id),
+        currentMarkerInput(),
+      ],
+    })
+    await store.loadWorkspace()
+    resetMarkerDraft()
+    undoStack.value = []
+    redoStack.value = []
+    ElMessage.success('区域标记已保存')
+  } catch (error) {
+    ElMessage.error(apiErrorMessage(error))
+  } finally {
+    markerSubmitting.value = false
+  }
+}
+async function deleteReservedMarker() {
+  if (!store.workspace || readonlyMode.value) return
+  if (!markerDraft.id) {
+    resetMarkerDraft()
+    return
+  }
+  try {
+    await ElMessageBox.confirm(`确认删除“${markerDraft.label}”区域标记吗？`, '删除标记', {
+      type: 'warning',
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  if (!(await saveDraft(true))) return
+  markerSubmitting.value = true
+  try {
+    await meetingApi.saveReservedAreas(store.workspace.plan.id, {
+      reservedAreas: reservedAreaInputs(markerDraft.id),
+    })
+    await store.loadWorkspace()
+    resetMarkerDraft()
+    undoStack.value = []
+    redoStack.value = []
+    ElMessage.success('区域标记已删除')
+  } catch (error) {
+    ElMessage.error(apiErrorMessage(error))
+  } finally {
+    markerSubmitting.value = false
+  }
+}
 onMounted(async () => {
   const meetingId = typeof route.params.meetingId === 'string' ? route.params.meetingId : ''
   if (meetingId) store.rememberMeeting(meetingId)
@@ -141,6 +286,7 @@ async function switchMeeting(meetingId) {
   activeVersionKey.value = 'draft'
   workbenchMode.value = 'seating'
   publishedWorkspace.value = undefined
+  resetMarkerDraft()
   undoStack.value = []
   redoStack.value = []
   await store.switchMeeting(meetingId)
@@ -259,6 +405,14 @@ watch(
 )
 watch(readonlyMode, (readonly) => {
   if (readonly) workbenchMode.value = 'seating'
+})
+watch(workbenchMode, (mode) => {
+  if (mode !== 'marker') resetMarkerDraft()
+  if (mode !== 'seating') {
+    addMenuVisible.value = false
+    draggingParticipantId.value = undefined
+    store.selectParticipant(undefined)
+  }
 })
 async function performAssign(participantId, targetElementId) {
   if (readonlyMode.value || workbenchMode.value !== 'seating') return
@@ -608,7 +762,7 @@ async function onParticipantUpdated(participant) {
       v-if="workspace"
       class="workspace-shell"
       :class="{
-        'participant-collapsed': participantPanelCollapsed,
+        'participant-collapsed': participantPanelCollapsed && workbenchMode === 'seating',
         'layout-wide': workbenchMode === 'layout',
       }"
     >
@@ -694,7 +848,9 @@ async function onParticipantUpdated(participant) {
             v-else
             :workspace="workspace"
             :zoom="zoom"
-            :readonly="readonlyMode || workbenchMode !== 'seating'"
+            :readonly="readonlyMode"
+            :marker-mode="workbenchMode === 'marker'"
+            :marker-selection-ids="markerSelectionIds"
             :selected-participant-id="store.selectedParticipantId"
             :dragging-participant-id="draggingParticipantId"
             @assign="performAssign"
@@ -702,6 +858,8 @@ async function onParticipantUpdated(participant) {
             @select="selectParticipant"
             @seat-click="onSeatClick"
             @drag-state="draggingParticipantId = $event"
+            @marker-seat-toggle="toggleMarkerSeat"
+            @marker-select="selectReservedMarker"
             @zoom-change="changeZoom($event)"
           />
         </div>
@@ -710,6 +868,7 @@ async function onParticipantUpdated(participant) {
 
       <div v-if="workbenchMode !== 'layout'" class="participant-side">
         <button
+          v-if="workbenchMode === 'seating'"
           class="participant-panel-toggle"
           :title="participantPanelCollapsed ? '展开人员安排' : '收起人员安排'"
           :aria-label="participantPanelCollapsed ? '展开人员安排' : '收起人员安排'"
@@ -717,7 +876,20 @@ async function onParticipantUpdated(participant) {
         >
           {{ participantPanelCollapsed ? '‹' : '›' }}
         </button>
+        <RegionMarkerPanel
+          v-if="workbenchMode === 'marker'"
+          :model-value="markerDraft"
+          :selected-seat-count="markerSelection.size"
+          :mode="markerSeatMode"
+          :submitting="markerSubmitting"
+          @update:model-value="updateMarkerDraft"
+          @mode="markerSeatMode = $event"
+          @save="saveReservedAreas"
+          @delete="deleteReservedMarker"
+          @cancel="resetMarkerDraft"
+        />
         <ParticipantPanel
+          v-else
           v-show="!participantPanelCollapsed"
           :participants="workspace.participants"
           :field-definitions="workspace.fieldDefinitions"

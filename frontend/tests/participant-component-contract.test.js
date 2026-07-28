@@ -78,7 +78,7 @@ test('排座工作台仅允许通用座位元素接收人员且保留只读与�
   assert.match(canvas, /\{\{ element\.name \}\}/)
   assert.match(canvas, /@dragover="onDragOver\(\$event, element\)"/)
   assert.match(canvas, /@drop="onDrop\(\$event, element\)"/)
-  assert.match(canvas, /@dblclick\.stop="onSeatDoubleClick\(element\)"/)
+  assert.match(canvas, /@dblclick\.stop="onMarkerSeatToggle\(element\)"/)
   assert.match(canvas, /event\.button !== 2/)
   assert.match(canvas, /@wheel="onWheel"/)
   assert.doesNotMatch(canvas, /element\.(type|label|code|assignable|capacity|backgroundColor|rotation)/)

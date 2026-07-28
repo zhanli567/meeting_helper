@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
 import { firstParticipantSummary } from '@/utils/participantFields'
 import { startParticipantDrag as performParticipantDrag } from '@/utils/participantActions'
+import { regionLabelAnchors, reservedItems } from '@/utils/seatRegions'
 import { displayCellUnit, elementBox } from '@/utils/venueCanvasMetrics'
 const props = defineProps({
   workspace: { type: Object, required: true },
@@ -11,8 +12,19 @@ const props = defineProps({
   continuousParticipantId: { type: String, default: undefined },
   draggingParticipantId: { type: String, default: undefined },
   readonly: { type: Boolean, default: false },
+  markerMode: { type: Boolean, default: false },
+  markerSelectionIds: { type: Array, default: () => [] },
 })
-const emit = defineEmits(['assign', 'unassign', 'select', 'seatClick', 'dragState', 'zoomChange'])
+const emit = defineEmits([
+  'assign',
+  'unassign',
+  'select',
+  'seatClick',
+  'dragState',
+  'zoomChange',
+  'marker-seat-toggle',
+  'marker-select',
+])
 const scrollRef = ref()
 const dragTargetId = ref()
 const isPanning = ref(false)
@@ -26,11 +38,25 @@ const participantById = computed(
 )
 const itemByTarget = computed(() => {
   const result = new Map()
-  props.workspace.items.forEach((item) =>
-    item.targetElementIds.forEach((elementId) => result.set(elementId, item)),
+  ;(props.workspace.items || []).forEach((item) =>
+    (item.targetElementIds || []).forEach((elementId) => result.set(elementId, item)),
   )
   return result
 })
+const reservedAreaItems = computed(() => reservedItems(props.workspace.items))
+const reservedItemByElementId = computed(() => {
+  const result = new Map()
+  reservedAreaItems.value.forEach((item) =>
+    (item.targetElementIds || []).forEach((elementId) => result.set(elementId, item)),
+  )
+  return result
+})
+const regionAnchors = computed(() =>
+  reservedAreaItems.value.flatMap((item) =>
+    regionLabelAnchors(item, props.workspace.layout.elements || []),
+  ),
+)
+const markerSelectionSet = computed(() => new Set(props.markerSelectionIds || []))
 const unit = computed(() => displayCellUnit(props.zoom))
 const canvasStyle = computed(() => ({
   width: `${props.workspace.layout.gridColumns * unit.value}px`,
@@ -71,6 +97,15 @@ function visualStyle(element) {
     fontWeight: item?.bold ? '700' : undefined,
   }
 }
+function regionAnchorStyle(anchor) {
+  return {
+    left: `${(anchor.centerColumn - 0.5) * unit.value}px`,
+    top: `${(anchor.centerRow - 0.5) * unit.value}px`,
+    backgroundColor: anchor.backgroundColor || '#FEF3C7',
+    color: anchor.textColor || '#172033',
+    fontWeight: anchor.bold ? '700' : undefined,
+  }
+}
 function onDragStart(event, participant) {
   performParticipantDrag({
     event,
@@ -86,7 +121,9 @@ function startParticipantDrag(event, elementId) {
   if (participant) onDragStart(event, participant)
 }
 function onDragOver(event, element) {
-  if (props.readonly || !isSeat(element)) return
+  if (props.readonly || props.markerMode || !isSeat(element) || reservedItemByElementId.value.has(element.id)) {
+    return
+  }
   event.preventDefault()
   if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
   dragTargetId.value = element.id
@@ -96,7 +133,9 @@ function onDragLeave(event, element) {
   if (dragTargetId.value === element.id) dragTargetId.value = undefined
 }
 function onDrop(event, element) {
-  if (props.readonly || !isSeat(element)) return
+  if (props.readonly || props.markerMode || !isSeat(element) || reservedItemByElementId.value.has(element.id)) {
+    return
+  }
   event.preventDefault()
   const participantId = event.dataTransfer?.getData('text/participant-id')
   if (participantId) emit('assign', participantId, element.id)
@@ -105,12 +144,23 @@ function onDrop(event, element) {
 }
 function onSeatClick(element) {
   if (panMoved || !isSeat(element)) return
+  if (props.markerMode) {
+    onMarkerSeatToggle(element)
+    return
+  }
   const item = itemFor(element.id)
   const person = participantFor(element.id)
   if (person) emit('select', person)
   else if (!item) emit('seatClick', element)
 }
-function onSeatDoubleClick(element) {
+function onMarkerSeatToggle(element) {
+  if (props.markerMode) {
+    if (props.readonly || !isSeat(element)) return
+    const item = itemFor(element.id)
+    if (item && item.type !== 'RESERVED') return
+    emit('marker-seat-toggle', element)
+    return
+  }
   if (props.readonly || !isSeat(element)) return
   const item = itemFor(element.id)
   const person = participantFor(element.id)
@@ -186,7 +236,7 @@ onBeforeUnmount(endPan)
   <div
     ref="scrollRef"
     class="canvas-scroll"
-    :class="{ panning: isPanning, 'drag-active': draggingParticipantId }"
+    :class="{ panning: isPanning, 'drag-active': draggingParticipantId, 'marker-mode': markerMode }"
     @mousedown="startPan"
     @contextmenu.prevent
     @wheel="onWheel"
@@ -228,7 +278,12 @@ onBeforeUnmount(endPan)
                 Boolean(selectedParticipantId) &&
                 participantFor(element.id)?.id === selectedParticipantId,
               locked: itemFor(element.id)?.locked,
-              device: itemFor(element.id) && itemFor(element.id)?.type !== 'PERSON',
+              reserved: reservedItemByElementId.has(element.id),
+              'marker-selected': markerSelectionSet.has(element.id),
+              device:
+                itemFor(element.id) &&
+                itemFor(element.id)?.type !== 'PERSON' &&
+                itemFor(element.id)?.type !== 'RESERVED',
               'continuous-target': continuousParticipantId && !itemFor(element.id),
               'drop-ready': draggingParticipantId && !itemFor(element.id),
               'swap-ready': draggingParticipantId && participantFor(element.id),
@@ -239,9 +294,11 @@ onBeforeUnmount(endPan)
             @dragleave="onDragLeave($event, element)"
             @drop="onDrop($event, element)"
             @click="onSeatClick(element)"
-            @dblclick.stop="onSeatDoubleClick(element)"
+            @dblclick.stop="onMarkerSeatToggle(element)"
           >
-            <span class="seat-code">{{ element.name || '座位' }}</span>
+            <span v-if="!reservedItemByElementId.has(element.id)" class="seat-code">
+              {{ element.name || '座位' }}
+            </span>
             <template v-if="participantFor(element.id)">
               <span
                 class="seat-person"
@@ -257,7 +314,7 @@ onBeforeUnmount(endPan)
               </span>
               <el-icon v-if="itemFor(element.id)?.locked" class="lock-badge"><Lock /></el-icon>
             </template>
-            <span v-else-if="itemFor(element.id)" class="seat-device">
+            <span v-else-if="itemFor(element.id) && itemFor(element.id)?.type !== 'RESERVED'" class="seat-device">
               {{ itemFor(element.id)?.label }}
             </span>
             <span v-if="dragTargetId === element.id" class="drop-copy">
@@ -275,6 +332,16 @@ onBeforeUnmount(endPan)
           <span>{{ element.name }}</span>
         </div>
         </template>
+        <button
+          v-for="anchor in regionAnchors"
+          :key="anchor.id"
+          type="button"
+          class="region-label"
+          :style="regionAnchorStyle(anchor)"
+          @click.stop="emit('marker-select', anchor.source)"
+        >
+          {{ anchor.label }}
+        </button>
       </div>
     </div>
   </div>
@@ -338,6 +405,21 @@ onBeforeUnmount(endPan)
 .seat-element {
   cursor: pointer;
   user-select: none;
+}
+
+.canvas-scroll.marker-mode .seat-element {
+  cursor: crosshair;
+}
+
+.seat-element.reserved {
+  border-style: dashed;
+}
+
+.seat-element.marker-selected {
+  z-index: 18 !important;
+  box-shadow:
+    inset 0 0 0 2px var(--brand),
+    0 0 0 2px rgba(10, 89, 247, 0.18);
 }
 
 .canvas-scroll.drag-active .seat-element.drop-ready {
@@ -450,6 +532,33 @@ onBeforeUnmount(endPan)
   font-weight: 700;
   line-height: 1.1;
   text-align: center;
+}
+
+.region-label {
+  max-width: calc(var(--unit) * 5);
+  min-width: calc(var(--unit) * 1.4);
+  min-height: calc(var(--unit) * 0.72);
+  position: absolute;
+  z-index: 24;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  padding: 0 8px;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  cursor: pointer;
+  font-size: max(9px, calc(var(--unit) * 0.24));
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.region-label:hover {
+  box-shadow:
+    0 0 0 2px rgba(10, 89, 247, 0.22),
+    0 4px 12px rgba(15, 23, 42, 0.12);
 }
 
 .tooltip-card {
