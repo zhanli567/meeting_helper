@@ -86,9 +86,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
@@ -412,11 +409,6 @@ class MeetingHelperIntegrationTests {
                         .param("versionId", versionId)
                         .header(USER_HEADER, "user-a"))
                 .andExpect(status().isNotFound());
-        mockMvc.perform(get("/meetings/{meetingId}/exports/pdf", userBMeetingId)
-                        .param("versionId", versionId)
-                        .header(USER_HEADER, "user-a"))
-                .andExpect(status().isNotFound());
-
         mockMvc.perform(get("/meetings/{meetingId}/workspace", userAMeetingId)
                         .header(USER_HEADER, "user-a"))
                 .andExpect(status().isOk());
@@ -1214,8 +1206,6 @@ class MeetingHelperIntegrationTests {
             assertThat(cellValues(workbook.getSheet("人员名单").getRow(1)))
                     .containsExactly("a12345678", "张三", "研发部", "重点");
         }
-        assertThat(exportService.exportPdf(meetingId, version.id()).length)
-                .isGreaterThan(5_000);
         planVersionService.restore(before.plan().id(), version.id());
 
         assertThat(fieldRepository
@@ -1291,7 +1281,6 @@ class MeetingHelperIntegrationTests {
                 new CreateVersionRequest("导出确认版", "", false)
         );
         assertThat(exportService.exportExcel(meeting.id(), version.id()).length).isGreaterThan(5_000);
-        assertThat(exportService.exportPdf(meeting.id(), version.id()).length).isGreaterThan(5_000);
     }
 
     @Test
@@ -1377,7 +1366,7 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
-    void exportedLayoutAndPdfUseOnlyFirstNonBlankDynamicSummary() throws Exception {
+    void exportedLayoutUsesDynamicSeatLabelAndParticipantNameOnly() throws Exception {
         String meetingId = createImportMeeting();
         previewAndCommit(
                 meetingId,
@@ -1406,13 +1395,9 @@ class MeetingHelperIntegrationTests {
                     .getRow(seat.row() - 1)
                     .getCell(seat.column() - 1)
                     .getStringCellValue();
-            assertThat(cellText).isEqualTo(seat.name() + "\n导出人员\n主持人");
+            assertThat(cellText).isEqualTo("1排1\n导出人员");
+            assertThat(cellText).doesNotContain("主持人");
             assertThat(cellText).doesNotContain("第一批");
-        }
-        try (PDDocument document = Loader.loadPDF(exportService.exportPdf(meetingId, version.id()))) {
-            String text = new PDFTextStripper().getText(document);
-            assertThat(text).contains("主持人");
-            assertThat(text).doesNotContain("第一批");
         }
     }
 

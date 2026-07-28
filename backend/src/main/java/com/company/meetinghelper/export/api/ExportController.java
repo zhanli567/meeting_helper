@@ -45,21 +45,6 @@ public class ExportController {
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     }
 
-    /**
-     * 导出会议排座PDF文件。
-     *
-     * @param meetingId 会议ID
-     * @param versionId 发布版本ID
-     * @return PDF文件响应
-     */
-    @GetMapping("/pdf")
-    public ResponseEntity<byte[]> pdf(
-            @PathVariable String meetingId,
-            @RequestParam String versionId
-    ) {
-        return download(exportService.exportPdf(meetingId, versionId), "meeting-seating.pdf", "application/pdf");
-    }
-
     private ResponseEntity<byte[]> download(byte[] bytes, String filename, String contentType) {
         ContentDisposition disposition = ContentDisposition.attachment()
                 .filename(filename, StandardCharsets.UTF_8)

@@ -210,20 +210,18 @@ function createWorkspaceStore() {
       return false
     }
   }
-  async function exportPlan(type, versionId) {
+  async function exportPlan(versionId) {
     if (!workspace.value) return
     if (!versionId) {
       ElMessage.warning('草稿版本不支持导出，请先发布版本')
       return
     }
     try {
-      const data = await meetingApi.exportFile(workspace.value.meeting.id, type, versionId)
+      const data = await meetingApi.exportExcel(workspace.value.meeting.id, versionId)
       downloadBlob(
         data,
-        `${workspace.value.meeting.name}-排座.${type === 'excel' ? 'xlsx' : 'pdf'}`,
-        type === 'excel'
-          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-          : 'application/pdf',
+        `${workspace.value.meeting.name}-排座.xlsx`,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       )
       ElMessage.success('导出完成')
     } catch (error) {

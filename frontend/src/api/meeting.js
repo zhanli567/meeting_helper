@@ -73,9 +73,9 @@ export const meetingApi = {
   async commitImport(meetingId, token) {
     return unwrap(http.post(importContract.commitPath(meetingId, token)))
   },
-  async exportFile(meetingId, type, versionId) {
+  async exportExcel(meetingId, versionId) {
     return raw(
-      http.get(`/meetings/${meetingId}/exports/${type}`, {
+      http.get(`/meetings/${meetingId}/exports/excel`, {
         responseType: 'arraybuffer',
         params: { versionId },
       }),

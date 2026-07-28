@@ -561,8 +561,8 @@ async function removeParticipant(person) {
 function changeZoom(delta) {
   zoom.value = Math.min(2.5, Math.max(0.4, Number((zoom.value + delta).toFixed(2))))
 }
-function exportPlan(type) {
-  store.exportPlan(type, activeVersionId.value)
+function exportPlan() {
+  store.exportPlan(activeVersionId.value)
 }
 async function confirmDeleteProtectedElement(element) {
   try {
@@ -856,16 +856,15 @@ async function onParticipantUpdated(participant) {
             <el-button class="zoom-value">{{ Math.round(zoom * 100) }}%</el-button>
             <el-button :icon="ZoomIn" :disabled="zoom >= 2.5" @click="changeZoom(0.1)" />
           </el-button-group>
-          <el-dropdown v-if="readonlyMode" split-button @click="exportPlan('excel')">
-            <el-icon><Download /></el-icon>
+          <el-button
+            v-if="readonlyMode"
+            type="primary"
+            plain
+            :icon="Download"
+            @click="exportPlan"
+          >
             导出Excel
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item @click="exportPlan('excel')">导出Excel工作簿</el-dropdown-item>
-                <el-dropdown-item @click="exportPlan('pdf')">导出PDF场馆图</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+          </el-button>
         </div>
 
         <div class="canvas-body">
@@ -1254,8 +1253,7 @@ async function onParticipantUpdated(participant) {
   box-shadow: 0 0 0 1px var(--line) inset;
 }
 
-.toolbar-card > .el-button-group,
-.toolbar-card :deep(.el-dropdown) {
+.toolbar-card > .el-button-group {
   flex: none;
 }
 

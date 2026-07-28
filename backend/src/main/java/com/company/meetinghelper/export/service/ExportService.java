@@ -2,6 +2,7 @@ package com.company.meetinghelper.export.service;
 
 import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.meeting.service.MeetingAccessService;
+import com.company.meetinghelper.seating.service.SeatLabelService;
 import com.company.meetinghelper.seating.service.PlanVersionService;
 import com.company.meetinghelper.venue.entity.ElementKind;
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse;
@@ -10,9 +11,7 @@ import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.Fi
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.ParticipantRecordView;
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.ParticipantView;
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.PlanItemView;
-import java.awt.Color;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -20,12 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.font.PDFont;
-import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.HorizontalAlignment;
@@ -48,19 +41,23 @@ import org.springframework.stereotype.Service;
 public class ExportService {
     private final PlanVersionService versionService;
     private final MeetingAccessService meetingAccessService;
+    private final SeatLabelService seatLabelService;
 
     /**
      * 创建导出服务。
      *
      * @param versionService 版本服务
      * @param meetingAccessService 会议归属校验服务
+     * @param seatLabelService 动态座位编号服务
      */
     public ExportService(
             PlanVersionService versionService,
-            MeetingAccessService meetingAccessService
+            MeetingAccessService meetingAccessService,
+            SeatLabelService seatLabelService
     ) {
         this.versionService = versionService;
         this.meetingAccessService = meetingAccessService;
+        this.seatLabelService = seatLabelService;
     }
 
     /**
@@ -80,29 +77,6 @@ public class ExportService {
             return output.toByteArray();
         } catch (IOException exception) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "生成Excel失败");
-        }
-    }
-
-    /**
-     * 将会议发布版本导出为PDF。
-     *
-     * @param meetingId 会议ID
-     * @param versionId 发布版本ID
-     * @return PDF文件字节
-     */
-    public byte[] exportPdf(String meetingId, String versionId) {
-        WorkspaceResponse workspace = resolveWorkspace(meetingId, versionId);
-        try (PDDocument document = new PDDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            PDPage page = new PDPage(new PDRectangle(PDRectangle.A3.getHeight(), PDRectangle.A3.getWidth()));
-            document.addPage(page);
-            PDFont font = loadChineseFont(document);
-            try (PDPageContentStream content = new PDPageContentStream(document, page)) {
-                drawPdf(content, page.getMediaBox(), font, workspace);
-            }
-            document.save(output);
-            return output.toByteArray();
-        } catch (IOException exception) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "生成PDF失败");
         }
     }
 
@@ -128,6 +102,7 @@ public class ExportService {
                 .collect(Collectors.toMap(WorkspaceResponse.ParticipantView::id, Function.identity()));
         LinkedHashMap<String,PlanItemView> itemByElement = new LinkedHashMap<String, WorkspaceResponse.PlanItemView>();
         workspace.items().forEach(item -> item.targetElementIds().forEach(elementId -> itemByElement.put(elementId, item)));
+        Map<String,String> seatLabels = seatLabelService.labelsByElementId(workspace.layout().elements());
 
         for (ElementView element : workspace.layout().elements()) {
             int firstRow = element.row() - 1;
@@ -145,7 +120,7 @@ public class ExportService {
             ParticipantView participant = item == null || item.participantId() == null
                     ? null
                     : participantById.get(item.participantId());
-            cell.setCellValue(elementText(element, item, participant, workspace));
+            cell.setCellValue(elementText(element, item, participant, seatLabels));
             cell.setCellStyle(createElementStyle(workbook, element, item, participant));
         }
     }
@@ -154,18 +129,17 @@ public class ExportService {
             WorkspaceResponse.ElementView element,
             WorkspaceResponse.PlanItemView item,
             WorkspaceResponse.ParticipantView participant,
-            WorkspaceResponse workspace
+            Map<String,String> seatLabels
     ) {
         if (isSeat(element)) {
+            String seatLabel = seatLabels.getOrDefault(element.id(), nullToEmpty(element.name()));
             if (participant != null) {
-                String summary = firstDynamicSummary(participant, workspace);
-                return nullToEmpty(element.name()) + "\n" + participant.name()
-                        + (summary.isBlank() ? "" : "\n" + summary);
+                return seatLabel + "\n" + participant.name();
             }
             if (item != null) {
-                return nullToEmpty(element.name()) + "\n" + nullToEmpty(item.label());
+                return seatLabel + "\n" + nullToEmpty(item.label());
             }
-            return nullToEmpty(element.name());
+            return seatLabel;
         }
         return nullToEmpty(element.name());
     }
@@ -209,6 +183,7 @@ public class ExportService {
                 .collect(Collectors.toMap(WorkspaceResponse.ParticipantView::id, Function.identity()));
         LinkedHashMap<String,PlanItemView> itemByElement = new LinkedHashMap<String, WorkspaceResponse.PlanItemView>();
         workspace.items().forEach(item -> item.targetElementIds().forEach(elementId -> itemByElement.put(elementId, item)));
+        Map<String,String> seatLabels = seatLabelService.labelsByElementId(workspace.layout().elements());
         int rowIndex = 1;
         for (ElementView element : workspace.layout().elements().stream()
                 .filter(this::isSeat)
@@ -217,8 +192,8 @@ public class ExportService {
             PlanItemView item = itemByElement.get(element.id());
             ParticipantView participant = item == null || item.participantId() == null
                     ? null : participantById.get(item.participantId());
-            row.createCell(0).setCellValue(nullToEmpty(element.name()));
-            row.createCell(1).setCellValue(item == null ? "座位" : item.type());
+            row.createCell(0).setCellValue(seatLabels.getOrDefault(element.id(), nullToEmpty(element.name())));
+            row.createCell(1).setCellValue(itemTypeLabel(item));
             row.createCell(2).setCellValue(participant == null ? "" : participant.employeeNo());
             row.createCell(3).setCellValue(participant == null ? "" : participant.name());
             for (int fieldIndex = 0; fieldIndex < participantFields.size(); fieldIndex++) {
@@ -232,6 +207,17 @@ public class ExportService {
             }
         }
         autosize(sheet, headers.size());
+    }
+
+    private String itemTypeLabel(PlanItemView item) {
+        if (item == null) {
+            return "座位";
+        }
+        return switch (item.type()) {
+            case "PERSON" -> "已排人员";
+            case "RESERVED" -> "区域标记";
+            default -> item.type();
+        };
     }
 
     private void writeParticipantSheet(XSSFWorkbook workbook, WorkspaceResponse workspace) {
@@ -298,99 +284,6 @@ public class ExportService {
         }
     }
 
-    private void drawPdf(
-            PDPageContentStream content,
-            PDRectangle page,
-            PDFont font,
-            WorkspaceResponse workspace
-    ) throws IOException {
-        float margin = 28;
-        float titleHeight = 34;
-        float availableWidth = page.getWidth() - margin * 2;
-        float availableHeight = page.getHeight() - margin * 2 - titleHeight;
-        float unit = Math.min(
-                availableWidth / workspace.layout().gridColumns(),
-                availableHeight / workspace.layout().gridRows());
-        float originX = margin + (availableWidth - unit * workspace.layout().gridColumns()) / 2;
-        float originY = margin;
-
-        content.beginText();
-        content.setFont(font, 15);
-        content.newLineAtOffset(margin, page.getHeight() - margin - 16);
-        content.showText(workspace.meeting().name() + " · " + workspace.plan().name());
-        content.endText();
-
-        Map<String,ParticipantView> participantById = workspace.participants().stream()
-                .collect(Collectors.toMap(WorkspaceResponse.ParticipantView::id, Function.identity()));
-        LinkedHashMap<String,PlanItemView> itemByElement = new LinkedHashMap<String, WorkspaceResponse.PlanItemView>();
-        workspace.items().forEach(item -> item.targetElementIds().forEach(elementId -> itemByElement.put(elementId, item)));
-        for (ElementView element : workspace.layout().elements()) {
-            float x = originX + (element.column() - 1) * unit;
-            float y = originY + (workspace.layout().gridRows() - element.row() - element.rowSpan() + 1) * unit;
-            float width = element.columnSpan() * unit;
-            float height = element.rowSpan() * unit;
-            PlanItemView item = itemByElement.get(element.id());
-            ParticipantView participant = item == null || item.participantId() == null
-                    ? null : participantById.get(item.participantId());
-            String color = item != null && item.backgroundColor() != null
-                    ? item.backgroundColor()
-                    : element.fillColor();
-            if (color != null) {
-                content.setNonStrokingColor(parseAwtColor(color));
-                content.addRect(x, y, width, height);
-                content.fill();
-            }
-            content.setStrokingColor(new Color(148, 163, 184));
-            content.setLineWidth(0.4f);
-            content.addRect(x, y, width, height);
-            content.stroke();
-            String text = compactText(element, item, participant, workspace);
-            if (!text.isBlank() && width > 10 && height > 7) {
-                content.beginText();
-                content.setNonStrokingColor(new Color(30, 41, 59));
-                content.setFont(font, Math.max(4.2f, Math.min(7f, unit * 0.26f)));
-                content.newLineAtOffset(x + 1.5f, y + height / 2 - 2);
-                content.showText(text);
-                content.endText();
-            }
-        }
-    }
-
-    private String compactText(
-            WorkspaceResponse.ElementView element,
-            WorkspaceResponse.PlanItemView item,
-            WorkspaceResponse.ParticipantView participant,
-            WorkspaceResponse workspace
-    ) {
-        if (isSeat(element)) {
-            if (participant != null) {
-                String summary = firstDynamicSummary(participant, workspace);
-                return truncate(
-                        element.name() + " " + participant.name()
-                                + (summary.isBlank() ? "" : " " + summary),
-                        18
-                );
-            }
-            if (item != null) {
-                return truncate(element.name() + " " + nullToEmpty(item.label()), 18);
-            }
-            return truncate(nullToEmpty(element.name()), 12);
-        }
-        return truncate(nullToEmpty(element.name()), 18);
-    }
-
-    private String firstDynamicSummary(
-            WorkspaceResponse.ParticipantView participant,
-            WorkspaceResponse workspace
-    ) {
-        Map<String,String> primaryAttributes = primaryAttributes(participant);
-        return dynamicFields(workspace).stream()
-                .map(field -> primaryAttributes.get(field.code()))
-                .filter(value -> value != null && !value.isBlank())
-                .findFirst()
-                .orElse("");
-    }
-
     private boolean isSeat(WorkspaceResponse.ElementView element) {
         return ElementKind.SEAT.name().equals(element.kind());
     }
@@ -415,22 +308,6 @@ public class ExportService {
                 : participant.primaryAttributes();
     }
 
-    private PDFont loadChineseFont(PDDocument document) throws IOException {
-        String[] candidates = new String[]{
-                "C:/Windows/Fonts/simhei.ttf",
-                "C:/Windows/Fonts/msyh.ttf",
-                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-                "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"
-        };
-        for (String candidate : candidates) {
-            File file = new File(candidate);
-            if (file.isFile() && candidate.toLowerCase().endsWith(".ttf")) {
-                return PDType0Font.load(document, file);
-            }
-        }
-        throw new IOException("未找到可用于导出中文PDF的字体");
-    }
-
     private byte[] parseRgbBytes(String value) {
         String normalized = value.startsWith("#") ? value.substring(1) : value;
         if (normalized.length() != 6) {
@@ -441,15 +318,6 @@ public class ExportService {
                 (byte) Integer.parseInt(normalized.substring(2, 4), 16),
                 (byte) Integer.parseInt(normalized.substring(4, 6), 16)
         };
-    }
-
-    private Color parseAwtColor(String value) {
-        byte[] rgb = parseRgbBytes(value);
-        return new Color(Byte.toUnsignedInt(rgb[0]), Byte.toUnsignedInt(rgb[1]), Byte.toUnsignedInt(rgb[2]));
-    }
-
-    private String truncate(String text, int maxLength) {
-        return text.length() <= maxLength ? text : text.substring(0, maxLength - 1) + "…";
     }
 
     private String nullToEmpty(String value) {
