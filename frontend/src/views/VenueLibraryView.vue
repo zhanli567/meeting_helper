@@ -211,13 +211,18 @@ async function handleSaved(updated) {
 }
 
 function formatTime(value) {
-  if (!value) return '—'
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${hours}:${minutes}`
+}
+
+function displayText(value) {
+  const text = String(value ?? '').trim()
+  if (!text) return '-'
+  return text
 }
 </script>
 
@@ -273,43 +278,51 @@ function formatTime(value) {
           <el-table
             :data="tableRows"
             height="100%"
+            :fit="true"
+            class="venue-table"
             :span-method="groupSpan"
             :row-class-name="rowClassName"
             empty-text="暂无场馆模板"
           >
-            <el-table-column prop="location" label="地点" width="220" show-overflow-tooltip>
+            <el-table-column prop="location" label="地点" min-width="240" show-overflow-tooltip>
               <template #default="{ row }">
-                <strong v-if="row.__group" class="group-title">{{ row.campus }}</strong>
+                <strong v-if="row.__group" class="group-title">{{ displayText(row.campus) }}</strong>
                 <button
                   v-else
                   class="location-link cell-ellipsis"
-                  :title="row.location"
+                  :title="displayText(row.location)"
                   @click="loadDetail(row, 'detail')"
                 >
-                  {{ row.location }}
+                  {{ displayText(row.location) }}
                 </button>
               </template>
             </el-table-column>
-            <el-table-column prop="campus" label="园区" width="130" show-overflow-tooltip>
+            <el-table-column prop="campus" label="园区" min-width="150" show-overflow-tooltip>
               <template #default="{ row }">
-                <span class="cell-ellipsis" :title="row.campus || '未填写园区'">
-                  {{ row.campus || '未填写园区' }}
+                <span class="cell-ellipsis" :title="displayText(row.campus)">
+                  {{ displayText(row.campus) }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column prop="manualCapacity" label="容纳人数" width="100" align="right">
-              <template #default="{ row }">{{ row.manualCapacity ?? '—' }}</template>
+            <el-table-column prop="manualCapacity" label="容纳人数" width="110" align="right">
+              <template #default="{ row }">{{ displayText(row.manualCapacity) }}</template>
             </el-table-column>
-            <el-table-column prop="seatCount" label="布局座位数" width="120" align="right">
+            <el-table-column prop="seatCount" label="布局座位数" width="130" align="right">
               <template #default="{ row }">
                 <el-tag v-if="row.seatCount === 0" type="warning" effect="plain">
                   布局未完成
                 </el-tag>
-                <span v-else>{{ row.seatCount }}</span>
+                <span v-else>{{ displayText(row.seatCount) }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="updatedByName" label="更新人" width="110" show-overflow-tooltip />
-            <el-table-column prop="updatedAt" label="更新时间" width="140">
+            <el-table-column prop="updatedByName" label="更新人" min-width="120" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span class="cell-ellipsis" :title="displayText(row.updatedByName)">
+                  {{ displayText(row.updatedByName) }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="updatedAt" label="更新时间" min-width="170">
               <template #default="{ row }">{{ formatTime(row.updatedAt) }}</template>
             </el-table-column>
             <el-table-column label="操作" width="420" fixed="right">
@@ -478,6 +491,10 @@ function formatTime(value) {
 .table-scroll {
   flex: 1;
   min-height: 0;
+}
+
+.venue-table {
+  width: 100%;
 }
 
 .location-link {
