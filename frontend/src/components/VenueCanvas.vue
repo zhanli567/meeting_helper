@@ -1,9 +1,9 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
-import { firstParticipantSummary } from '@/utils/participantFields'
 import { startParticipantDrag as performParticipantDrag } from '@/utils/participantActions'
 import { regionLabelAnchors, reservedItems } from '@/utils/seatRegions'
+import { computeSeatLabels } from '@/utils/seatNumbering'
 import { displayCellUnit, elementBox } from '@/utils/venueCanvasMetrics'
 const props = defineProps({
   workspace: { type: Object, required: true },
@@ -14,6 +14,7 @@ const props = defineProps({
   readonly: { type: Boolean, default: false },
   markerMode: { type: Boolean, default: false },
   markerSelectionIds: { type: Array, default: () => [] },
+  participantColorById: { type: Object, default: () => ({}) },
 })
 const emit = defineEmits([
   'assign',
@@ -57,6 +58,7 @@ const regionAnchors = computed(() =>
   ),
 )
 const markerSelectionSet = computed(() => new Set(props.markerSelectionIds || []))
+const seatNumbering = computed(() => computeSeatLabels(props.workspace.layout.elements || []))
 const unit = computed(() => displayCellUnit(props.zoom))
 const canvasStyle = computed(() => ({
   width: `${props.workspace.layout.gridColumns * unit.value}px`,
@@ -83,18 +85,46 @@ function participantFor(elementId) {
   const item = itemFor(elementId)
   return item?.participantId ? participantById.value.get(item.participantId) : undefined
 }
-function participantSeatSummary(elementId) {
-  return firstParticipantSummary(participantFor(elementId), props.workspace.fieldDefinitions)
+function seatLabelFor(elementId) {
+  return seatNumbering.value.labelsByElementId.get(elementId) || '座位'
+}
+function participantStyleFor(person) {
+  return person?.id ? props.participantColorById?.[person.id] : undefined
+}
+function participantTooltipRows(person) {
+  if (!person) return []
+  return (props.workspace.fieldDefinitions || [])
+    .filter((field) => !['name', 'employeeNo'].includes(field.code))
+    .map((field) => {
+      const values = person.attributeValues?.[field.code] || []
+      const value = values.length ? values.join('、') : person.primaryAttributes?.[field.code]
+      return {
+        label: field.label,
+        value: String(value || '').trim(),
+      }
+    })
+    .filter((row) => row.value)
 }
 function visualStyle(element) {
   const item = itemFor(element.id)
   const person = participantFor(element.id)
+  const participantStyle = participantStyleFor(person)
   return {
     ...elementStyle(element),
     backgroundColor:
-      person?.displayColor || item?.backgroundColor || element.fillColor || '#ffffff',
-    color: item?.textColor || '#172033',
+      participantStyle?.backgroundColor ||
+      person?.displayColor ||
+      item?.backgroundColor ||
+      element.fillColor ||
+      '#ffffff',
+    color: participantStyle?.textColor || item?.textColor || '#172033',
     fontWeight: item?.bold ? '700' : undefined,
+  }
+}
+function rowLabelStyle(rowLabel, side) {
+  return {
+    top: `${(rowLabel.sourceRow - 0.5) * unit.value}px`,
+    [side]: '-34px',
   }
 }
 function regionAnchorStyle(anchor) {
@@ -253,14 +283,17 @@ onBeforeUnmount(endPan)
         >
           <template #content>
             <div class="tooltip-card">
-              <strong>{{ element.name || '座位' }}</strong>
+              <strong>{{ seatLabelFor(element.id) }}</strong>
               <template v-if="participantFor(element.id)">
                 <span>
                   {{ participantFor(element.id)?.name }} ·
                   {{ participantFor(element.id)?.employeeNo }}
                 </span>
-                <span v-if="participantSeatSummary(element.id)">
-                  {{ participantSeatSummary(element.id) }}
+                <span
+                  v-for="row in participantTooltipRows(participantFor(element.id))"
+                  :key="row.label"
+                >
+                  {{ row.label }}：{{ row.value }}
                 </span>
               </template>
               <span v-else-if="itemFor(element.id)">
@@ -297,7 +330,7 @@ onBeforeUnmount(endPan)
             @dblclick.stop="onMarkerSeatToggle(element)"
           >
             <span v-if="!reservedItemByElementId.has(element.id)" class="seat-code">
-              {{ element.name || '座位' }}
+              {{ seatLabelFor(element.id) }}
             </span>
             <template v-if="participantFor(element.id)">
               <span
@@ -308,9 +341,6 @@ onBeforeUnmount(endPan)
                 @dragend="emit('dragState', undefined)"
               >
                 {{ participantFor(element.id)?.name }}
-              </span>
-              <span v-if="participantSeatSummary(element.id)" class="seat-summary">
-                {{ participantSeatSummary(element.id) }}
               </span>
               <el-icon v-if="itemFor(element.id)?.locked" class="lock-badge"><Lock /></el-icon>
             </template>
@@ -342,6 +372,14 @@ onBeforeUnmount(endPan)
         >
           {{ anchor.label }}
         </button>
+        <template v-for="rowLabel in seatNumbering.rows" :key="rowLabel.sourceRow">
+          <span class="row-label row-label-left" :style="rowLabelStyle(rowLabel, 'left')">
+            {{ rowLabel.displayRow }}排
+          </span>
+          <span class="row-label row-label-right" :style="rowLabelStyle(rowLabel, 'right')">
+            {{ rowLabel.displayRow }}排
+          </span>
+        </template>
       </div>
     </div>
   </div>
@@ -494,23 +532,6 @@ onBeforeUnmount(endPan)
   white-space: nowrap;
 }
 
-.seat-person:has(+ .seat-summary) {
-  inset: 25% 1px auto;
-  height: 30%;
-}
-
-.seat-summary {
-  position: absolute;
-  inset: 58% 1px 1px;
-  overflow: hidden;
-  color: inherit;
-  font-size: max(6px, calc(var(--unit) * 0.19));
-  line-height: 1;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .lock-badge {
   position: absolute;
   right: 1px;
@@ -559,6 +580,24 @@ onBeforeUnmount(endPan)
   box-shadow:
     0 0 0 2px rgba(10, 89, 247, 0.22),
     0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
+.row-label {
+  width: 28px;
+  height: calc(var(--unit) * 0.6);
+  position: absolute;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  color: #475569;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: 7px;
+  box-shadow: 0 2px 7px rgba(15, 23, 42, 0.08);
+  font-size: max(8px, calc(var(--unit) * 0.2));
+  font-weight: 650;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .tooltip-card {

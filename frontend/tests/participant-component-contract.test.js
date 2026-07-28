@@ -44,26 +44,17 @@ test('人员面板保持筛选、分页、分组和操作包装器的完整接�
   assert.match(panel, /@click="removeParticipant\(person\)"/)
 })
 
-test('座位画布保持动态摘要和拖放包装器的完整接线', () => {
+test('座位画布保持悬浮信息和拖放包装器的完整接线', () => {
   const rawCanvas = source('../src/components/VenueCanvas.vue')
   const canvas = normalize(rawCanvas)
 
-  assert.match(
-    canvas,
-    /return firstParticipantSummary\(participantFor\(elementId\), props\.workspace\.fieldDefinitions\)/,
-  )
+  assert.match(canvas, /participantTooltipRows\(participantFor\(element\.id\)\)/)
   assert.match(
     canvas,
     /performParticipantDrag\(\{ event, participant, readonly: props\.readonly, locked: participant\.locked, onSelect: \(person\) => emit\('select', person\), onDragState: \(participantId\) => emit\('dragState', participantId\), \}\)/,
   )
   assert.match(canvas, /@dragstart="startParticipantDrag\(\$event, element\.id\)"/)
-  const summarySpans = rawCanvas.match(
-    /<span v-if="participantSeatSummary\(element\.id\)"[\s\S]*?<\/span>/g,
-  )
-  assert.equal(summarySpans?.length, 2)
-  summarySpans.forEach((span) => {
-    assert.match(span, /\{\{ participantSeatSummary\(element\.id\) \}\}/)
-  })
+  assert.doesNotMatch(rawCanvas, /participantSeatSummary/)
 })
 
 test('排座工作台仅允许通用座位元素接收人员且保留只读与拖放能力', () => {
@@ -74,7 +65,7 @@ test('排座工作台仅允许通用座位元素接收人员且保留只读与�
 
   assert.match(canvas, /const isSeat = \(element\) => element\.kind === 'SEAT'/)
   assert.match(canvas, /v-if="isSeat\(element\)"/)
-  assert.match(canvas, /\{\{ element\.name \|\| '座位' \}\}/)
+  assert.match(canvas, /\{\{ seatLabelFor\(element\.id\) \}\}/)
   assert.match(canvas, /\{\{ element\.name \}\}/)
   assert.match(canvas, /@dragover="onDragOver\(\$event, element\)"/)
   assert.match(canvas, /@drop="onDrop\(\$event, element\)"/)

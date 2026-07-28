@@ -25,6 +25,7 @@ import VenueLayoutEditor from '@/components/VenueLayoutEditor.vue'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { buildParticipantColorMap } from '@/utils/groupColors'
 import { attendingPendingCount } from '@/utils/participantRules'
 import { reservedItems, toggleSeatSelection } from '@/utils/seatRegions'
 import { toElementPayload } from '@/utils/venueModel'
@@ -41,6 +42,7 @@ const applyingHistory = ref(false)
 const draggingParticipantId = ref()
 const activeVersionKey = ref('draft')
 const workbenchMode = ref('seating')
+const groupColorFieldCode = ref('')
 const publishedWorkspace = ref()
 const loadingVersion = ref(false)
 const publishing = ref(false)
@@ -98,6 +100,19 @@ const protectedElementIds = computed(() => [
   ...new Set((workspace.value?.items || []).flatMap((item) => item.targetElementIds || [])),
 ])
 const markerSelectionIds = computed(() => [...markerSelection.value])
+const colorFieldOptions = computed(() =>
+  (workspace.value?.fieldDefinitions || []).filter(
+    (field) => !['name', 'employeeNo'].includes(field.code),
+  ),
+)
+const participantColorById = computed(() =>
+  Object.fromEntries(
+    buildParticipantColorMap(
+      workspace.value?.participants || [],
+      groupColorFieldCode.value,
+    ),
+  ),
+)
 const fabStyle = computed(() => ({
   left: `${fab.x}px`,
   top: `${fab.y}px`,
@@ -405,6 +420,14 @@ watch(
 )
 watch(readonlyMode, (readonly) => {
   if (readonly) workbenchMode.value = 'seating'
+})
+watch(colorFieldOptions, (options) => {
+  if (
+    groupColorFieldCode.value &&
+    !options.some((field) => field.code === groupColorFieldCode.value)
+  ) {
+    groupColorFieldCode.value = ''
+  }
 })
 watch(workbenchMode, (mode) => {
   if (mode !== 'marker') resetMarkerDraft()
@@ -798,6 +821,21 @@ async function onParticipantUpdated(participant) {
             <el-radio-button label="布局编辑模式" value="layout" />
             <el-radio-button label="区域标记模式" value="marker" />
           </el-radio-group>
+          <el-select
+            v-if="workbenchMode === 'seating' && colorFieldOptions.length"
+            v-model="groupColorFieldCode"
+            class="color-field-select"
+            clearable
+            size="small"
+            placeholder="按字段着色"
+          >
+            <el-option
+              v-for="field in colorFieldOptions"
+              :key="field.code"
+              :label="field.label"
+              :value="field.code"
+            />
+          </el-select>
           <span class="toolbar-spacer" />
           <el-button-group>
             <el-button
@@ -851,6 +889,7 @@ async function onParticipantUpdated(participant) {
             :readonly="readonlyMode"
             :marker-mode="workbenchMode === 'marker'"
             :marker-selection-ids="markerSelectionIds"
+            :participant-color-by-id="participantColorById"
             :selected-participant-id="store.selectedParticipantId"
             :dragging-participant-id="draggingParticipantId"
             @assign="performAssign"
@@ -1202,6 +1241,17 @@ async function onParticipantUpdated(participant) {
 
 .workbench-mode-switch :deep(.el-radio-button__inner) {
   min-width: 76px;
+}
+
+.color-field-select {
+  width: 132px;
+}
+
+.color-field-select :deep(.el-select__wrapper) {
+  min-height: 28px;
+  color: var(--ink);
+  background: #f8f9fb;
+  box-shadow: 0 0 0 1px var(--line) inset;
 }
 
 .toolbar-card > .el-button-group,
