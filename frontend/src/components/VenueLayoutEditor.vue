@@ -289,7 +289,10 @@ const seatCount = computed(
 const capacityMismatch = computed(
   () => props.manualCapacity !== null && seatCount.value !== props.manualCapacity,
 )
+const topToolbar = computed(() => props.toolbarPlacement === 'top')
 const sideToolbar = computed(() => props.toolbarPlacement === 'side')
+const canUndo = computed(() => undoStack.value.length > 0)
+const canRedo = computed(() => redoStack.value.length > 0)
 const stageStyle = computed(() => ({
   width: `${displayColumns.value * CELL_SIZE * zoom.value}px`,
   height: `${displayRows.value * CELL_SIZE * zoom.value}px`,
@@ -846,6 +849,16 @@ function fitCanvas() {
   nextTick(centerCanvas)
 }
 
+defineExpose({
+  undo,
+  redo,
+  fitCanvas,
+  setZoom,
+  zoom,
+  canUndo,
+  canRedo,
+})
+
 function elementFromTarget(target) {
   const node = target instanceof Element ? target.closest('[data-editor-id]') : undefined
   return node?.dataset.editorId
@@ -898,11 +911,12 @@ onBeforeUnmount(() => {
   <section
     class="venue-layout-editor"
     :class="{
+      'top-toolbar-mode': topToolbar,
       'side-toolbar-mode': sideToolbar,
       'external-panel-mode': sidePanelTarget,
     }"
   >
-    <header v-if="!sideToolbar" class="editor-toolbar">
+    <header v-if="topToolbar" class="editor-toolbar">
       <el-button
         v-if="showBack"
         text

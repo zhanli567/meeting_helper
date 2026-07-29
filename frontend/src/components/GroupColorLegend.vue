@@ -198,7 +198,7 @@ onBeforeUnmount(stopLegendDrag)
   width: 28px;
   height: 52px;
   top: calc(50% - 26px);
-  right: -14px;
+  right: -28px;
   z-index: 2;
   display: grid;
   place-items: center;

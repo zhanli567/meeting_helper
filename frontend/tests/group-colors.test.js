@@ -96,10 +96,27 @@ test('group color legend collapses into a compact tab without leaving a blank ca
   assert.match(source, /class="legend-card"/)
   assert.match(source, /\.group-color-legend\s*\{[\s\S]*overflow:\s*visible;/)
   assert.match(source, /\.legend-toggle\s*\{[\s\S]*position:\s*absolute;[\s\S]*width:\s*28px;[\s\S]*height:\s*52px;/)
+  assert.match(source, /\.legend-toggle\s*\{[\s\S]*right:\s*-28px;/)
   assert.match(source, /\.legend-card\s*\{[\s\S]*overflow:\s*visible;/)
   assert.match(source, /\.group-color-legend\.collapsed \.legend-card\s*\{[\s\S]*opacity:\s*0;[\s\S]*visibility:\s*hidden;/)
   assert.doesNotMatch(source, /min-height:\s*100%;/)
   assert.doesNotMatch(source, /translateX\(calc\(-100%/)
   assert.match(picker, /<el-popover/)
   assert.match(picker, /:teleported="true"/)
+})
+
+test('shared color picker previews swatches and only applies on confirm', async () => {
+  const picker = await readFile(new URL('../src/components/ColorPickerPopover.vue', import.meta.url), 'utf8')
+  const chooseColorBody = picker.match(/function chooseColor\(value\) \{[\s\S]*?\n\}/)?.[0] || ''
+
+  assert.match(picker, /const pendingColor = ref/)
+  assert.match(chooseColorBody, /pendingColor\.value = color/)
+  assert.match(chooseColorBody, /customPreview\.value = color/)
+  assert.doesNotMatch(chooseColorBody, /emit\(/)
+  assert.doesNotMatch(chooseColorBody, /open\.value = false/)
+  assert.doesNotMatch(chooseColorBody, /saveCustomColor/)
+  assert.match(picker, /function confirmSelectedColor/)
+  assert.match(picker, /saveCustomColor\(pendingColor\.value\)/)
+  assert.match(picker, /@click="confirmSelectedColor"/)
+  assert.match(picker, /active: pendingColor === swatch\.value/)
 })

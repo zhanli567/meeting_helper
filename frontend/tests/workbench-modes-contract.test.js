@@ -14,11 +14,14 @@ test('排座工作台提供三段模式且发布版本只读', async () => {
   assert.match(source, /:disabled="readonlyMode"/)
 })
 
-test('工作台按模式拆分保存入口并清空品牌占位', async () => {
+test('工作台按模式拆分页面级保存入口并清空品牌占位', async () => {
   const source = await readFile(new URL('../src/views/WorkbenchView.vue', import.meta.url), 'utf8')
 
-  assert.match(source, /showAssignmentSave/)
+  assert.match(source, /showModeSave/)
+  assert.match(source, /currentSaveLabel/)
+  assert.match(source, /saveCurrentMode/)
   assert.match(source, /保存排座/)
+  assert.match(source, /保存布局/)
   assert.match(source, /workspaceBusy/)
   assert.match(source, /v-loading="workspaceBusy"/)
   assert.match(source, /saveStatusText/)
@@ -45,12 +48,37 @@ test('布局编辑模式复用编辑器并保存会议布局', async () => {
   const source = await readFile(new URL('../src/views/WorkbenchView.vue', import.meta.url), 'utf8')
 
   assert.match(source, /VenueLayoutEditor/)
+  assert.match(source, /ref="layoutEditorRef"/)
   assert.match(source, /saveMeetingLayout/)
   assert.match(source, /updateMeetingLayout/)
   assert.match(source, /save-label="保存布局"/)
+  assert.match(source, /toolbar-placement="none"/)
   assert.match(source, /class="canvas-zoom-controls"/)
-  assert.match(source, /v-if="workbenchMode !== 'layout'"/)
   assert.doesNotMatch(source, /save-label="保存会议布局"/)
+})
+
+test('工作台工具栏和侧栏按当前模式统一派发', async () => {
+  const source = await readFile(new URL('../src/views/WorkbenchView.vue', import.meta.url), 'utf8')
+  const editor = await readFile(new URL('../src/components/VenueLayoutEditor.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /const sidePanelCollapsed = ref\(false\)/)
+  assert.match(source, /const layoutEditorRef = ref/)
+  assert.match(source, /toolbarUndoDisabled/)
+  assert.match(source, /performToolbarUndo/)
+  assert.match(source, /layoutEditorRef\.value\?\.undo\(\)/)
+  assert.match(source, /performToolbarRedo/)
+  assert.match(source, /layoutEditorRef\.value\?\.redo\(\)/)
+  assert.match(source, /performToolbarFit/)
+  assert.match(source, /layoutEditorRef\.value\?\.fitCanvas\(\)/)
+  assert.match(source, /zoomCurrentCanvas/)
+  assert.match(source, /sidePanelCollapsed \? '展开当前侧栏' : '收起当前侧栏'/)
+  assert.match(source, /v-show="!sidePanelCollapsed"/)
+  assert.doesNotMatch(source, /participantPanelCollapsed/)
+  assert.doesNotMatch(source, /:disabled="readonlyMode \|\| !undoStack\.length"/)
+  assert.match(editor, /defineExpose/)
+  assert.match(editor, /canUndo/)
+  assert.match(editor, /canRedo/)
+  assert.match(editor, /toolbarPlacement === 'top'/)
 })
 
 test('布局模式带未保存改动时切换模式会提示并可放弃草稿', async () => {

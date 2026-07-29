@@ -18,7 +18,8 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'change'])
 
 const open = ref(false)
-const customPreview = ref(normalizeHexColor(props.modelValue) || '#ffffff')
+const pendingColor = ref(normalizeHexColor(props.modelValue) || '#ffffff')
+const customPreview = ref(pendingColor.value)
 const swatches = ref(availableColorSwatches())
 
 const currentColor = computed(() => normalizeHexColor(props.modelValue) || '#ffffff')
@@ -27,9 +28,18 @@ const currentTextColor = computed(() => textColorForBackground(currentColor.valu
 watch(
   () => props.modelValue,
   (value) => {
-    customPreview.value = normalizeHexColor(value) || '#ffffff'
+    const color = normalizeHexColor(value) || '#ffffff'
+    pendingColor.value = color
+    customPreview.value = color
   },
 )
+
+watch(open, (visible) => {
+  if (!visible) return
+  refreshColors()
+  pendingColor.value = currentColor.value
+  customPreview.value = currentColor.value
+})
 
 function refreshColors() {
   swatches.value = availableColorSwatches()
@@ -43,16 +53,21 @@ function toggleOpen() {
 function chooseColor(value) {
   const color = normalizeHexColor(value)
   if (!color) return
-  saveCustomColor(color)
-  refreshColors()
-  emit('update:modelValue', color)
-  emit('change', color)
-  open.value = false
+  pendingColor.value = color
+  customPreview.value = color
 }
 
-function confirmCustomColor() {
-  const color = saveCustomColor(customPreview.value)
+function updateCustomPreview(value) {
+  const color = normalizeHexColor(value)
   if (!color) return
+  customPreview.value = color
+  pendingColor.value = color
+}
+
+function confirmSelectedColor() {
+  const color = normalizeHexColor(pendingColor.value)
+  if (!color) return
+  saveCustomColor(pendingColor.value)
   refreshColors()
   emit('update:modelValue', color)
   emit('change', color)
@@ -61,6 +76,10 @@ function confirmCustomColor() {
 
 function removeColor(swatch) {
   removeCustomColor(swatch.value)
+  if (pendingColor.value === swatch.value) {
+    pendingColor.value = currentColor.value
+    customPreview.value = currentColor.value
+  }
   refreshColors()
 }
 </script>
@@ -103,7 +122,7 @@ function removeColor(swatch) {
             <button
               type="button"
               class="color-swatch-button"
-              :class="{ active: currentColor === swatch.value }"
+              :class="{ active: pendingColor === swatch.value }"
               :title="swatch.title || swatch.name"
               :aria-label="`${label} ${swatch.value}`"
               :style="{ backgroundColor: swatch.value }"
@@ -128,15 +147,15 @@ function removeColor(swatch) {
               type="color"
               :value="customPreview"
               :aria-label="`选择${label}`"
-              @input="customPreview = $event.target.value"
+              @input="updateCustomPreview($event.target.value)"
             >
           </label>
           <span
             class="custom-preview-dot"
-            :style="{ backgroundColor: customPreview }"
-            :title="customPreview"
+            :style="{ backgroundColor: pendingColor }"
+            :title="pendingColor"
           />
-          <button type="button" class="custom-confirm-button" @click="confirmCustomColor">
+          <button type="button" class="custom-confirm-button" @click="confirmSelectedColor">
             确定
           </button>
         </div>

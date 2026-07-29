@@ -17,7 +17,8 @@ test('workbench layout mode uses the same left canvas and right panel shell as o
 
   assert.doesNotMatch(workbench, /layout-wide/)
   assert.match(workbench, /id="workbench-layout-side"/)
-  assert.match(workbench, /class="participant-side layout-editor-host"/)
+  assert.match(workbench, /class="participant-side"/)
+  assert.match(workbench, /'layout-editor-host': workbenchMode === 'layout'/)
   assert.match(workbench, /side-panel-target="#workbench-layout-side"/)
   assert.match(workbench, /\.workspace-shell\s*\{[\s\S]*grid-auto-rows:\s*minmax\(0,\s*1fr\);/)
   assert.match(workbench, /\.participant-side\s*\{[\s\S]*grid-column:\s*2;[\s\S]*grid-row:\s*1;/)

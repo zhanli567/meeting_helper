@@ -2,11 +2,12 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  Back,
+  Aim,
   Check,
   Download,
   House,
   Plus,
+  RefreshLeft,
   RefreshRight,
   Upload,
   User,
@@ -65,8 +66,9 @@ const addMenuVisible = ref(false)
 const addTargetElementId = ref()
 const editParticipantVisible = ref(false)
 const editingParticipant = ref()
-const participantPanelCollapsed = ref(false)
+const sidePanelCollapsed = ref(false)
 const autoSaveSeconds = ref(0)
+const layoutEditorRef = ref()
 const fabReady = ref(false)
 const fab = reactive({
   x: 0,
@@ -117,7 +119,15 @@ const protectedElementIds = computed(() => [
 ])
 const markerSelectionIds = computed(() => [...markerSelection.value])
 const markerItems = computed(() => reservedItems(workspace.value?.items || []))
-const showAssignmentSave = computed(() => !readonlyMode.value && workbenchMode.value === 'seating')
+const showModeSave = computed(
+  () => !readonlyMode.value && ['seating', 'layout'].includes(workbenchMode.value),
+)
+const currentSaveLabel = computed(() => (
+  workbenchMode.value === 'layout' ? '保存布局' : '保存排座'
+))
+const currentSaveLoading = computed(() => (
+  workbenchMode.value === 'layout' ? layoutSaving.value : store.saving
+))
 const workspaceBusy = computed(() => store.saving || layoutSaving.value || markerSubmitting.value)
 const saveStatusText = computed(() => {
   if (readonlyMode.value) return '已发布版本'
@@ -161,6 +171,28 @@ const groupColorEntries = computed(() =>
     groupColorFieldOverrides.value,
   ),
 )
+function layoutPublicValue(key, fallback) {
+  const value = layoutEditorRef.value?.[key]
+  if (value && typeof value === 'object' && 'value' in value) return value.value
+  return value ?? fallback
+}
+const toolbarUndoDisabled = computed(() => {
+  if (readonlyMode.value) return true
+  if (workbenchMode.value === 'layout') return !layoutPublicValue('canUndo', false)
+  if (workbenchMode.value === 'seating') return !undoStack.value.length
+  return true
+})
+const toolbarRedoDisabled = computed(() => {
+  if (readonlyMode.value) return true
+  if (workbenchMode.value === 'layout') return !layoutPublicValue('canRedo', false)
+  if (workbenchMode.value === 'seating') return !redoStack.value.length
+  return true
+})
+const toolbarZoomValue = computed(() => (
+  workbenchMode.value === 'layout' ? layoutPublicValue('zoom', 1) : zoom.value
+))
+const toolbarZoomMin = computed(() => (workbenchMode.value === 'layout' ? 0.25 : 0.4))
+const toolbarZoomMax = computed(() => 2.5)
 const fabStyle = computed(() => ({
   left: `${fab.x}px`,
   top: `${fab.y}px`,
@@ -598,6 +630,10 @@ async function saveDraft(silent = false) {
   if (readonlyMode.value || !store.dirty) return true
   return store.saveAssignments({ silent })
 }
+async function saveCurrentMode(silent = false) {
+  if (workbenchMode.value === 'layout') return saveMeetingLayout(silent)
+  return saveDraft(silent)
+}
 async function goHome() {
   if (!(await saveDraft(true))) return
   if (store.workspace?.meeting?.id) {
@@ -610,7 +646,12 @@ function resetAutoSaveTimer() {
   autoSaveTimer = undefined
   if (!autoSaveSeconds.value) return
   autoSaveTimer = window.setInterval(() => {
-    if (!readonlyMode.value && store.dirty && !store.saving) {
+    if (readonlyMode.value) return
+    if (workbenchMode.value === 'layout' && layoutDirty.value && !layoutSaving.value) {
+      saveMeetingLayout(true)
+      return
+    }
+    if (workbenchMode.value === 'seating' && store.dirty && !store.saving) {
       saveDraft(true)
     }
   }, autoSaveSeconds.value * 1000)
@@ -712,6 +753,29 @@ async function redo() {
   applyingHistory.value = false
   undoStack.value.push(action)
 }
+function performToolbarUndo() {
+  if (toolbarUndoDisabled.value) return
+  if (workbenchMode.value === 'layout') {
+    layoutEditorRef.value?.undo()
+    return
+  }
+  undo()
+}
+function performToolbarRedo() {
+  if (toolbarRedoDisabled.value) return
+  if (workbenchMode.value === 'layout') {
+    layoutEditorRef.value?.redo()
+    return
+  }
+  redo()
+}
+function performToolbarFit() {
+  if (workbenchMode.value === 'layout') {
+    layoutEditorRef.value?.fitCanvas()
+    return
+  }
+  zoom.value = 1
+}
 async function onSeatClick(element) {
   if (readonlyMode.value || workbenchMode.value !== 'seating' || !element?.id) return
   const occupied = workspace.value?.participants.find(
@@ -790,6 +854,14 @@ async function removeParticipant(person) {
 function changeZoom(delta) {
   zoom.value = Math.min(2.5, Math.max(0.4, Number((zoom.value + delta).toFixed(2))))
 }
+function zoomCurrentCanvas(delta) {
+  if (workbenchMode.value === 'layout') {
+    const current = layoutPublicValue('zoom', 1)
+    layoutEditorRef.value?.setZoom(Number((current + delta).toFixed(2)))
+    return
+  }
+  changeZoom(delta)
+}
 function openExportOptions() {
   exportOptionsVisible.value = true
 }
@@ -814,7 +886,7 @@ async function confirmDeleteProtectedElement(element) {
     return false
   }
 }
-async function saveMeetingLayout() {
+async function saveMeetingLayout(silent = false) {
   if (!store.workspace || readonlyMode.value || layoutSaving.value) return
   const layoutSnapshot = cloneLayout(layoutDraft.value)
   layoutSaving.value = true
@@ -832,9 +904,11 @@ async function saveMeetingLayout() {
     undoStack.value = []
     redoStack.value = []
     layoutDraft.value = cloneLayout(updated.layout)
-    ElMessage.success('会议布局已保存')
+    if (!silent) ElMessage.success('会议布局已保存')
+    return true
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
+    return false
   } finally {
     layoutSaving.value = false
   }
@@ -975,8 +1049,10 @@ async function onParticipantUpdated(participant) {
         <i :class="{ active: store.saving || layoutSaving || markerSubmitting, dirty: store.dirty || layoutDirty }" />
         {{ saveStatusText }}
       </span>
-      <div v-if="showAssignmentSave" class="header-save-control">
-        <el-button type="primary" @click="saveDraft(false)">保存排座</el-button>
+      <div v-if="showModeSave" class="header-save-control">
+        <el-button type="primary" :loading="currentSaveLoading" @click="saveCurrentMode(false)">
+          {{ currentSaveLabel }}
+        </el-button>
         <el-select
           v-model="autoSaveSeconds"
           class="header-auto-save"
@@ -1015,14 +1091,57 @@ async function onParticipantUpdated(participant) {
       v-loading="workspaceBusy"
       class="workspace-shell"
       :class="{
-        'participant-collapsed': participantPanelCollapsed && workbenchMode === 'seating',
+        'participant-collapsed': sidePanelCollapsed,
       }"
     >
       <div
-        v-if="workbenchMode === 'layout'"
-        id="workbench-layout-side"
-        class="participant-side layout-editor-host"
-      />
+        class="participant-side"
+        :class="{ 'layout-editor-host': workbenchMode === 'layout' }"
+      >
+        <button
+          class="participant-panel-toggle"
+          :title="sidePanelCollapsed ? '展开当前侧栏' : '收起当前侧栏'"
+          :aria-label="sidePanelCollapsed ? '展开当前侧栏' : '收起当前侧栏'"
+          @click="sidePanelCollapsed = !sidePanelCollapsed"
+        >
+          {{ sidePanelCollapsed ? '‹' : '›' }}
+        </button>
+        <div v-show="!sidePanelCollapsed" class="side-panel-content">
+          <div
+            v-if="workbenchMode === 'layout'"
+            id="workbench-layout-side"
+            class="layout-editor-host-target"
+          />
+          <RegionMarkerPanel
+            v-else-if="workbenchMode === 'marker'"
+            :model-value="markerDraft"
+            :markers="markerItems"
+            :active-marker-id="markerDraft.id"
+            :selected-seat-count="markerSelection.size"
+            :submitting="markerSubmitting"
+            @update:model-value="updateMarkerDraft"
+            @select="selectReservedMarker"
+            @new="resetMarkerDraft"
+            @save="saveReservedAreas"
+            @delete="deleteReservedMarker"
+            @cancel="resetMarkerDraft"
+          />
+          <ParticipantPanel
+            v-else
+            :participants="workspace.participants"
+            :field-definitions="workspace.fieldDefinitions"
+            :selected-id="store.selectedParticipantId"
+            :saving="store.saving"
+            :readonly="readonlyMode"
+            @select="selectParticipant"
+            @unassign="performUnassign"
+            @attendance="updateParticipantAttendance"
+            @remove="removeParticipant"
+            @edit="openParticipantEdit"
+            @drag-state="draggingParticipantId = $event"
+          />
+        </div>
+      </div>
 
       <section class="canvas-shell">
         <div class="toolbar-card">
@@ -1075,22 +1194,38 @@ async function onParticipantUpdated(participant) {
           <span class="toolbar-spacer" />
           <el-button-group>
             <el-button
-              :icon="Back"
-              :disabled="readonlyMode || !undoStack.length"
+              :icon="RefreshLeft"
+              :disabled="toolbarUndoDisabled"
               title="撤销"
-              @click="undo"
+              @click="performToolbarUndo"
             />
             <el-button
               :icon="RefreshRight"
-              :disabled="readonlyMode || !redoStack.length"
+              :disabled="toolbarRedoDisabled"
               title="重做"
-              @click="redo"
+              @click="performToolbarRedo"
             />
           </el-button-group>
-          <el-button-group v-if="workbenchMode !== 'layout'" class="canvas-zoom-controls">
-            <el-button :icon="ZoomOut" :disabled="zoom <= 0.4" @click="changeZoom(-0.1)" />
-            <el-button class="zoom-value">{{ Math.round(zoom * 100) }}%</el-button>
-            <el-button :icon="ZoomIn" :disabled="zoom >= 2.5" @click="changeZoom(0.1)" />
+          <el-button
+            v-if="workbenchMode === 'layout'"
+            :icon="Aim"
+            title="适应画布"
+            @click="performToolbarFit"
+          >
+            适应
+          </el-button>
+          <el-button-group class="canvas-zoom-controls">
+            <el-button
+              :icon="ZoomOut"
+              :disabled="toolbarZoomValue <= toolbarZoomMin"
+              @click="zoomCurrentCanvas(-0.1)"
+            />
+            <el-button class="zoom-value">{{ Math.round(toolbarZoomValue * 100) }}%</el-button>
+            <el-button
+              :icon="ZoomIn"
+              :disabled="toolbarZoomValue >= toolbarZoomMax"
+              @click="zoomCurrentCanvas(0.1)"
+            />
           </el-button-group>
           <el-button
             type="primary"
@@ -1105,12 +1240,13 @@ async function onParticipantUpdated(participant) {
         <div class="canvas-body">
           <VenueLayoutEditor
             v-if="workbenchMode === 'layout'"
+            ref="layoutEditorRef"
             v-model="layoutDraft"
             title="编辑布局"
             save-label="保存布局"
             :show-back="false"
             :saving="layoutSaving"
-            toolbar-placement="side"
+            toolbar-placement="none"
             side-panel-target="#workbench-layout-side"
             :manual-capacity="workspace.participants.length"
             :venue-name="workspace.meeting.layoutName"
@@ -1151,47 +1287,6 @@ async function onParticipantUpdated(participant) {
         </div>
 
       </section>
-
-      <div v-if="workbenchMode !== 'layout'" class="participant-side">
-        <button
-          v-if="workbenchMode === 'seating'"
-          class="participant-panel-toggle"
-          :title="participantPanelCollapsed ? '展开人员安排' : '收起人员安排'"
-          :aria-label="participantPanelCollapsed ? '展开人员安排' : '收起人员安排'"
-          @click="participantPanelCollapsed = !participantPanelCollapsed"
-        >
-          {{ participantPanelCollapsed ? '‹' : '›' }}
-        </button>
-        <RegionMarkerPanel
-          v-if="workbenchMode === 'marker'"
-          :model-value="markerDraft"
-          :markers="markerItems"
-          :active-marker-id="markerDraft.id"
-          :selected-seat-count="markerSelection.size"
-          :submitting="markerSubmitting"
-          @update:model-value="updateMarkerDraft"
-          @select="selectReservedMarker"
-          @new="resetMarkerDraft"
-          @save="saveReservedAreas"
-          @delete="deleteReservedMarker"
-          @cancel="resetMarkerDraft"
-        />
-        <ParticipantPanel
-          v-else
-          v-show="!participantPanelCollapsed"
-          :participants="workspace.participants"
-          :field-definitions="workspace.fieldDefinitions"
-          :selected-id="store.selectedParticipantId"
-          :saving="store.saving"
-          :readonly="readonlyMode"
-          @select="selectParticipant"
-          @unassign="performUnassign"
-          @attendance="updateParticipantAttendance"
-          @remove="removeParticipant"
-          @edit="openParticipantEdit"
-          @drag-state="draggingParticipantId = $event"
-        />
-      </div>
     </main>
 
     <template v-if="workspace && !readonlyMode && fabReady">
@@ -1419,12 +1514,22 @@ async function onParticipantUpdated(participant) {
   flex-direction: column;
 }
 
+.side-panel-content,
+.layout-editor-host-target {
+  height: 100%;
+  min-height: 0;
+}
+
+.side-panel-content {
+  position: relative;
+}
+
 .participant-panel-toggle {
-  width: 27px;
+  width: 28px;
   height: 52px;
   position: absolute;
   top: calc(50% - 26px);
-  left: -13px;
+  left: -28px;
   z-index: 25;
   padding: 0;
   color: var(--brand);
