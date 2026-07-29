@@ -30,6 +30,6 @@ class SeatLabelServiceTests {
     }
 
     private WorkspaceResponse.ElementView element(String id, String kind, int row, int column) {
-        return new WorkspaceResponse.ElementView(id, kind, "x", row, column, 1, 1, "#fff", "#aaa");
+        return new WorkspaceResponse.ElementView(id, kind, "x", row, column, 1, 1, "#fff");
     }
 }

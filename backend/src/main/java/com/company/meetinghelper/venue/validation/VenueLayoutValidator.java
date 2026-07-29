@@ -4,6 +4,7 @@ import com.company.meetinghelper.common.exception.ApiException;
 import com.company.meetinghelper.venue.api.dto.ElementInput;
 import com.company.meetinghelper.venue.entity.ElementKind;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -47,7 +48,6 @@ public class VenueLayoutValidator {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "元素“" + name + "”的种类无效");
             }
             String fillColor = normalizeColor(source.fillColor(), name);
-            String borderColor = normalizeColor(source.borderColor(), name);
             long endRow = (long) source.row() + source.rowSpan() - 1L;
             long endColumn = (long) source.column() + source.columnSpan() - 1L;
             if (source.row() < 1 || source.column() < 1
@@ -70,13 +70,30 @@ public class VenueLayoutValidator {
             occupiedRectangles.add(rectangle);
             normalizedElements.add(new ElementInput(
                     kind.name(), name, source.row(), source.column(), source.rowSpan(),
-                    source.columnSpan(), fillColor, borderColor
+                    source.columnSpan(), fillColor
             ));
             if (kind == ElementKind.SEAT) {
                 seatCount++;
             }
         }
+        validateGenericFillColorUniqueness(normalizedElements);
         return new ValidationResult(List.copyOf(normalizedElements), seatCount);
+    }
+
+    private void validateGenericFillColorUniqueness(List<ElementInput> elements) {
+        LinkedHashMap<String, String> nameByColor = new LinkedHashMap<>();
+        for (ElementInput element : elements) {
+            if (!ElementKind.GENERIC.name().equals(element.kind())) {
+                continue;
+            }
+            String existingName = nameByColor.putIfAbsent(element.fillColor(), element.name());
+            if (existingName != null && !existingName.equals(element.name())) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "非座位元素“" + existingName + "”和“" + element.name() + "”不能使用相同填充色"
+                );
+            }
+        }
     }
 
     private String normalizeColor(String color, String elementName) {

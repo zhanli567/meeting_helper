@@ -17,7 +17,7 @@ class VenueLayoutValidatorTests {
     @Test
     void acceptsMultiCellSeatAndCountsItAsOneSeat() {
         List<ElementInput> elements = List.of(
-                new ElementInput("SEAT", " 双连座 ", 2, 3, 1, 2, "#FFFFFF", "#8FB4E8")
+                new ElementInput("SEAT", " 双连座 ", 2, 3, 1, 2, "#FFFFFF")
         );
 
         VenueLayoutValidator.ValidationResult result = validator.validate(5, 5, elements);
@@ -30,8 +30,8 @@ class VenueLayoutValidatorTests {
     @Test
     void rejectsOverlap() {
         List<ElementInput> elements = List.of(
-                new ElementInput("GENERIC", "舞台", 1, 1, 2, 3, "#dbeafe", "#93c5fd"),
-                new ElementInput("SEAT", "座位", 2, 3, 1, 1, "#ffffff", "#8fb4e8")
+                new ElementInput("GENERIC", "舞台", 1, 1, 2, 3, "#dbeafe"),
+                new ElementInput("SEAT", "座位", 2, 3, 1, 1, "#ffffff")
         );
 
         ApiException exception = assertThrows(
@@ -45,7 +45,7 @@ class VenueLayoutValidatorTests {
     @Test
     void rejectsOutOfBounds() {
         ElementInput element = new ElementInput(
-                "SEAT", "越界座位", 5, 5, 1, 2, "#ffffff", "#8fb4e8"
+                "SEAT", "越界座位", 5, 5, 1, 2, "#ffffff"
         );
 
         ApiException exception = assertThrows(
@@ -69,7 +69,7 @@ class VenueLayoutValidatorTests {
     @Test
     void rejectsBlankElementName() {
         ElementInput element = new ElementInput(
-                "SEAT", "  ", 1, 1, 1, 1, "#ffffff", "#8fb4e8"
+                "SEAT", "  ", 1, 1, 1, 1, "#ffffff"
         );
 
         ApiException exception = assertThrows(
@@ -83,7 +83,7 @@ class VenueLayoutValidatorTests {
     @Test
     void rejectsInvalidKind() {
         ElementInput element = new ElementInput(
-                "TABLE", "桌子", 1, 1, 1, 1, "#ffffff", "#8fb4e8"
+                "TABLE", "桌子", 1, 1, 1, 1, "#ffffff"
         );
 
         ApiException exception = assertThrows(
@@ -97,7 +97,7 @@ class VenueLayoutValidatorTests {
     @Test
     void rejectsInvalidColors() {
         ElementInput element = new ElementInput(
-                "SEAT", "座位", 1, 1, 1, 1, "white", "#8fb4e8"
+                "SEAT", "座位", 1, 1, 1, 1, "white"
         );
 
         ApiException exception = assertThrows(
@@ -124,7 +124,7 @@ class VenueLayoutValidatorTests {
     @Test
     void rejectsSpanThatWouldOverflowIntegerCoordinates() {
         ElementInput element = new ElementInput(
-                "SEAT", "溢出座位", 2, 2, Integer.MAX_VALUE, 1, "#ffffff", "#8fb4e8"
+                "SEAT", "溢出座位", 2, 2, Integer.MAX_VALUE, 1, "#ffffff"
         );
 
         ApiException exception = assertThrows(
@@ -140,11 +140,11 @@ class VenueLayoutValidatorTests {
         List<ElementInput> elements = List.of(
                 new ElementInput(
                         "GENERIC", "超大区域", 1, 1, Integer.MAX_VALUE, 1,
-                        "#dbeafe", "#93c5fd"
+                        "#dbeafe"
                 ),
                 new ElementInput(
                         "SEAT", "重叠座位", 1, 1, 1, 1,
-                        "#ffffff", "#8fb4e8"
+                        "#ffffff"
                 )
         );
 
@@ -157,5 +157,44 @@ class VenueLayoutValidatorTests {
         );
 
         assertEquals("元素“重叠座位”与其他元素发生重叠", exception.getMessage());
+    }
+
+    @Test
+    void normalizesOnlyFillColorForElements() {
+        VenueLayoutValidator.ValidationResult result = validator.validate(5, 5, List.of(
+                new ElementInput("GENERIC", "舞台", 1, 1, 1, 2, " #DBEAFE ")
+        ));
+
+        assertEquals("#dbeafe", result.elements().getFirst().fillColor());
+    }
+
+    @Test
+    void allowsSameGenericNameToShareFillColor() {
+        VenueLayoutValidator.ValidationResult result = validator.validate(5, 5, List.of(
+                new ElementInput("GENERIC", "门", 1, 1, 1, 1, "#dbeafe"),
+                new ElementInput("GENERIC", "门", 1, 2, 1, 1, "#dbeafe")
+        ));
+
+        assertEquals(2, result.elements().size());
+    }
+
+    @Test
+    void rejectsDifferentGenericNamesSharingFillColor() {
+        ApiException exception = assertThrows(ApiException.class, () -> validator.validate(5, 5, List.of(
+                new ElementInput("GENERIC", "门", 1, 1, 1, 1, "#dbeafe"),
+                new ElementInput("GENERIC", "桌子", 1, 2, 1, 1, "#dbeafe")
+        )));
+
+        assertEquals("非座位元素“门”和“桌子”不能使用相同填充色", exception.getMessage());
+    }
+
+    @Test
+    void ignoresSeatFillColorWhenCheckingGenericColorUniqueness() {
+        VenueLayoutValidator.ValidationResult result = validator.validate(5, 5, List.of(
+                new ElementInput("SEAT", "座位", 1, 1, 1, 1, "#dbeafe"),
+                new ElementInput("GENERIC", "门", 1, 2, 1, 1, "#dbeafe")
+        ));
+
+        assertEquals(2, result.elements().size());
     }
 }

@@ -75,15 +75,13 @@ export const meetingApi = {
   },
   async exportExcel(meetingId, versionId, options = {}) {
     return raw(
-      http.get(`/meetings/${meetingId}/exports/excel`, {
-        responseType: 'arraybuffer',
-        params: {
+      http.post(`/meetings/${meetingId}/exports/excel`,
+        {
           versionId,
-          fieldCodes: Array.isArray(options.fieldCodes) ? options.fieldCodes.join(',') : undefined,
-          includeAttendance: options.includeAttendance,
-          includeSeatLabel: options.includeSeatLabel,
+          sheets: options.sheets || options,
         },
-      }),
+        { responseType: 'arraybuffer' },
+      ),
     )
   },
   async createMeeting(name, venueTemplateId) {

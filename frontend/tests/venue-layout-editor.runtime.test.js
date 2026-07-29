@@ -18,7 +18,7 @@ import { createServer } from 'vite'
 
 const frontendRoot = fileURLToPath(new URL('..', import.meta.url))
 
-async function loadEditor(t) {
+async function loadEditor(t, componentIndex = 0, includeColorPicker = false) {
   const server = await createServer({
     root: frontendRoot,
     appType: 'custom',
@@ -30,6 +30,7 @@ async function loadEditor(t) {
     '/src/components/VenueElementPanel.vue',
     '/src/components/VenueElementPicker.vue',
   ]
+  if (includeColorPicker) componentPaths.push('/src/components/ColorPickerPopover.vue')
   const components = []
   for (const componentPath of componentPaths) {
     const component = (await server.ssrLoadModule(componentPath)).default
@@ -55,7 +56,7 @@ async function loadEditor(t) {
     component.render = Function('Vue', `${executable}\nreturn render`)(Vue)
     components.push(component)
   }
-  return components[0]
+  return components[componentIndex]
 }
 
 class HostElement {
@@ -305,7 +306,6 @@ async function mountEditor(t, Editor, propOverrides = {}) {
           rowSpan: 1,
           columnSpan: 1,
           fillColor: '#ffffff',
-          borderColor: '#8fb4e8',
         },
         {
           id: 'stage-1',
@@ -316,7 +316,6 @@ async function mountEditor(t, Editor, propOverrides = {}) {
           rowSpan: 2,
           columnSpan: 3,
           fillColor: '#dbeafe',
-          borderColor: '#93c5fd',
         },
       ],
     }),
@@ -352,6 +351,66 @@ async function mountEditor(t, Editor, propOverrides = {}) {
   return { root, updates, saves, window: globalThis.window }
 }
 
+async function mountElementPanel(t, Panel) {
+  const previousWindow = globalThis.window
+  const previousElement = globalThis.Element
+  const previousDocument = globalThis.document
+  globalThis.Element = HostElement
+  globalThis.document = { body: {} }
+  globalThis.window = {
+    addEventListener() {},
+    removeEventListener() {},
+  }
+  const root = new HostElement('root')
+  const previews = []
+  const elements = [
+    {
+      id: 'seat-1',
+      kind: 'SEAT',
+      name: '座位',
+      row: 1,
+      column: 1,
+      rowSpan: 1,
+      columnSpan: 1,
+      fillColor: '#ffffff',
+    },
+    {
+      id: 'stage-1',
+      kind: 'GENERIC',
+      name: '舞台',
+      row: 1,
+      column: 2,
+      rowSpan: 1,
+      columnSpan: 1,
+      fillColor: '#dbeafe',
+    },
+  ]
+  const renderer = createHostRenderer()
+  const app = renderer.createApp(Panel, {
+    element: elements[0],
+    elements,
+    gridRows: 5,
+    gridColumns: 5,
+    onPreview: (changes) => previews.push(changes),
+  })
+  app.config.warnHandler = () => {}
+  app.provide(Vue.ssrContextKey, { modules: new Set() })
+  for (const name of ['el-form', 'el-form-item', 'el-icon', 'el-popover']) {
+    app.component(name, Passthrough)
+  }
+  app.component('el-button', ButtonStub)
+  app.component('el-autocomplete', InputStub)
+  app.mount(root)
+  t.after(() => {
+    app.unmount()
+    globalThis.window = previousWindow
+    globalThis.Element = previousElement
+    globalThis.document = previousDocument
+  })
+  await settle()
+  return { root, previews }
+}
+
 function selectedNameInput(root) {
   return allNodes(root).find(
     (node) => node.tag === 'input' && node.props?.['aria-label'] === '显示名称',
@@ -368,14 +427,13 @@ async function selectElement(mounted, element) {
   await settle()
 }
 
-async function previewProperties(mounted, name, fillColor, borderColor) {
+async function previewProperties(mounted, name, fillColor) {
   selectedNameInput(mounted.root).props.onInput({ target: { value: name } })
   colorButton(mounted.root, `填充色 ${fillColor}`).props.onClick()
-  colorButton(mounted.root, `边框色 ${borderColor}`).props.onClick()
   await settle()
 }
 
-function assertPanelDraft(root, { name, fillColor, borderColor }) {
+function assertPanelDraft(root, { name, fillColor }) {
   const colorInputs = allNodes(root).filter(
     (node) =>
       node.tag === 'input' &&
@@ -383,7 +441,6 @@ function assertPanelDraft(root, { name, fillColor, borderColor }) {
   )
   assert.equal(selectedNameInput(root).props.value, name)
   assert.equal(colorInputs[0].props.value, fillColor)
-  assert.equal(colorInputs[1].props.value, borderColor)
 }
 
 test('挂载已有响应式布局不会因克隆 Proxy 崩溃', async (t) => {
@@ -401,7 +458,6 @@ test('挂载已有响应式布局不会因克隆 Proxy 崩溃', async (t) => {
         rowSpan: 1,
         columnSpan: 1,
         fillColor: '#ffffff',
-        borderColor: '#8fb4e8',
       },
     ],
   })
@@ -434,6 +490,22 @@ test('编辑器实时显示座位与人工容量差异且警告不阻止保存',
 
   byText(mounted.root, '保存布局').props.onClick()
   assert.equal(mounted.saves.length, 1)
+})
+
+test('座位颜色选择器允许选择已被通用元素使用的填充色', async (t) => {
+  const VenueElementPanel = await loadEditor(t, 1, true)
+  const mounted = await mountElementPanel(t, VenueElementPanel)
+  const genericUsedColor = allNodes(mounted.root).find(
+    (node) => String(node.props?.class || '').includes('color-swatch-button')
+      && node.props?.style?.backgroundColor === '#dbeafe',
+  )
+
+  assert.equal(genericUsedColor.props.disabled, false)
+  genericUsedColor.props.onClick()
+  byClass(mounted.root, 'custom-confirm-button')[0].props.onClick()
+  await settle()
+
+  assert.equal(mounted.previews.at(-1).fillColor, '#dbeafe')
 })
 
 test('取消重叠元素选择后清除该选择器来源的红显和错误缩小提示', async (t) => {
@@ -490,15 +562,11 @@ test('真实组件运行时保持属性预览并支持移动缩放与撤销重�
   allNodes(mounted.root)
     .find((node) => node.props?.['aria-label'] === '填充色 #fef3c7')
     .props.onClick()
-  allNodes(mounted.root)
-    .find((node) => node.props?.['aria-label'] === '边框色 #fee2e2')
-    .props.onClick()
   await settle()
 
   element = byClass(mounted.root, 'layout-element')[0]
   assert.match(nodeText(element), /贵宾席/)
   assert.equal(element.props.style.backgroundColor, '#fef3c7')
-  assert.equal(element.props.style.borderColor, '#fee2e2')
 
   element.props.onPointerdown(pointerEvent(element))
   mounted.window.dispatch('pointerup', pointerEvent(element))
@@ -506,14 +574,12 @@ test('真实组件运行时保持属性预览并支持移动缩放与撤销重�
   element = byClass(mounted.root, 'layout-element')[0]
   assert.match(nodeText(element), /贵宾席/)
   assert.equal(element.props.style.backgroundColor, '#fef3c7')
-  assert.equal(element.props.style.borderColor, '#fee2e2')
 
   byText(mounted.root, '取消').props.onClick()
   await settle()
   element = byClass(mounted.root, 'layout-element')[0]
   assert.match(nodeText(element), /座位/)
   assert.equal(element.props.style.backgroundColor, '#ffffff')
-  assert.equal(element.props.style.borderColor, '#8fb4e8')
 
   element.props.onPointerdown(pointerEvent(element))
   mounted.window.dispatch('pointerup', pointerEvent(element))
@@ -522,9 +588,6 @@ test('真实组件运行时保持属性预览并支持移动缩放与撤销重�
   nameInput.props.onInput({ target: { value: '贵宾席' } })
   allNodes(mounted.root)
     .find((node) => node.props?.['aria-label'] === '填充色 #fef3c7')
-    .props.onClick()
-  allNodes(mounted.root)
-    .find((node) => node.props?.['aria-label'] === '边框色 #fee2e2')
     .props.onClick()
   await settle()
   byText(mounted.root, '确认').props.onClick()
@@ -589,7 +652,7 @@ test('未确认属性草稿穿过真实移动并在确认时和已提交几何�
   const mounted = await mountEditor(t, VenueLayoutEditor)
   let element = byClass(mounted.root, 'layout-element')[0]
   await selectElement(mounted, element)
-  await previewProperties(mounted, '移动中的贵宾席', '#fef3c7', '#fee2e2')
+  await previewProperties(mounted, '移动中的贵宾席', '#fef3c7')
 
   element = byClass(mounted.root, 'layout-element')[0]
   element.props.onPointerdown(pointerEvent(element))
@@ -606,24 +669,20 @@ test('未确认属性草稿穿过真实移动并在确认时和已提交几何�
   element = byClass(mounted.root, 'layout-element')[0]
   assert.match(nodeText(element), /移动中的贵宾席/)
   assert.equal(element.props.style.backgroundColor, '#fef3c7')
-  assert.equal(element.props.style.borderColor, '#fee2e2')
   assertPanelDraft(mounted.root, {
     name: '移动中的贵宾席',
     fillColor: '#fef3c7',
-    borderColor: '#fee2e2',
   })
   assert.deepEqual(
     {
       column: mounted.updates.at(-1).elements[0].column,
       name: mounted.updates.at(-1).elements[0].name,
       fillColor: mounted.updates.at(-1).elements[0].fillColor,
-      borderColor: mounted.updates.at(-1).elements[0].borderColor,
     },
     {
       column: 4,
       name: '座位',
       fillColor: '#ffffff',
-      borderColor: '#8fb4e8',
     },
   )
 
@@ -634,13 +693,11 @@ test('未确认属性草稿穿过真实移动并在确认时和已提交几何�
       column: mounted.updates.at(-1).elements[0].column,
       name: mounted.updates.at(-1).elements[0].name,
       fillColor: mounted.updates.at(-1).elements[0].fillColor,
-      borderColor: mounted.updates.at(-1).elements[0].borderColor,
     },
     {
       column: 4,
       name: '移动中的贵宾席',
       fillColor: '#fef3c7',
-      borderColor: '#fee2e2',
     },
   )
 })
@@ -650,7 +707,7 @@ test('未确认属性草稿穿过真实缩放，取消只恢复属性且切换�
   const mounted = await mountEditor(t, VenueLayoutEditor)
   let element = byClass(mounted.root, 'layout-element')[0]
   await selectElement(mounted, element)
-  await previewProperties(mounted, '缩放中的贵宾席', '#fef3c7', '#fee2e2')
+  await previewProperties(mounted, '缩放中的贵宾席', '#fef3c7')
 
   element = byClass(mounted.root, 'layout-element')[0]
   const southEast = byClass(element, 'handle-se')[0]
@@ -668,11 +725,9 @@ test('未确认属性草稿穿过真实缩放，取消只恢复属性且切换�
   element = byClass(mounted.root, 'layout-element')[0]
   assert.match(nodeText(element), /缩放中的贵宾席/)
   assert.equal(element.props.style.backgroundColor, '#fef3c7')
-  assert.equal(element.props.style.borderColor, '#fee2e2')
   assertPanelDraft(mounted.root, {
     name: '缩放中的贵宾席',
     fillColor: '#fef3c7',
-    borderColor: '#fee2e2',
   })
   assert.deepEqual(
     {
@@ -688,7 +743,6 @@ test('未确认属性草稿穿过真实缩放，取消只恢复属性且切换�
   element = byClass(mounted.root, 'layout-element')[0]
   assert.match(nodeText(element), /座位/)
   assert.equal(element.props.style.backgroundColor, '#ffffff')
-  assert.equal(element.props.style.borderColor, '#8fb4e8')
   assert.deepEqual(
     {
       rowSpan: mounted.updates.at(-1).elements[0].rowSpan,
@@ -699,12 +753,11 @@ test('未确认属性草稿穿过真实缩放，取消只恢复属性且切换�
   )
 
   await selectElement(mounted, byClass(mounted.root, 'layout-element')[0])
-  await previewProperties(mounted, '不得串到舞台', '#fef3c7', '#fee2e2')
+  await previewProperties(mounted, '不得串到舞台', '#fef3c7')
   await selectElement(mounted, byClass(mounted.root, 'layout-element')[1])
   assertPanelDraft(mounted.root, {
     name: '舞台',
     fillColor: '#dbeafe',
-    borderColor: '#93c5fd',
   })
   assert.match(nodeText(byClass(mounted.root, 'layout-element')[0]), /座位/)
   assert.match(nodeText(byClass(mounted.root, 'layout-element')[1]), /舞台/)

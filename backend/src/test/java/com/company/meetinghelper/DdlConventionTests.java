@@ -53,6 +53,7 @@ class DdlConventionTests {
                 "所有 SQL 源文件必须统一放在根目录 DDL 文件夹中");
 
         String sql = Files.readString(ddlDirectory.resolve("meeting_helper.sql"));
+        assertFalse(sql.toLowerCase(Locale.ROOT).contains("border_color"), "DDL 不再保存元素边框色");
         assertTrue(
                 sql.contains("create table if not exists t_meeting_participant_fields"),
                 "DDL 必须包含会议人员字段定义表");

@@ -94,7 +94,6 @@ function elementStyle(element) {
     width: `${box.width}px`,
     height: `${box.height}px`,
     backgroundColor: element.fillColor || '#fff',
-    borderColor: element.borderColor || '#d7dee9',
     zIndex: isSeat(element) ? 5 : 2,
   }
 }
@@ -572,7 +571,7 @@ onBeforeUnmount(() => {
 .layout-element {
   position: absolute;
   overflow: hidden;
-  border: 1px solid;
+  border: 1px solid #9fb3c8;
   transition:
     box-shadow 0.15s ease,
     transform 0.15s ease,

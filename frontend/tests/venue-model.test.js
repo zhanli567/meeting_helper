@@ -41,7 +41,6 @@ test('场馆元素只生成通用字段', () => {
       rowSpan: 1,
       columnSpan: 2,
       fillColor: '#ffffff',
-      borderColor: '#8fb4e8',
       rotation: 90,
       code: 'A01',
     }),
@@ -53,7 +52,6 @@ test('场馆元素只生成通用字段', () => {
       rowSpan: 1,
       columnSpan: 2,
       fillColor: '#ffffff',
-      borderColor: '#8fb4e8',
     },
   )
 })
@@ -105,7 +103,6 @@ test('创建场馆载荷组合信息、画布与通用元素字段', () => {
             rowSpan: 1,
             columnSpan: 1,
             fillColor: '#fff',
-            borderColor: '#000',
             capacity: 1,
           },
         ],
@@ -133,8 +130,7 @@ test('创建场馆载荷组合信息、画布与通用元素字段', () => {
           column: 2,
           rowSpan: 1,
           columnSpan: 1,
-          fillColor: '#fff',
-          borderColor: '#000',
+          fillColor: '#ffffff',
         },
       ],
     },
@@ -157,15 +153,63 @@ test('常用元素建议仅使用通用元素字段', () => {
     name: '座位',
     kind: 'SEAT',
     fillColor: '#ffffff',
-    borderColor: '#8fb4e8',
   })
   assert.ok(
     COMMON_ELEMENT_SUGGESTIONS.every(
       (suggestion) =>
         Object.keys(suggestion).every((key) =>
-          ['name', 'kind', 'fillColor', 'borderColor'].includes(key),
+          ['name', 'kind', 'fillColor'].includes(key),
         ) && ['SEAT', 'GENERIC'].includes(suggestion.kind),
     ),
+  )
+})
+
+test('venue elements no longer carry border color', () => {
+  const payload = toElementPayload({
+    kind: 'GENERIC',
+    name: '门',
+    row: 1,
+    column: 1,
+    rowSpan: 1,
+    columnSpan: 1,
+    fillColor: '#dbeafe',
+  })
+
+  assert.deepEqual(Object.keys(payload), [
+    'kind',
+    'name',
+    'row',
+    'column',
+    'rowSpan',
+    'columnSpan',
+    'fillColor',
+  ])
+})
+
+test('venue element payload normalizes fill colors to lowercase six-digit hex', () => {
+  assert.equal(
+    toElementPayload({
+      kind: 'GENERIC',
+      name: '门',
+      row: 1,
+      column: 1,
+      rowSpan: 1,
+      columnSpan: 1,
+      fillColor: '#DBEAFE',
+    }).fillColor,
+    '#dbeafe',
+  )
+  assert.equal(
+    toElementPayload({
+      kind: 'SEAT',
+      name: '座位',
+      row: 1,
+      column: 1,
+      rowSpan: 1,
+      columnSpan: 1,
+      fillColor: '#fff',
+    }).fillColor,
+    '#ffffff',
   )
 })
 

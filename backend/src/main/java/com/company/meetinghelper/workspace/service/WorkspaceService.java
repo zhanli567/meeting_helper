@@ -188,7 +188,7 @@ public class WorkspaceService {
         return new WorkspaceResponse.ElementView(
                 element.getId(), element.getElementKind().name(), element.getElementName(),
                 element.getStartRow(), element.getStartColumn(), element.getRowSpan(),
-                element.getColumnSpan(), element.getFillColor(), element.getBorderColor()
+                element.getColumnSpan(), element.getFillColor()
         );
     }
 

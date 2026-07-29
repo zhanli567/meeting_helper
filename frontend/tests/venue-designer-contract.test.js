@@ -69,6 +69,7 @@ test('元素选择与属性编辑只使用通用模型字段并支持取消实�
   const panelSource = await readSource('src/components/VenueElementPanel.vue')
 
   assert.match(pickerSource, /availableElementSuggestions/)
+  assert.match(pickerSource, /availableElementSuggestions\(undefined, props\.elements\)/)
   assert.match(pickerSource, /自定义元素名称/)
   assert.match(pickerSource, /removeCustomElement/)
   assert.match(pickerSource, /overflow-x:\s*hidden/)
@@ -77,10 +78,14 @@ test('元素选择与属性编辑只使用通用模型字段并支持取消实�
   assert.match(panelSource, /kind/)
   assert.match(panelSource, /name/)
   assert.match(panelSource, /fillColor/)
-  assert.match(panelSource, /borderColor/)
+  assert.match(
+    panelSource,
+    /:unavailable-colors="draft\.kind === ELEMENT_KINDS\.GENERIC \? usedGenericColors : \[\]"/,
+  )
+  assert.doesNotMatch(panelSource, /borderColor/)
   assert.match(panelSource, /ColorPickerPopover/)
   assert.match(panelSource, /v-model="draft\.fillColor"/)
-  assert.match(panelSource, /v-model="draft\.borderColor"/)
+  assert.doesNotMatch(panelSource, /v-model="draft\.borderColor"/)
   assert.match(panelSource, /emit\('preview'/)
   assert.match(panelSource, /emit\('cancel'/)
   assert.match(panelSource, /label="显示名称"/)

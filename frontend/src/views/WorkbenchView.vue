@@ -274,7 +274,6 @@ function cloneLayout(layout) {
       rowSpan: element.rowSpan,
       columnSpan: element.columnSpan,
       fillColor: element.fillColor,
-      borderColor: element.borderColor,
     })),
   }
 }

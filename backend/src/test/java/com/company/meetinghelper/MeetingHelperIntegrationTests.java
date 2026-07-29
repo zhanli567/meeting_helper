@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.company.meetinghelper.common.context.CurrentUserHolder;
 import com.company.meetinghelper.common.security.CurrentUser;
+import com.company.meetinghelper.export.api.dto.request.ExportExcelRequest;
 import com.company.meetinghelper.export.service.ExportService;
 import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
 import com.company.meetinghelper.meeting.api.dto.request.UpdateMeetingNameRequest;
@@ -86,7 +87,10 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
+import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -105,6 +109,7 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.annotation.DirtiesContext;
@@ -405,8 +410,7 @@ class MeetingHelperIntegrationTests {
                         versionId
                 ).header(USER_HEADER, "user-a"))
                 .andExpect(status().isNotFound());
-        mockMvc.perform(get("/meetings/{meetingId}/exports/excel", userBMeetingId)
-                        .param("versionId", versionId)
+        mockMvc.perform(post("/meetings/{meetingId}/exports/excel", userBMeetingId)
                         .header(USER_HEADER, "user-a"))
                 .andExpect(status().isNotFound());
         mockMvc.perform(get("/meetings/{meetingId}/workspace", userAMeetingId)
@@ -795,10 +799,10 @@ class MeetingHelperIntegrationTests {
         String elementsJson = workspace.layout().elements().stream()
                 .filter(value -> !value.id().equals(removedSeat.id()))
                 .map(value -> """
-                        {"id":"%s","kind":"%s","name":"%s","row":%d,"column":%d,"rowSpan":%d,"columnSpan":%d,"fillColor":"%s","borderColor":"%s"}
+                        {"id":"%s","kind":"%s","name":"%s","row":%d,"column":%d,"rowSpan":%d,"columnSpan":%d,"fillColor":"%s"}
                         """.formatted(
                         value.id(), value.kind(), value.name(), value.row(), value.column(),
-                        value.rowSpan(), value.columnSpan(), value.fillColor(), value.borderColor()
+                        value.rowSpan(), value.columnSpan(), value.fillColor()
                 ))
                 .collect(Collectors.joining(","));
 
@@ -1068,7 +1072,7 @@ class MeetingHelperIntegrationTests {
         assertThat(planVersionService.getSnapshot(before.plan().id(), saved.id()).participants().stream()
                 .filter(value -> value.assignedElementId() != null)
                 .count()).isEqualTo(3);
-        assertThat(exportService.exportExcel(meetingId, saved.id()).length).isGreaterThan(5_000);
+        assertThat(exportService.exportExcel(meetingId, new ExportExcelRequest(saved.id(), null)).length).isGreaterThan(5_000);
 
         planVersionService.restore(before.plan().id(), saved.id());
 
@@ -1314,7 +1318,17 @@ class MeetingHelperIntegrationTests {
                 .containsEntry("部门", "研发部")
                 .containsEntry("备注", "重点");
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(
-                exportService.exportExcel(meetingId, version.id())
+                exportService.exportExcel(
+                        meetingId,
+                        new ExportExcelRequest(
+                                version.id(),
+                                new ExportExcelRequest.SheetSelection(
+                                        new ExportExcelRequest.ParticipantSheet(true, null, false, false),
+                                        null,
+                                        null
+                                )
+                        )
+                )
         ))) {
             assertThat(cellValues(workbook.getSheet("人员名单").getRow(0)))
                     .containsExactly("工号", "姓名", "部门", "备注");
@@ -1383,8 +1397,14 @@ class MeetingHelperIntegrationTests {
 
         byte[] exported = exportService.exportExcel(
                 meeting.id(),
-                null,
-                new ExportService.ExportOptions(List.of("部门"), true, true)
+                new ExportExcelRequest(
+                        null,
+                        new ExportExcelRequest.SheetSelection(
+                                new ExportExcelRequest.ParticipantSheet(true, List.of("部门"), true, true),
+                                null,
+                                null
+                        )
+                )
         );
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(exported))) {
             XSSFSheet sheet = workbook.getSheet("人员名单");
@@ -1397,9 +1417,525 @@ class MeetingHelperIntegrationTests {
             }
         }
 
-        mockMvc.perform(get("/meetings/{meetingId}/exports/excel", meeting.id())
+        mockMvc.perform(post("/meetings/{meetingId}/exports/excel", meeting.id())
                         .header(USER_HEADER, DEFAULT_USER))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void excelExportAcceptsStructuredPostRequestAndCanSelectSheets() throws Exception {
+        VenueSummary venue = defaultVenue();
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "结构化导出会议-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+
+        mockMvc.perform(post("/meetings/{meetingId}/exports/excel", meeting.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "versionId": null,
+                                  "sheets": {
+                                    "participants": {"enabled": false},
+                                    "layout": {"enabled": true, "fieldCodes": [], "colorFieldCodes": []},
+                                    "seatDetails": {"enabled": false}
+                                  }
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+    }
+
+    @Test
+    void layoutSheetExpandsParticipantRecordsAndMergesRepeatedFieldValues() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "多记录排座图场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(
+                        seat("座位-1-1", 1, 1, 1, 1),
+                        seat("座位-1-2", 1, 2, 1, 1),
+                        generic("主席台", 3, 1, 2, 2)
+                )
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "多记录排座图-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,奖项", "a12345678,姓名1,第一批,金奖");
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,奖项", "a12345678,姓名1,第一批,银奖");
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,奖项", "a12345678,姓名1,第二批,铜奖");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        ElementView seat = workspace.layout().elements().stream()
+                .filter(value -> "SEAT".equals(value.kind()))
+                .findFirst()
+                .orElseThrow();
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(workspace.participants().getFirst().id(), seat.id())
+        );
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {
+                      "enabled": true,
+                      "fieldCodes": ["获奖批次"],
+                      "colorFieldCodes": ["获奖批次"]
+                    },
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            assertThat(sheetNames(workbook)).containsExactly("排座图");
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            assertThat(sheet).isNotNull();
+            assertThat(sheet.isDisplayGridlines()).isFalse();
+            assertThat(sheetText(sheet))
+                    .contains("座位编号", "获奖批次", "姓名", "1排01", "第一批", "第二批", "姓名1", "主席台");
+            assertThat(mergedRegionTexts(sheet)).contains("第一排", "第一批", "主席台");
+
+            Cell firstBatch = findCell(sheet, "第一批");
+            Cell secondBatch = findCell(sheet, "第二批");
+            Cell seatNumber = findCell(sheet, "1排01");
+            assertThat(mergedRegion(sheet, firstBatch).getNumberOfCells()).isEqualTo(2);
+            assertThat(firstBatch.getRowIndex()).isLessThan(secondBatch.getRowIndex());
+            assertThat(cellFill(firstBatch)).isNotIn("#e5edf8", "#dbeafe");
+            assertThat(cellFill(secondBatch)).isNotIn("#e5edf8", "#dbeafe");
+            assertThat(cellFill(secondBatch)).isNotEqualTo(cellFill(firstBatch));
+            assertThat(cellFill(seatNumber)).isEqualTo("#e5edf8");
+
+            Cell leftRowLabel = findCell(sheet, "第一排");
+            assertThat(mergedRegion(sheet, leftRowLabel).getNumberOfCells()).isEqualTo(5);
+            assertThat((Object) sheet.getRow(0)).isNull();
+            assertThat(sheet.getRow(2).getCell(0)).isNull();
+            assertThat(sheet.getRow(2).getCell(1)).isNull();
+
+            Cell genericElement = findCell(sheet, "主席台");
+            CellRangeAddress genericRegion = mergedRegion(sheet, genericElement);
+            assertThat(genericRegion.getFirstRow()).isEqualTo(12);
+            assertThat(genericRegion.getLastRow()).isEqualTo(18);
+            assertThat(genericRegion.getFirstColumn()).isEqualTo(4);
+            assertThat(genericRegion.getLastColumn()).isEqualTo(5);
+            assertThat(genericElement.getCellStyle().getBorderTop()).isEqualTo(BorderStyle.THIN);
+        }
+    }
+
+    @Test
+    void layoutSheetMeasuresOnlyDistinctValidDynamicFields() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "字段测量排座图场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(seat("座位-1-1", 1, 1, 1, 1))
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "字段测量排座图-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次", "a12345678,姓名1,第一批");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(
+                        workspace.participants().getFirst().id(),
+                        workspace.layout().elements().getFirst().id()
+                )
+        );
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {
+                      "enabled": true,
+                      "fieldCodes": [
+                        "获奖批次",
+                        "获奖批次",
+                        "name",
+                        "employeeNo"
+                      ],
+                      "colorFieldCodes": []
+                    },
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            Cell rowLabel = findCell(sheet, "第一排");
+            Cell seatNumber = findCell(sheet, "1排01");
+            Cell participantName = findCell(sheet, "姓名1");
+            assertThat(mergedRegion(sheet, rowLabel).getNumberOfCells()).isEqualTo(3);
+            assertThat(participantName.getRowIndex()).isEqualTo(seatNumber.getRowIndex() + 2);
+        }
+    }
+
+    @Test
+    void layoutSheetRendersTwoRowSeatAcrossAllCoveredCanvasRows() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "跨行座位排座图场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(seat("跨行座位", 1, 1, 2, 1))
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "跨行座位排座图-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        previewAndCommit(meeting.id(), "工号,姓名", "a12345678,跨行人员");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(
+                        workspace.participants().getFirst().id(),
+                        workspace.layout().elements().getFirst().id()
+                )
+        );
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {"enabled": true, "fieldCodes": [], "colorFieldCodes": []},
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            Cell seatNumber = findCell(sheet, "1排01");
+            Cell participantName = findCell(sheet, "跨行人员");
+
+            assertThat(participantName.getRowIndex() - seatNumber.getRowIndex()).isEqualTo(4);
+            assertThat(sheet.getRow(seatNumber.getRowIndex() + 2).getCell(seatNumber.getColumnIndex())
+                    .getCellStyle().getBorderLeft()).isEqualTo(BorderStyle.THIN);
+        }
+    }
+
+    @Test
+    void layoutSheetAlignsFieldLabelsWithTwoRowSeatSpan() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "跨行字段标签场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(seat("跨行座位", 1, 1, 2, 1))
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "跨行字段标签-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,奖项", "a12345678,跨行人员,A,金奖");
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,奖项", "a12345678,跨行人员,A,银奖");
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,奖项", "a12345678,跨行人员,B,铜奖");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(
+                        workspace.participants().getFirst().id(),
+                        workspace.layout().elements().getFirst().id()
+                )
+        );
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {
+                      "enabled": true,
+                      "fieldCodes": ["获奖批次"],
+                      "colorFieldCodes": []
+                    },
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            Cell rowLabel = findCell(sheet, "第一排");
+            Cell seatNumber = findCell(sheet, "1排01");
+            Cell fieldLabel = findCell(sheet, "获奖批次");
+            Cell nameLabel = findCell(sheet, "姓名");
+            Cell participantName = findCell(sheet, "跨行人员");
+            CellRangeAddress fieldLabelRegion = mergedRegion(sheet, fieldLabel);
+            CellRangeAddress rowLabelRegion = mergedRegion(sheet, rowLabel);
+
+            assertThat(participantName.getRowIndex() - seatNumber.getRowIndex()).isEqualTo(6);
+            assertThat(fieldLabelRegion.getFirstRow()).isEqualTo(seatNumber.getRowIndex() + 1);
+            assertThat(fieldLabelRegion.getLastRow()).isEqualTo(participantName.getRowIndex() - 1);
+            assertThat(fieldLabelRegion.getNumberOfCells()).isEqualTo(5);
+            assertThat(nameLabel.getRowIndex()).isEqualTo(participantName.getRowIndex());
+            assertThat(rowLabelRegion.getFirstRow()).isEqualTo(seatNumber.getRowIndex());
+            assertThat(rowLabelRegion.getLastRow()).isEqualTo(participantName.getRowIndex());
+            assertThat(rowLabelRegion.getNumberOfCells()).isEqualTo(7);
+        }
+    }
+
+    @Test
+    void layoutSheetClipsMultiRowLabelsBeforeLaterSeatRow() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "跨行标签边界场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(
+                        seat("跨行座位", 1, 1, 2, 1),
+                        seat("第二排座位", 2, 2, 1, 1)
+                )
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "跨行标签边界-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,奖项", "a12345678,跨行人员,A,金奖");
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,奖项", "a12345678,跨行人员,A,银奖");
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,奖项", "a12345678,跨行人员,B,铜奖");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        Map<String, ElementView> seatsByName = workspace.layout().elements().stream()
+                .collect(Collectors.toMap(ElementView::name, value -> value));
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(
+                        workspace.participants().getFirst().id(),
+                        seatsByName.get("跨行座位").id()
+                )
+        );
+
+        XSSFWorkbook exportedWorkbook;
+        try {
+            exportedWorkbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {
+                      "enabled": true,
+                      "fieldCodes": ["获奖批次", "奖项"],
+                      "colorFieldCodes": []
+                    },
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """);
+        } catch (jakarta.servlet.ServletException exception) {
+            throw new AssertionError("排座图导出不应因标签区域重叠而失败", exception);
+        }
+        try (XSSFWorkbook workbook = exportedWorkbook) {
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            List<Cell> firstRowLabels = findCells(sheet, "第一排");
+            List<Cell> secondRowLabels = findCells(sheet, "第二排");
+
+            assertThat(firstRowLabels).hasSize(2);
+            assertThat(secondRowLabels).hasSize(2);
+            for (int index = 0; index < firstRowLabels.size(); index++) {
+                CellRangeAddress firstRegion = mergedRegion(sheet, firstRowLabels.get(index));
+                CellRangeAddress secondRegion = mergedRegion(sheet, secondRowLabels.get(index));
+                assertThat(firstRegion.getFirstColumn()).isEqualTo(secondRegion.getFirstColumn());
+                assertThat(firstRegion.getLastRow()).isLessThan(secondRegion.getFirstRow());
+            }
+            assertThat(findCells(sheet, "获奖批次")).hasSize(2);
+            assertThat(findCells(sheet, "奖项")).hasSize(2);
+        }
+    }
+
+    @Test
+    void layoutSheetUsesReservedAreaFillAndKeepsItOutOfFieldPalette() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "区域颜色排座图场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(
+                        seat("人员座位", 1, 1, 1, 1),
+                        seat("区域座位", 1, 2, 1, 1)
+                )
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "区域颜色排座图-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        previewAndCommit(meeting.id(), "工号,姓名,部门", "a12345678,姓名1,研发部");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        Map<String, ElementView> seatsByName = workspace.layout().elements().stream()
+                .collect(Collectors.toMap(ElementView::name, value -> value));
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(
+                        workspace.participants().getFirst().id(),
+                        seatsByName.get("人员座位").id()
+                )
+        );
+        mockMvc.perform(post("/plans/{planId}/reserved-areas/save", workspace.plan().id())
+                        .header(USER_HEADER, DEFAULT_USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reservedAreas":[{"label":"嘉宾","backgroundColor":"#DBEAFE","textColor":"#172033","bold":true,"targetElementIds":["%s"]}]}
+                                """.formatted(seatsByName.get("区域座位").id())))
+                .andExpect(status().isOk());
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {
+                      "enabled": true,
+                      "fieldCodes": ["部门"],
+                      "colorFieldCodes": ["部门"]
+                    },
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            Cell reservedLabel = findCell(sheet, "嘉宾");
+            Cell fieldValue = findCell(sheet, "研发部");
+
+            assertThat(cellFill(reservedLabel)).isEqualTo("#dbeafe");
+            assertThat(cellFill(fieldValue)).isNotEqualTo("#dbeafe");
+        }
+    }
+
+    @Test
+    void layoutSheetMergesOneFieldLabelAcrossAllRecordRows() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "字段标签排座图场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(seat("座位-1-1", 1, 1, 1, 1))
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "字段标签排座图-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,奖项", "a12345678,姓名1,A,金奖");
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,奖项", "a12345678,姓名1,A,银奖");
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,奖项", "a12345678,姓名1,B,铜奖");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(
+                        workspace.participants().getFirst().id(),
+                        workspace.layout().elements().getFirst().id()
+                )
+        );
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {
+                      "enabled": true,
+                      "fieldCodes": ["获奖批次"],
+                      "colorFieldCodes": []
+                    },
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            List<Cell> fieldLabels = findCells(sheet, "获奖批次");
+
+            assertThat(fieldLabels).hasSize(1);
+            assertThat(mergedRegion(sheet, fieldLabels.getFirst()).getNumberOfCells()).isEqualTo(3);
+        }
+    }
+
+    @Test
+    void excelExportCanDisableParticipantAndSeatDetailSheets() throws Exception {
+        MeetingSummary meeting = createMeetingFromVenue("只导出排座图");
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {"enabled": true, "fieldCodes": [], "colorFieldCodes": []},
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            assertThat(sheetNames(workbook)).containsExactly("排座图");
+        }
+    }
+
+    @Test
+    void excelExportRejectsNoSelectedSheets() throws Exception {
+        MeetingSummary meeting = createMeetingFromVenue("无子表导出");
+
+        mockMvc.perform(post("/meetings/{meetingId}/exports/excel", meeting.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "sheets": {
+                                    "participants": {"enabled": false},
+                                    "layout": {"enabled": false},
+                                    "seatDetails": {"enabled": false}
+                                  }
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.msg").value("请至少选择一个导出子表"));
+    }
+
+    @Test
+    void excelExportRejectsUnknownFieldCodes() throws Exception {
+        MeetingSummary meeting = createMeetingFromVenue("未知字段导出");
+
+        mockMvc.perform(post("/meetings/{meetingId}/exports/excel", meeting.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "sheets": {
+                                    "layout": {"enabled": true, "fieldCodes": ["不存在字段"], "colorFieldCodes": []}
+                                  }
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.msg").value("导出字段不存在：不存在字段"));
+    }
+
+    @Test
+    void excelExportRequiresLayoutColorFieldsToBeSelected() throws Exception {
+        String meetingId = createImportMeeting();
+        previewAndCommit(meetingId, "工号,姓名,部门", "a12345678,姓名1,研发部");
+
+        mockMvc.perform(post("/meetings/{meetingId}/exports/excel", meetingId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "sheets": {
+                                    "layout": {
+                                      "enabled": true,
+                                      "fieldCodes": [],
+                                      "colorFieldCodes": ["部门"]
+                                    }
+                                  }
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.msg").value("排座图着色字段必须先加入座位块字段"));
+    }
+
+    @Test
+    void excelExportFiltersParticipantAndSeatDetailFields() throws Exception {
+        String meetingId = createImportMeeting();
+        previewAndCommit(meetingId, "工号,姓名,部门", "a12345678,姓名1,研发部");
+
+        try (XSSFWorkbook workbook = exportWorkbook(meetingId, """
+                {
+                  "sheets": {
+                    "participants": {
+                      "enabled": true,
+                      "fieldCodes": ["部门"],
+                      "includeAttendance": false,
+                      "includeSeatLabel": false
+                    },
+                    "layout": {"enabled": false},
+                    "seatDetails": {
+                      "enabled": true,
+                      "fieldCodes": ["部门"],
+                      "includeOccupancyType": false,
+                      "includeRegionName": false,
+                      "includeParticipant": false
+                    }
+                  }
+                }
+                """)) {
+            assertThat(sheetNames(workbook)).containsExactly("人员名单", "座位明细");
+            assertThat(cellValues(workbook.getSheet("人员名单").getRow(0)))
+                    .containsExactly("工号", "姓名", "部门");
+            assertThat(cellValues(workbook.getSheet("座位明细").getRow(0)))
+                    .containsExactly("座位编号", "部门");
+        }
     }
 
     @Test
@@ -1423,7 +1959,7 @@ class MeetingHelperIntegrationTests {
                 .andExpect(status().isOk());
 
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(
-                exportService.exportExcel(meeting.id(), null)
+                exportService.exportExcel(meeting.id(), new ExportExcelRequest(null, null))
         ))) {
             XSSFSheet sheet = workbook.getSheet("座位明细");
             assertThat(cellValues(sheet.getRow(0)))
@@ -1458,7 +1994,7 @@ class MeetingHelperIntegrationTests {
                 workspace.plan().id(),
                 new CreateVersionRequest("导出确认版", "", false)
         );
-        assertThat(exportService.exportExcel(meeting.id(), version.id()).length).isGreaterThan(5_000);
+        assertThat(exportService.exportExcel(meeting.id(), new ExportExcelRequest(version.id(), null)).length).isGreaterThan(5_000);
     }
 
     @Test
@@ -1491,7 +2027,17 @@ class MeetingHelperIntegrationTests {
                 new CreateVersionRequest("动态记录导出版", "", false)
         );
 
-        byte[] exported = exportService.exportExcel(meetingId, version.id());
+        byte[] exported = exportService.exportExcel(
+                meetingId,
+                new ExportExcelRequest(
+                        version.id(),
+                        new ExportExcelRequest.SheetSelection(
+                                new ExportExcelRequest.ParticipantSheet(true, null, false, false),
+                                null,
+                                null
+                        )
+                )
+        );
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(exported))) {
             assertThat(workbook.getSheetAt(0).getSheetName()).isEqualTo("人员名单");
             assertThat(workbook.getSheet("获奖名单")).isNull();
@@ -1544,7 +2090,7 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
-    void exportedLayoutUsesDynamicSeatLabelAndParticipantNameOnly() throws Exception {
+    void exportedLayoutSeparatesSeatLabelAndNameWithoutUnselectedFields() throws Exception {
         String meetingId = createImportMeeting();
         previewAndCommit(
                 meetingId,
@@ -1567,15 +2113,14 @@ class MeetingHelperIntegrationTests {
         );
 
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(
-                exportService.exportExcel(meetingId, version.id())
+                exportService.exportExcel(meetingId, new ExportExcelRequest(version.id(), null))
         ))) {
-            String cellText = workbook.getSheet("排座图")
-                    .getRow(seat.row() - 1)
-                    .getCell(seat.column() - 1)
-                    .getStringCellValue();
-            assertThat(cellText).isEqualTo("1排1\n导出人员");
-            assertThat(cellText).doesNotContain("主持人");
-            assertThat(cellText).doesNotContain("第一批");
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            Cell seatNumber = findCell(sheet, "1排01");
+            Cell participantName = findCell(sheet, "导出人员");
+            assertThat(participantName.getColumnIndex()).isEqualTo(seatNumber.getColumnIndex());
+            assertThat(participantName.getRowIndex()).isEqualTo(seatNumber.getRowIndex() + 1);
+            assertThat(sheetText(sheet)).doesNotContain("主持人", "第一批");
         }
     }
 
@@ -2706,7 +3251,7 @@ class MeetingHelperIntegrationTests {
             int columnSpan
     ) {
         return new ElementInput(
-                "SEAT", name, row, column, rowSpan, columnSpan, "#ffffff", "#8fb4e8"
+                "SEAT", name, row, column, rowSpan, columnSpan, "#ffffff"
         );
     }
 
@@ -2718,7 +3263,7 @@ class MeetingHelperIntegrationTests {
             int columnSpan
     ) {
         return new ElementInput(
-                "GENERIC", name, row, column, rowSpan, columnSpan, "#dbeafe", "#93c5fd"
+                "GENERIC", name, row, column, rowSpan, columnSpan, "#dbeafe"
         );
     }
 
@@ -2771,6 +3316,10 @@ class MeetingHelperIntegrationTests {
                 "人员导入测试-" + UUID.randomUUID(),
                 venue.id()
         )).id();
+    }
+
+    private MeetingSummary createMeetingFromVenue(String title) {
+        return meetingService.create(new CreateMeetingRequest(title + "-" + UUID.randomUUID(), defaultVenue().id()));
     }
 
     private int commitImportAfterBarrier(
@@ -2971,6 +3520,80 @@ class MeetingHelperIntegrationTests {
             workbook.write(output);
             return output.toByteArray();
         }
+    }
+
+    private XSSFWorkbook exportWorkbook(String meetingId, String body) throws Exception {
+        byte[] bytes = mockMvc.perform(post("/meetings/{meetingId}/exports/excel", meetingId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsByteArray();
+        return new XSSFWorkbook(new ByteArrayInputStream(bytes));
+    }
+
+    private List<String> sheetNames(XSSFWorkbook workbook) {
+        ArrayList<String> names = new ArrayList<String>();
+        for (int index = 0; index < workbook.getNumberOfSheets(); index++) {
+            names.add(workbook.getSheetName(index));
+        }
+        return names;
+    }
+
+    private String sheetText(XSSFSheet sheet) {
+        StringBuilder text = new StringBuilder();
+        for (Row row : sheet) {
+            for (Cell cell : row) {
+                text.append(cell.toString()).append('\n');
+            }
+        }
+        return text.toString();
+    }
+
+    private List<String> mergedRegionTexts(XSSFSheet sheet) {
+        return sheet.getMergedRegions().stream()
+                .map(region -> sheet.getRow(region.getFirstRow()).getCell(region.getFirstColumn()).toString())
+                .toList();
+    }
+
+    private Cell findCell(XSSFSheet sheet, String value) {
+        return findCells(sheet, value).stream()
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("未找到单元格：" + value));
+    }
+
+    private List<Cell> findCells(XSSFSheet sheet, String value) {
+        ArrayList<Cell> result = new ArrayList<Cell>();
+        for (Row row : sheet) {
+            for (Cell cell : row) {
+                if (value.equals(cell.toString())) {
+                    result.add(cell);
+                }
+            }
+        }
+        return result;
+    }
+
+    private CellRangeAddress mergedRegion(XSSFSheet sheet, Cell cell) {
+        return sheet.getMergedRegions().stream()
+                .filter(region -> region.isInRange(cell))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("单元格未合并：" + cell));
+    }
+
+    private String cellFill(Cell cell) {
+        if (!(cell.getCellStyle().getFillForegroundColorColor()
+                instanceof org.apache.poi.xssf.usermodel.XSSFColor color)
+                || color.getRGB() == null) {
+            return "#ffffff";
+        }
+        byte[] rgb = color.getRGB();
+        return "#%02x%02x%02x".formatted(
+                Byte.toUnsignedInt(rgb[0]),
+                Byte.toUnsignedInt(rgb[1]),
+                Byte.toUnsignedInt(rgb[2])
+        );
     }
 
     private Map<String, String> readAttributes(String json) {

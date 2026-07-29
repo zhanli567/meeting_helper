@@ -1,14 +1,18 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { Close, DArrowLeft, DArrowRight, Fold, Setting } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import ColorPickerPopover from '@/components/ColorPickerPopover.vue'
-import { ELEMENT_KINDS } from '@/utils/venueModel'
+import { COMMON_ELEMENT_SUGGESTIONS, ELEMENT_KINDS } from '@/utils/venueModel'
 import { validElementProperties } from '@/utils/designerGeometry'
 import {
   availableElementSuggestions,
-  BASIC_COLOR_SWATCHES,
+  nextAvailableSemanticColor,
+  normalizeHexColor,
+  SEMANTIC_COLOR_SWATCHES,
   saveCustomColor,
   saveCustomElementName,
+  usedGenericElementColors,
 } from '@/utils/venuePreferences'
 
 const props = defineProps({
@@ -40,18 +44,26 @@ const props = defineProps({
     type: String,
     default: 'right',
   },
+  elements: {
+    type: Array,
+    default: () => [],
+  },
 })
 
 const emit = defineEmits(['preview', 'confirm', 'cancel', 'toggle', 'dock'])
 const draft = reactive({
   kind: ELEMENT_KINDS.GENERIC,
   name: '',
-  fillColor: '#dbeafe',
-  borderColor: '#93c5fd',
+  fillColor: nextAvailableSemanticColor(
+    COMMON_ELEMENT_SUGGESTIONS
+      .filter((suggestion) => suggestion.kind === ELEMENT_KINDS.GENERIC)
+      .map((suggestion) => suggestion.fillColor),
+  ),
 })
 const elementSuggestions = ref(availableElementSuggestions())
-const basicColorSwatches = BASIC_COLOR_SWATCHES
+const basicColorSwatches = SEMANTIC_COLOR_SWATCHES
 const draftValid = computed(() => validElementProperties(draft))
+const usedGenericColors = computed(() => usedGenericElementColors(props.elements, draft.name))
 
 watch(
   () => props.element,
@@ -61,7 +73,6 @@ watch(
       kind: element.kind,
       name: element.name,
       fillColor: element.fillColor,
-      borderColor: element.borderColor,
     })
   },
   { immediate: true },
@@ -74,14 +85,12 @@ watch(
       props.element &&
       value.kind &&
       value.name != null &&
-      value.fillColor &&
-      value.borderColor
+      value.fillColor
     ) {
       emit('preview', {
         kind: value.kind,
         name: value.name,
         fillColor: value.fillColor,
-        borderColor: value.borderColor,
       })
     }
   },
@@ -104,17 +113,22 @@ function queryNames(query, callback) {
 
 function confirm() {
   if (!draftValid.value) return
+  if (
+    draft.kind === ELEMENT_KINDS.GENERIC
+    && usedGenericElementColors(props.elements, draft.name).includes(normalizeHexColor(draft.fillColor))
+  ) {
+    ElMessage.warning('不同非座位元素不能使用相同填充色')
+    return
+  }
   if (draft.kind === ELEMENT_KINDS.GENERIC) {
     saveCustomElementName(draft.name)
   }
   saveCustomColor(draft.fillColor)
-  saveCustomColor(draft.borderColor)
   refreshPreferences()
   emit('confirm', {
     kind: draft.kind,
     name: draft.name.trim(),
     fillColor: draft.fillColor,
-    borderColor: draft.borderColor,
   })
 }
 </script>
@@ -162,7 +176,11 @@ function confirm() {
           <el-form-item label="填充色">
             <div class="color-control-row">
               <span>{{ draft.fillColor }}</span>
-              <ColorPickerPopover v-model="draft.fillColor" label="填充色" />
+              <ColorPickerPopover
+                v-model="draft.fillColor"
+                label="填充色"
+                :unavailable-colors="draft.kind === ELEMENT_KINDS.GENERIC ? usedGenericColors : []"
+              />
               <input
                 class="sr-only-color-value"
                 :value="draft.fillColor"
@@ -181,27 +199,6 @@ function confirm() {
             </div>
           </el-form-item>
 
-          <el-form-item label="边框色">
-            <div class="color-control-row">
-              <span>{{ draft.borderColor }}</span>
-              <ColorPickerPopover v-model="draft.borderColor" label="边框色" />
-              <input
-                class="sr-only-color-value"
-                :value="draft.borderColor"
-                readonly
-                aria-hidden="true"
-                tabindex="-1"
-              >
-              <button
-                v-for="color in basicColorSwatches"
-                :key="`border-${color.value}`"
-                type="button"
-                class="sr-only-color-action"
-                :aria-label="`边框色 ${color.value}`"
-                @click="draft.borderColor = color.value"
-              />
-            </div>
-          </el-form-item>
         </el-form>
 
         <footer>

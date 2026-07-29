@@ -1,6 +1,7 @@
 package com.company.meetinghelper.export.service;
 
 import com.company.meetinghelper.common.exception.ApiException;
+import com.company.meetinghelper.export.api.dto.request.ExportExcelRequest;
 import com.company.meetinghelper.meeting.service.MeetingAccessService;
 import com.company.meetinghelper.seating.service.SeatLabelService;
 import com.company.meetinghelper.seating.service.PlanVersionService;
@@ -15,9 +16,11 @@ import com.company.meetinghelper.workspace.service.WorkspaceService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.poi.ss.usermodel.BorderStyle;
@@ -44,6 +47,7 @@ public class ExportService {
     private final MeetingAccessService meetingAccessService;
     private final SeatLabelService seatLabelService;
     private final WorkspaceService workspaceService;
+    private final LayoutSheetWriter layoutSheetWriter;
 
     public record ExportOptions(
             List<String> fieldCodes,
@@ -67,44 +71,57 @@ public class ExportService {
             PlanVersionService versionService,
             MeetingAccessService meetingAccessService,
             SeatLabelService seatLabelService,
-            WorkspaceService workspaceService
+            WorkspaceService workspaceService,
+            LayoutSheetWriter layoutSheetWriter
     ) {
         this.versionService = versionService;
         this.meetingAccessService = meetingAccessService;
         this.seatLabelService = seatLabelService;
         this.workspaceService = workspaceService;
-    }
-
-    /**
-     * 将会议发布版本导出为Excel。
-     *
-     * @param meetingId 会议ID
-     * @param versionId 发布版本ID
-     * @return Excel文件字节
-     */
-    public byte[] exportExcel(String meetingId, String versionId) {
-        return exportExcel(meetingId, versionId, ExportOptions.defaultOptions());
+        this.layoutSheetWriter = layoutSheetWriter;
     }
 
     /**
      * 将会议草稿或发布版本按指定列导出为Excel。
      *
      * @param meetingId 会议ID
-     * @param versionId 发布版本ID，为空时导出草稿
-     * @param options 导出列选项
+     * @param request 导出配置
      * @return Excel文件字节
      */
-    public byte[] exportExcel(String meetingId, String versionId, ExportOptions options) {
-        WorkspaceResponse workspace = resolveWorkspace(meetingId, versionId);
+    public byte[] exportExcel(String meetingId, ExportExcelRequest request) {
+        ExportExcelRequest.SheetSelection sheets = request.normalizedSheets();
+        WorkspaceResponse workspace = resolveWorkspace(meetingId, request.versionId());
+        if (!sheets.participants().enabled()
+                && !sheets.layout().enabled()
+                && !sheets.seatDetails().enabled()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "请至少选择一个导出子表");
+        }
+        validateFieldCodes(workspace, sheets.participants().fieldCodes());
+        validateFieldCodes(workspace, sheets.layout().fieldCodes());
+        validateFieldCodes(workspace, sheets.layout().colorFieldCodes());
+        validateFieldCodes(workspace, sheets.seatDetails().fieldCodes());
+        if (!new HashSet<String>(sheets.layout().fieldCodes()).containsAll(sheets.layout().colorFieldCodes())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "排座图着色字段必须先加入座位块字段");
+        }
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            writeParticipantSheet(workbook, workspace, options == null ? ExportOptions.defaultOptions() : options);
-            writeLayoutSheet(workbook, workspace);
-            writeSeatDetailSheet(workbook, workspace);
+            if (sheets.participants().enabled()) {
+                writeParticipantSheet(workbook, workspace, participantOptions(sheets.participants()));
+            }
+            if (sheets.layout().enabled()) {
+                layoutSheetWriter.write(workbook, workspace, sheets.layout());
+            }
+            if (sheets.seatDetails().enabled()) {
+                writeSeatDetailSheet(workbook, workspace, sheets.seatDetails());
+            }
             workbook.write(output);
             return output.toByteArray();
         } catch (IOException exception) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "生成Excel失败");
         }
+    }
+
+    private ExportOptions participantOptions(ExportExcelRequest.ParticipantSheet sheet) {
+        return new ExportOptions(sheet.fieldCodes(), sheet.includeAttendance(), sheet.includeSeatLabel());
     }
 
     private WorkspaceResponse resolveWorkspace(String meetingId, String versionId) {
@@ -199,10 +216,24 @@ public class ExportService {
         return style;
     }
 
-    private void writeSeatDetailSheet(XSSFWorkbook workbook, WorkspaceResponse workspace) {
+    private void writeSeatDetailSheet(
+            XSSFWorkbook workbook,
+            WorkspaceResponse workspace,
+            ExportExcelRequest.SeatDetailSheet options
+    ) {
         XSSFSheet sheet = workbook.createSheet("座位明细");
-        List<FieldDefinitionView> participantFields = dynamicFields(workspace);
-        ArrayList<String> headers = new ArrayList<>(List.of("座位编号", "元素类型", "区域名称", "人员工号", "姓名"));
+        List<FieldDefinitionView> participantFields = selectedDynamicFields(workspace, options.fieldCodes());
+        ArrayList<String> headers = new ArrayList<>(List.of("座位编号"));
+        if (options.includeOccupancyType()) {
+            headers.add("元素类型");
+        }
+        if (options.includeRegionName()) {
+            headers.add("区域名称");
+        }
+        if (options.includeParticipant()) {
+            headers.add("人员工号");
+            headers.add("姓名");
+        }
         participantFields.forEach(field -> headers.add(field.label()));
         writeHeaderRow(sheet, headers.toArray(String[]::new));
         Map<String,ParticipantView> participantById = workspace.participants().stream()
@@ -218,11 +249,18 @@ public class ExportService {
             PlanItemView item = itemByElement.get(element.id());
             ParticipantView participant = item == null || item.participantId() == null
                     ? null : participantById.get(item.participantId());
-            row.createCell(0).setCellValue(seatLabels.getOrDefault(element.id(), nullToEmpty(element.name())));
-            row.createCell(1).setCellValue(itemTypeLabel(item));
-            row.createCell(2).setCellValue(regionName(item));
-            row.createCell(3).setCellValue(participant == null ? "" : participant.employeeNo());
-            row.createCell(4).setCellValue(participant == null ? "" : participant.name());
+            int columnIndex = 0;
+            row.createCell(columnIndex++).setCellValue(seatLabels.getOrDefault(element.id(), nullToEmpty(element.name())));
+            if (options.includeOccupancyType()) {
+                row.createCell(columnIndex++).setCellValue(itemTypeLabel(item));
+            }
+            if (options.includeRegionName()) {
+                row.createCell(columnIndex++).setCellValue(regionName(item));
+            }
+            if (options.includeParticipant()) {
+                row.createCell(columnIndex++).setCellValue(participant == null ? "" : participant.employeeNo());
+                row.createCell(columnIndex++).setCellValue(participant == null ? "" : participant.name());
+            }
             for (int fieldIndex = 0; fieldIndex < participantFields.size(); fieldIndex++) {
                 String value = participant == null
                         ? ""
@@ -230,7 +268,7 @@ public class ExportService {
                                 participantFields.get(fieldIndex).code(),
                                 ""
                         );
-                row.createCell(5 + fieldIndex).setCellValue(value);
+                row.createCell(columnIndex++).setCellValue(value);
             }
         }
         autosize(sheet, headers.size(), 16);
@@ -257,7 +295,7 @@ public class ExportService {
             ExportOptions options
     ) {
         XSSFSheet sheet = workbook.createSheet("人员名单");
-        List<FieldDefinitionView> participantFields = selectedDynamicFields(workspace, options);
+        List<FieldDefinitionView> participantFields = selectedDynamicFields(workspace, options.fieldCodes());
         ArrayList<String> headers = new ArrayList<>(List.of("工号", "姓名"));
         participantFields.forEach(field -> headers.add(field.label()));
         if (options.includeAttendance()) {
@@ -363,15 +401,29 @@ public class ExportService {
 
     private List<WorkspaceResponse.FieldDefinitionView> selectedDynamicFields(
             WorkspaceResponse workspace,
-            ExportOptions options
+            List<String> fieldCodes
     ) {
         List<FieldDefinitionView> fields = dynamicFields(workspace);
-        if (options.fieldCodes() == null) {
+        if (fieldCodes == null) {
             return fields;
         }
         return fields.stream()
-                .filter(field -> options.fieldCodes().contains(field.code()))
+                .filter(field -> fieldCodes.contains(field.code()))
                 .toList();
+    }
+
+    private void validateFieldCodes(WorkspaceResponse workspace, List<String> fieldCodes) {
+        if (fieldCodes == null) {
+            return;
+        }
+        Set<String> available = workspace.fieldDefinitions().stream()
+                .map(WorkspaceResponse.FieldDefinitionView::code)
+                .collect(Collectors.toSet());
+        for (String code : fieldCodes) {
+            if (!available.contains(code)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "导出字段不存在：" + code);
+            }
+        }
     }
 
     private Map<String, String> seatLabelByParticipant(WorkspaceResponse workspace) {

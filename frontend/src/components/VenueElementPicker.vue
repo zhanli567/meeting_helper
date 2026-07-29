@@ -4,8 +4,11 @@ import { Close } from '@element-plus/icons-vue'
 import { COMMON_ELEMENT_SUGGESTIONS, ELEMENT_KINDS } from '@/utils/venueModel'
 import {
   availableElementSuggestions,
+  genericElementColorMap,
+  nextAvailableSemanticColor,
   removeCustomElementName,
   saveCustomElementName,
+  usedGenericElementColors,
 } from '@/utils/venuePreferences'
 
 const props = defineProps({
@@ -13,12 +16,16 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  elements: {
+    type: Array,
+    default: () => [],
+  },
 })
 
 const emit = defineEmits(['choose', 'cancel'])
 const customName = ref('')
 const seatPending = ref(false)
-const suggestions = ref(availableElementSuggestions())
+const suggestions = ref(availableElementSuggestions(undefined, props.elements))
 const isMultiCell = computed(() => props.rect.rowSpan * props.rect.columnSpan > 1)
 
 watch(
@@ -32,16 +39,20 @@ watch(
 )
 
 function refreshSuggestions() {
-  suggestions.value = availableElementSuggestions()
+  suggestions.value = availableElementSuggestions(undefined, props.elements)
 }
 
 function choicePayload(suggestion) {
+  const colorsByName = genericElementColorMap(props.elements)
+  const fillColor = suggestion.kind === ELEMENT_KINDS.GENERIC
+    ? colorsByName.get(suggestion.name)
+      || nextAvailableSemanticColor(usedGenericElementColors(props.elements, suggestion.name))
+    : suggestion.fillColor
   return {
     kind:
       suggestion.name === '座位' ? ELEMENT_KINDS.SEAT : ELEMENT_KINDS.GENERIC,
     name: suggestion.name,
-    fillColor: suggestion.fillColor,
-    borderColor: suggestion.borderColor,
+    fillColor,
   }
 }
 
@@ -65,12 +76,7 @@ function createCustom() {
   const name = saveCustomElementName(customName.value)
   if (!name) return
   refreshSuggestions()
-  emit('choose', {
-    kind: ELEMENT_KINDS.GENERIC,
-    name,
-    fillColor: '#dbeafe',
-    borderColor: '#93c5fd',
-  })
+  emit('choose', choicePayload(suggestions.value.find((suggestion) => suggestion.name === name)))
 }
 
 function removeCustomElement(suggestion) {
@@ -114,7 +120,6 @@ function removeCustomElement(suggestion) {
             <i
               :style="{
                 backgroundColor: suggestion.fillColor,
-                borderColor: suggestion.borderColor,
               }"
             />
             <span>{{ suggestion.name }}</span>
@@ -224,7 +229,7 @@ header span {
   width: 18px;
   height: 18px;
   flex: none;
-  border: 1px solid;
+  border: 1px solid #9fb3c8;
   border-radius: 5px;
 }
 

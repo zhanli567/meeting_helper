@@ -39,8 +39,7 @@ public record WorkspaceResponse(
             int column,
             int rowSpan,
             int columnSpan,
-            String fillColor,
-            String borderColor
+            String fillColor
     ) {
     }
 

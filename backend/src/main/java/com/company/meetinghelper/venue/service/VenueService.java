@@ -236,7 +236,6 @@ public class VenueService {
             target.setRowSpan(source.rowSpan());
             target.setColumnSpan(source.columnSpan());
             target.setFillColor(source.fillColor());
-            target.setBorderColor(source.borderColor());
             return target;
         }).toList();
         elementRepository.saveBatch(entities);
@@ -325,7 +324,7 @@ public class VenueService {
         return new ElementInput(
                 source.getElementKind().name(), source.getElementName(), source.getStartRow(),
                 source.getStartColumn(), source.getRowSpan(), source.getColumnSpan(),
-                source.getFillColor(), source.getBorderColor()
+                source.getFillColor()
         );
     }
 

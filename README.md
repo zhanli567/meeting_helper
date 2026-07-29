@@ -6,7 +6,7 @@
 
 - `frontend/`：Vue 3 + JavaScript + Element Plus 2.8 前端。
 - `backend/`：Java 21 + Spring Boot + MyBatis-Plus 后端。
-- `backend/src/main/resources/db/ddl.sql`：PostgreSQL 正式建表脚本。
+- `DDL/meeting_helper.sql`：PostgreSQL 正式建表脚本。
 - `docs/architecture.md`：当前架构与关键设计决策。
 - `CHANGELOG.md`：版本变更记录。
 
@@ -32,7 +32,7 @@
 ### 建立开发数据库
 
 1. 创建数据库 `meeting_helper`。
-2. 使用 PostgreSQL 账号 `postgres`、密码 `123456`，执行 `backend/src/main/resources/db/ddl.sql`。
+2. 使用 PostgreSQL 账号 `postgres`、密码 `123456`，执行 `DDL/meeting_helper.sql`。
 
 项目不包含代码内置场馆、演示数据或启动时写库逻辑；正式 DDL 也不包含种子数据、外键和软删除列。需要不同连接信息时，请通过 Spring 配置覆盖默认值。
 

@@ -143,7 +143,6 @@ test('多格座位支持逐格生成和合并生成', () => {
     kind: 'SEAT',
     name: '座位',
     fillColor: '#ffffff',
-    borderColor: '#8fb4e8',
     row: 2,
     column: 3,
     rowSpan: 2,
@@ -305,7 +304,6 @@ test('元素属性只接受八十字符内名称和六位十六进制颜色', ()
     kind: 'GENERIC',
     name: '主舞台',
     fillColor: '#dbeafe',
-    borderColor: '#93C5FD',
   }
 
   assert.equal(designerGeometry.validElementProperties(valid), true)
@@ -318,10 +316,8 @@ test('元素属性只接受八十字符内名称和六位十六进制颜色', ()
     designerGeometry.validElementProperties({ ...valid, fillColor: null }),
     false,
   )
-  assert.equal(
-    designerGeometry.validElementProperties({ ...valid, borderColor: '#fff' }),
-    false,
-  )
+  assert.equal(designerGeometry.validElementProperties({ ...valid, fillColor: '#fff' }), false)
+  assert.equal(designerGeometry.validElementProperties({ ...valid, fillColor: '#ffffff' }), true)
 })
 
 test('历史栈使用深拷贝并最多保留五十个撤销状态', () => {

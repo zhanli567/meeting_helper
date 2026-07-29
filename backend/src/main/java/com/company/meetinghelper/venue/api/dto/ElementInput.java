@@ -12,7 +12,6 @@ public record ElementInput(
         @Min(1) int column,
         @Min(1) int rowSpan,
         @Min(1) int columnSpan,
-        @NotBlank @Pattern(regexp = "^#[0-9a-fA-F]{6}$") String fillColor,
-        @NotBlank @Pattern(regexp = "^#[0-9a-fA-F]{6}$") String borderColor
+        @NotBlank @Pattern(regexp = "^#[0-9a-fA-F]{6}$") String fillColor
 ) {
 }

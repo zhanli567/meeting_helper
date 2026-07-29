@@ -1,17 +1,16 @@
-import { normalizeHexColor, textColorForBackground } from './venuePreferences.js'
+import {
+  SEMANTIC_COLOR_SWATCHES,
+  SYSTEM_LAYOUT_COLOR,
+  normalizeHexColor,
+  textColorForBackground,
+} from './venuePreferences.js'
 
-export const GROUP_COLOR_PALETTE = [
-  { backgroundColor: '#FEF3C7', textColor: '#7C2D12' },
-  { backgroundColor: '#DBEAFE', textColor: '#1D4ED8' },
-  { backgroundColor: '#DCFCE7', textColor: '#166534' },
-  { backgroundColor: '#FCE7F3', textColor: '#BE185D' },
-  { backgroundColor: '#EDE9FE', textColor: '#6D28D9' },
-  { backgroundColor: '#CCFBF1', textColor: '#0F766E' },
-  { backgroundColor: '#FFEDD5', textColor: '#C2410C' },
-  { backgroundColor: '#E0F2FE', textColor: '#0369A1' },
-  { backgroundColor: '#FDE68A', textColor: '#854D0E' },
-  { backgroundColor: '#D9F99D', textColor: '#3F6212' },
-]
+export const GROUP_COLOR_PALETTE = SEMANTIC_COLOR_SWATCHES
+  .filter((color) => color.value !== SYSTEM_LAYOUT_COLOR)
+  .map((color) => ({
+    backgroundColor: color.value,
+    textColor: textColorForBackground(color.value),
+  }))
 
 export const GROUP_COLOR_OVERRIDE_STORAGE_KEY = 'meeting-helper:participant-group-color-overrides'
 

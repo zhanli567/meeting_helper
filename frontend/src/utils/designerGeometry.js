@@ -65,7 +65,6 @@ export function createSeatElements(rect, mode, defaults = {}) {
     kind: 'SEAT',
     name: defaults.name || '座位',
     fillColor: defaults.fillColor || '#ffffff',
-    borderColor: defaults.borderColor || '#8fb4e8',
   }
   if (mode === 'merge') return [{ ...base, ...rect }]
 
@@ -213,7 +212,6 @@ export function validElementProperties(properties) {
   return (
     name.length > 0 &&
     name.length <= 80 &&
-    colorPattern.test(properties?.fillColor || '') &&
-    colorPattern.test(properties?.borderColor || '')
+    colorPattern.test(properties?.fillColor || '')
   )
 }

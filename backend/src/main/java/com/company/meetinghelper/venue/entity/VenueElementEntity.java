@@ -28,6 +28,4 @@ public class VenueElementEntity extends AuditedEntity {
     private int columnSpan;
     @TableField("fill_color")
     private String fillColor;
-    @TableField("border_color")
-    private String borderColor;
 }

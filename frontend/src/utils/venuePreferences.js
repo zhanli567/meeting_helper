@@ -2,23 +2,37 @@ import { COMMON_ELEMENT_SUGGESTIONS, ELEMENT_KINDS } from './venueModel.js'
 
 export const CUSTOM_ELEMENT_STORAGE_KEY = 'meeting-helper:venue-custom-elements'
 export const CUSTOM_COLOR_STORAGE_KEY = 'meeting-helper:venue-custom-colors'
-export const CUSTOM_FILL_COLOR_STORAGE_KEY = 'meeting-helper:venue-custom-fill-colors'
-export const CUSTOM_BORDER_COLOR_STORAGE_KEY = 'meeting-helper:venue-custom-border-colors'
-export const CUSTOM_COLOR_STORAGE_KEYS = Object.freeze({
-  fillColor: CUSTOM_FILL_COLOR_STORAGE_KEY,
-  borderColor: CUSTOM_BORDER_COLOR_STORAGE_KEY,
-})
 export const RECENT_CUSTOM_COLOR_LIMIT = 5
+export const SYSTEM_LAYOUT_COLOR = '#e5edf8'
 
-export const BASIC_COLOR_SWATCHES = Object.freeze([
-  Object.freeze({ name: '白色', value: '#ffffff', title: '白色' }),
-  Object.freeze({ name: '蓝色', value: '#dbeafe', title: '蓝色' }),
-  Object.freeze({ name: '绿色', value: '#dcfce7', title: '绿色' }),
-  Object.freeze({ name: '红色', value: '#fee2e2', title: '红色' }),
-  Object.freeze({ name: '黄色', value: '#fef3c7', title: '黄色' }),
+export const SEMANTIC_COLOR_SWATCHES = Object.freeze([
+  Object.freeze({ name: '蓝灰', value: '#dbeafe', title: '#dbeafe' }),
+  Object.freeze({ name: '薄荷', value: '#dcfce7', title: '#dcfce7' }),
+  Object.freeze({ name: '浅黄', value: '#fef3c7', title: '#fef3c7' }),
+  Object.freeze({ name: '玫粉', value: '#fce7f3', title: '#fce7f3' }),
+  Object.freeze({ name: '淡紫', value: '#ede9fe', title: '#ede9fe' }),
+  Object.freeze({ name: '青绿', value: '#ccfbf1', title: '#ccfbf1' }),
+  Object.freeze({ name: '橙杏', value: '#ffedd5', title: '#ffedd5' }),
+  Object.freeze({ name: '天蓝', value: '#e0f2fe', title: '#e0f2fe' }),
+  Object.freeze({ name: '柠黄', value: '#fef9c3', title: '#fef9c3' }),
+  Object.freeze({ name: '嫩绿', value: '#ecfccb', title: '#ecfccb' }),
+  Object.freeze({ name: '粉红', value: '#ffe4e6', title: '#ffe4e6' }),
+  Object.freeze({ name: '靛蓝', value: '#e0e7ff', title: '#e0e7ff' }),
+  Object.freeze({ name: '湖蓝', value: '#cffafe', title: '#cffafe' }),
+  Object.freeze({ name: '暖灰', value: '#f1f5f9', title: '#f1f5f9' }),
+  Object.freeze({ name: '石绿', value: '#d1fae5', title: '#d1fae5' }),
+  Object.freeze({ name: '柔橘', value: '#fed7aa', title: '#fed7aa' }),
+  Object.freeze({ name: '淡红', value: '#fee2e2', title: '#fee2e2' }),
+  Object.freeze({ name: '浅紫', value: '#f3e8ff', title: '#f3e8ff' }),
+  Object.freeze({ name: '浅绿', value: '#bbf7d0', title: '#bbf7d0' }),
+  Object.freeze({ name: '浅蓝', value: '#bfdbfe', title: '#bfdbfe' }),
+  Object.freeze({ name: '浅青', value: '#a7f3d0', title: '#a7f3d0' }),
+  Object.freeze({ name: '浅橙', value: '#fde68a', title: '#fde68a' }),
+  Object.freeze({ name: '浅玫', value: '#fbcfe8', title: '#fbcfe8' }),
+  Object.freeze({ name: '浅靛', value: '#c7d2fe', title: '#c7d2fe' }),
 ])
 
-const BASIC_COLOR_VALUES = new Set(BASIC_COLOR_SWATCHES.map((color) => color.value))
+const SEMANTIC_COLOR_VALUES = new Set(SEMANTIC_COLOR_SWATCHES.map((color) => color.value))
 
 function browserStorage() {
   try {
@@ -47,43 +61,8 @@ function writeArray(key, values, storage = browserStorage()) {
   }
 }
 
-function removeStoredArray(key, storage = browserStorage()) {
-  if (!storage || typeof storage.removeItem !== 'function') return
-  try {
-    storage.removeItem(key)
-  } catch {
-    // Ignore unavailable storage cleanup.
-  }
-}
-
 function isStorageLike(value) {
   return Boolean(value && typeof value.getItem === 'function' && typeof value.setItem === 'function')
-}
-
-function normalizeColorField(value) {
-  return value === 'borderColor' ? 'borderColor' : 'fillColor'
-}
-
-function resolveColorListArgs(scopeOrStorage = 'fillColor', storage) {
-  if (isStorageLike(scopeOrStorage)) {
-    return { field: 'fillColor', storage: scopeOrStorage }
-  }
-  return { field: normalizeColorField(scopeOrStorage), storage }
-}
-
-function resolveColorValueArgs(scopeOrValue, valueOrStorage, storage) {
-  if (normalizeHexColor(scopeOrValue)) {
-    return {
-      field: 'fillColor',
-      value: scopeOrValue,
-      storage: isStorageLike(valueOrStorage) ? valueOrStorage : storage,
-    }
-  }
-  return {
-    field: normalizeColorField(scopeOrValue),
-    value: valueOrStorage,
-    storage,
-  }
 }
 
 function normalizeName(value) {
@@ -112,20 +91,28 @@ export function customElementNames(storage = browserStorage()) {
   return names
 }
 
-export function customElementSuggestions(storage = browserStorage()) {
-  return customElementNames(storage).map((name) => ({
-    name,
-    kind: ELEMENT_KINDS.GENERIC,
-    fillColor: '#dbeafe',
-    borderColor: '#93c5fd',
-    custom: true,
-  }))
+export function customElementSuggestions(storage = browserStorage(), elements = []) {
+  const colorsByName = genericElementColorMap(elements)
+  const usedColors = COMMON_ELEMENT_SUGGESTIONS
+    .filter((suggestion) => suggestion.kind === ELEMENT_KINDS.GENERIC)
+    .map((suggestion) => suggestion.fillColor)
+  usedColors.push(...colorsByName.values())
+  return customElementNames(storage).map((name) => {
+    const fillColor = colorsByName.get(name) || nextAvailableSemanticColor(usedColors)
+    usedColors.push(fillColor)
+    return {
+      name,
+      kind: ELEMENT_KINDS.GENERIC,
+      fillColor,
+      custom: true,
+    }
+  })
 }
 
-export function availableElementSuggestions(storage = browserStorage()) {
+export function availableElementSuggestions(storage = browserStorage(), elements = []) {
   return [
     ...COMMON_ELEMENT_SUGGESTIONS.map((suggestion) => ({ ...suggestion })),
-    ...customElementSuggestions(storage),
+    ...customElementSuggestions(storage, elements),
   ]
 }
 
@@ -152,15 +139,6 @@ export function normalizeHexColor(value) {
   return match ? `#${match[1].toLowerCase()}` : ''
 }
 
-export function rgbLabel(value) {
-  const color = normalizeHexColor(value)
-  if (!color) return ''
-  const red = Number.parseInt(color.slice(1, 3), 16)
-  const green = Number.parseInt(color.slice(3, 5), 16)
-  const blue = Number.parseInt(color.slice(5, 7), 16)
-  return `RGB(${red}, ${green}, ${blue})`
-}
-
 export function textColorForBackground(value) {
   const color = normalizeHexColor(value)
   if (!color) return '#172033'
@@ -171,8 +149,56 @@ export function textColorForBackground(value) {
   return luminance > 170 ? '#172033' : '#ffffff'
 }
 
+export function semanticColorValues() {
+  return SEMANTIC_COLOR_SWATCHES.map((color) => color.value)
+}
+
+export function nextAvailableSemanticColor(usedColors = []) {
+  const used = new Set((usedColors || []).map(normalizeHexColor).filter(Boolean))
+  const semanticColor = SEMANTIC_COLOR_SWATCHES.find((color) => !used.has(color.value))?.value
+  if (semanticColor) return semanticColor
+
+  for (let index = 0; index <= 0xffffff; index += 1) {
+    const value = (0x345678 + index * 0x9e3779) & 0xffffff
+    const color = `#${value.toString(16).padStart(6, '0')}`
+    if (color !== '#ffffff' && color !== SYSTEM_LAYOUT_COLOR && !used.has(color)) return color
+  }
+  return '#000000'
+}
+
+export function genericElementColorMap(elements = []) {
+  const colorsByName = new Map()
+  for (const element of elements || []) {
+    if (element?.kind !== ELEMENT_KINDS.GENERIC) continue
+    const name = normalizeName(element.name)
+    const color = normalizeHexColor(element.fillColor)
+    if (!name || !color || colorsByName.has(name)) continue
+    colorsByName.set(name, color)
+  }
+  return colorsByName
+}
+
+export function usedGenericElementColors(elements = [], excludedName = '') {
+  const excludedKey = nameKey(excludedName)
+  return [...genericElementColorMap(elements)]
+    .filter(([name]) => nameKey(name) !== excludedKey)
+    .map(([, color]) => color)
+}
+
+export function conflictingGenericColorNames(elements = []) {
+  const namesByColor = new Map()
+  for (const [name, color] of genericElementColorMap(elements)) {
+    const names = namesByColor.get(color) || []
+    names.push(name)
+    namesByColor.set(color, names)
+  }
+  return [...namesByColor]
+    .filter(([, names]) => names.length > 1)
+    .map(([color, names]) => ({ color, names }))
+}
+
 function normalizedCustomColorList(values) {
-  const seen = new Set(BASIC_COLOR_VALUES)
+  const seen = new Set(SEMANTIC_COLOR_VALUES)
   const colors = []
   for (const value of values) {
     const color = normalizeHexColor(value)
@@ -183,50 +209,34 @@ function normalizedCustomColorList(values) {
   return colors.slice(0, RECENT_CUSTOM_COLOR_LIMIT)
 }
 
-function readUnifiedCustomColors(storage = browserStorage()) {
-  return normalizedCustomColorList([
-    ...readArray(CUSTOM_COLOR_STORAGE_KEY, storage),
-    ...readArray(CUSTOM_FILL_COLOR_STORAGE_KEY, storage),
-    ...readArray(CUSTOM_BORDER_COLOR_STORAGE_KEY, storage),
-  ])
+export function customColorValues(storage = browserStorage()) {
+  return normalizedCustomColorList(readArray(CUSTOM_COLOR_STORAGE_KEY, storage))
 }
 
-function writeUnifiedCustomColors(colors, storage = browserStorage()) {
-  writeArray(CUSTOM_COLOR_STORAGE_KEY, colors.slice(0, RECENT_CUSTOM_COLOR_LIMIT), storage)
-  removeStoredArray(CUSTOM_FILL_COLOR_STORAGE_KEY, storage)
-  removeStoredArray(CUSTOM_BORDER_COLOR_STORAGE_KEY, storage)
-}
-
-export function customColorValues(scopeOrStorage = 'fillColor', storage = browserStorage()) {
-  const args = resolveColorListArgs(scopeOrStorage, storage)
-  return readUnifiedCustomColors(args.storage)
-}
-
-export function availableColorSwatches(scopeOrStorage = 'fillColor', storage = browserStorage()) {
-  const args = resolveColorListArgs(scopeOrStorage, storage)
+export function availableColorSwatches(storage = browserStorage()) {
   return [
-    ...BASIC_COLOR_SWATCHES.map((color) => ({ ...color })),
-    ...customColorValues(args.field, args.storage).map((value) => ({
-      name: rgbLabel(value),
+    ...SEMANTIC_COLOR_SWATCHES.map((color) => ({ ...color })),
+    ...customColorValues(storage).map((value) => ({
+      name: value,
       value,
-      title: rgbLabel(value),
+      title: value,
       custom: true,
     })),
   ]
 }
 
-export function saveCustomColor(scopeOrValue, valueOrStorage, storage = browserStorage()) {
-  const args = resolveColorValueArgs(scopeOrValue, valueOrStorage, storage)
-  const color = normalizeHexColor(args.value)
-  if (!color || BASIC_COLOR_VALUES.has(color)) return ''
-  const colors = readUnifiedCustomColors(args.storage).filter((current) => current !== color)
-  writeUnifiedCustomColors([color, ...colors], args.storage)
+export function saveCustomColor(value, storage = browserStorage()) {
+  const color = normalizeHexColor(value)
+  if (!color || SEMANTIC_COLOR_VALUES.has(color)) return ''
+  const colors = customColorValues(isStorageLike(storage) ? storage : browserStorage())
+    .filter((current) => current !== color)
+  writeArray(CUSTOM_COLOR_STORAGE_KEY, [color, ...colors].slice(0, RECENT_CUSTOM_COLOR_LIMIT), storage)
   return color
 }
 
-export function removeCustomColor(scopeOrValue, valueOrStorage, storage = browserStorage()) {
-  const args = resolveColorValueArgs(scopeOrValue, valueOrStorage, storage)
-  const color = normalizeHexColor(args.value)
-  const colors = readUnifiedCustomColors(args.storage).filter((current) => current !== color)
-  writeUnifiedCustomColors(colors, args.storage)
+export function removeCustomColor(value, storage = browserStorage()) {
+  const color = normalizeHexColor(value)
+  const colors = customColorValues(isStorageLike(storage) ? storage : browserStorage())
+    .filter((current) => current !== color)
+  writeArray(CUSTOM_COLOR_STORAGE_KEY, colors, storage)
 }

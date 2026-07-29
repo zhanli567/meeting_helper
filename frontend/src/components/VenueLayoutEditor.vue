@@ -148,7 +148,6 @@ function asEditorElement(element) {
     rowSpan: Number(element.rowSpan),
     columnSpan: Number(element.columnSpan),
     fillColor: element.fillColor || '#dbeafe',
-    borderColor: element.borderColor || '#93c5fd',
   }
 }
 
@@ -163,7 +162,6 @@ function plainEditorElement(element) {
     rowSpan: Number(element.rowSpan),
     columnSpan: Number(element.columnSpan),
     fillColor: element.fillColor,
-    borderColor: element.borderColor,
   }
 }
 
@@ -187,7 +185,6 @@ function comparableLayout(layout) {
       rowSpan: Number(element.rowSpan),
       columnSpan: Number(element.columnSpan),
       fillColor: element.fillColor,
-      borderColor: element.borderColor,
     })),
   })
 }
@@ -354,7 +351,6 @@ function elementStyle(element) {
     width: `${box.width}px`,
     height: `${box.height}px`,
     backgroundColor: rendered.fillColor,
-    borderColor: rendered.borderColor,
   }
 }
 
@@ -1032,6 +1028,7 @@ onBeforeUnmount(() => {
           :venue-description="venueDescription"
           :grid-rows="displayRows"
           :grid-columns="displayColumns"
+          :elements="elements"
           :collapsed="panelCollapsed"
           :dock="panelDock"
           @preview="previewElement"
@@ -1157,6 +1154,7 @@ onBeforeUnmount(() => {
           ref="pickerRef"
           :class="pickerDocked ? 'picker-dock' : 'picker-popover'"
           :rect="pendingRect"
+          :elements="elements"
           :style="pickerDocked ? undefined : pickerStyle"
           @choose="chooseElement"
           @cancel="closePicker"
@@ -1443,7 +1441,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   overflow: hidden;
   color: #26364b;
-  border: 1px solid;
+  border: 1px solid #9fb3c8;
   cursor: pointer;
   user-select: none;
 }

@@ -79,7 +79,7 @@ test('field color entries support user overrides for legend and participants', (
       custom: Boolean(entry.custom),
     })),
     [
-      { value: 'Batch 1', backgroundColor: '#FEF3C7', custom: false },
+      { value: 'Batch 1', backgroundColor: '#dbeafe', custom: false },
       { value: 'Batch 2', backgroundColor: '#12abc0', custom: true },
     ],
   )
@@ -127,7 +127,7 @@ test('shared color picker previews swatches and only applies on confirm', async 
   assert.match(picker, /unavailableColors/)
   assert.match(picker, /unavailableColorSet/)
   assert.match(picker, /isColorUnavailable/)
-  assert.match(picker, /rgbLabel/)
+  assert.doesNotMatch(picker, /rgbLabel/)
   assert.match(picker, /meeting-helper:close-color-popovers/)
   assert.match(chooseColorBody, /pendingColor\.value = color/)
   assert.match(chooseColorBody, /customPreview\.value = color/)
@@ -139,8 +139,8 @@ test('shared color picker previews swatches and only applies on confirm', async 
   assert.match(picker, /@click="confirmSelectedColor"/)
   assert.match(picker, /active: pendingColor === swatch\.value/)
   assert.match(picker, /:disabled="isColorUnavailable\(swatch\.value\)"/)
-  assert.match(picker, /:title="rgbLabel\(swatch\.value\)"/)
-  assert.match(picker, /:title="rgbLabel\(currentColor\)"/)
+  assert.match(picker, /:title="swatch\.value"/)
+  assert.match(picker, /:title="currentColor"/)
   assert.match(picker, /\.swatch-grid\s*\{[\s\S]*padding:\s*5px 4px 4px;/)
   assert.match(currentButtonBlock, /border:\s*0;/)
   assert.match(currentDotBlock, /border:\s*0;/)

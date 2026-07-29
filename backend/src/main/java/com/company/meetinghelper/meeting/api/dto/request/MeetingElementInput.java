@@ -12,7 +12,6 @@ public record MeetingElementInput(
         @Min(1) int column,
         @Min(1) int rowSpan,
         @Min(1) int columnSpan,
-        @Pattern(regexp = "^#[0-9a-fA-F]{6}$") String fillColor,
-        @Pattern(regexp = "^#[0-9a-fA-F]{6}$") String borderColor
+        @Pattern(regexp = "^#[0-9a-fA-F]{6}$") String fillColor
 ) {
 }

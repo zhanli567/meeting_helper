@@ -5,7 +5,6 @@ import {
   availableColorSwatches,
   normalizeHexColor,
   removeCustomColor,
-  rgbLabel,
   saveCustomColor,
   textColorForBackground,
 } from '@/utils/venuePreferences'
@@ -127,7 +126,7 @@ onBeforeUnmount(() => {
           class="current-color-button"
           :disabled="disabled"
           :aria-label="`${label}：${currentColor}`"
-          :title="rgbLabel(currentColor)"
+          :title="currentColor"
           @click="toggleOpen"
         >
           <span
@@ -150,7 +149,7 @@ onBeforeUnmount(() => {
               class="color-swatch-button"
               :class="{ active: pendingColor === swatch.value, unavailable: isColorUnavailable(swatch.value) }"
               :disabled="isColorUnavailable(swatch.value)"
-              :title="rgbLabel(swatch.value)"
+              :title="swatch.value"
               :aria-label="`${label} ${swatch.value}`"
               :style="{ backgroundColor: swatch.value }"
               @click="chooseColor(swatch.value)"
@@ -180,7 +179,7 @@ onBeforeUnmount(() => {
           <span
             class="custom-preview-dot"
             :style="{ backgroundColor: pendingColor }"
-            :title="rgbLabel(pendingColor)"
+            :title="pendingColor"
           />
           <button type="button" class="custom-confirm-button" @click="confirmSelectedColor">
             确定

@@ -55,7 +55,6 @@ function elementStyle(element) {
     zIndex: element.kind === 'SEAT' ? 3 : 1,
     color: readableTextColor(element.fillColor),
     backgroundColor: element.fillColor || (element.kind === 'SEAT' ? '#ffffff' : '#eef4fb'),
-    borderColor: element.borderColor || '#93b4df',
   }
 }
 
@@ -258,7 +257,7 @@ onBeforeUnmount(stopPan)
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: 1px solid;
+  border: 1px solid #9fb3c8;
   font-size: max(7px, calc(var(--preview-cell) * 0.23));
   line-height: 1.1;
   text-align: center;

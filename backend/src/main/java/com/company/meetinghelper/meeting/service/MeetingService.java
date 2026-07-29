@@ -172,7 +172,6 @@ public class MeetingService {
             target.setRowSpan(source.rowSpan());
             target.setColumnSpan(source.columnSpan());
             target.setFillColor(source.fillColor());
-            target.setBorderColor(source.borderColor());
             copiedElements.add(target);
         }
         meetingElementRepository.saveAll(copiedElements);
@@ -294,7 +293,7 @@ public class MeetingService {
                                 ? null
                                 : new ElementInput(
                                         input.kind(), input.name(), input.row(), input.column(),
-                                        input.rowSpan(), input.columnSpan(), input.fillColor(), input.borderColor()
+                                        input.rowSpan(), input.columnSpan(), input.fillColor()
                                 ))
                         .toList();
         return layoutValidator.validate(request.gridRows(), request.gridColumns(), elements).elements();
@@ -308,7 +307,6 @@ public class MeetingService {
         element.setRowSpan(source.rowSpan());
         element.setColumnSpan(source.columnSpan());
         element.setFillColor(source.fillColor());
-        element.setBorderColor(source.borderColor());
     }
 
     private void deletePlans(String meetingId) {

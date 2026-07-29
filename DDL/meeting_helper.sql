@@ -59,7 +59,6 @@ create table if not exists t_venue_elements (
     row_span integer not null,
     column_span integer not null,
     fill_color varchar(20) not null,
-    border_color varchar(20) not null,
     created_by_id varchar(64) not null,
     created_by_name varchar(80) not null,
     created_at timestamp with time zone not null,
@@ -79,7 +78,6 @@ comment on column t_venue_elements.start_column is '元素起始网格列';
 comment on column t_venue_elements.row_span is '元素占用的网格行数';
 comment on column t_venue_elements.column_span is '元素占用的网格列数';
 comment on column t_venue_elements.fill_color is '元素填充颜色';
-comment on column t_venue_elements.border_color is '元素边框颜色';
 comment on column t_venue_elements.created_by_id is '创建人标识';
 comment on column t_venue_elements.created_by_name is '创建人姓名';
 comment on column t_venue_elements.created_at is '创建时间';
@@ -134,7 +132,6 @@ create table if not exists t_meeting_elements (
     row_span integer not null,
     column_span integer not null,
     fill_color varchar(20) not null,
-    border_color varchar(20) not null,
     created_by_id varchar(64) not null,
     created_by_name varchar(80) not null,
     created_at timestamp with time zone not null,
@@ -155,7 +152,6 @@ comment on column t_meeting_elements.start_column is '元素起始网格列';
 comment on column t_meeting_elements.row_span is '元素占用的网格行数';
 comment on column t_meeting_elements.column_span is '元素占用的网格列数';
 comment on column t_meeting_elements.fill_color is '元素填充颜色';
-comment on column t_meeting_elements.border_color is '元素边框颜色';
 comment on column t_meeting_elements.created_by_id is '创建人标识';
 comment on column t_meeting_elements.created_by_name is '创建人姓名';
 comment on column t_meeting_elements.created_at is '创建时间';

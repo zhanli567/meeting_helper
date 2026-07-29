@@ -2,13 +2,13 @@ export const DEFAULT_CANVAS = Object.freeze({ rows: 20, columns: 30 })
 export const MIN_CANVAS_SIZE = 5
 export const ELEMENT_KINDS = Object.freeze({ SEAT: 'SEAT', GENERIC: 'GENERIC' })
 
-const genericNames = [
-  '门',
-  '墙',
-  '桌子',
-  '摄像',
-  '舞台',
-  '显示屏',
+const genericSuggestions = [
+  ['门', '#dbeafe'],
+  ['墙', '#dcfce7'],
+  ['桌子', '#fef3c7'],
+  ['摄像', '#fce7f3'],
+  ['舞台', '#ede9fe'],
+  ['显示屏', '#ccfbf1'],
 ]
 
 export function emptyVenueInfo() {
@@ -32,14 +32,12 @@ export const COMMON_ELEMENT_SUGGESTIONS = Object.freeze([
     name: '座位',
     kind: ELEMENT_KINDS.SEAT,
     fillColor: '#ffffff',
-    borderColor: '#8fb4e8',
   }),
-  ...genericNames.map((name) =>
+  ...genericSuggestions.map(([name, fillColor]) =>
     Object.freeze({
       name,
       kind: ELEMENT_KINDS.GENERIC,
-      fillColor: '#dbeafe',
-      borderColor: '#93c5fd',
+      fillColor,
     }),
   ),
 ])
@@ -47,6 +45,11 @@ export const COMMON_ELEMENT_SUGGESTIONS = Object.freeze([
 function blankToNull(value) {
   const normalized = String(value ?? '').trim()
   return normalized || null
+}
+
+function normalizedFillColor(value) {
+  const match = /^#?([0-9a-f]{6})$/i.exec(String(value ?? '').trim())
+  return match ? `#${match[1].toLowerCase()}` : '#ffffff'
 }
 
 export function safeHttpUrl(value) {
@@ -89,8 +92,7 @@ export function toElementPayload(element) {
     column: element.column,
     rowSpan: element.rowSpan,
     columnSpan: element.columnSpan,
-    fillColor: element.fillColor,
-    borderColor: element.borderColor,
+    fillColor: normalizedFillColor(element.fillColor),
   }
 }
 
