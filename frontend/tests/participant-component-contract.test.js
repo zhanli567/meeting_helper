@@ -112,16 +112,18 @@ test('排座工作台仅允许通用座位元素接收人员且保留只读与�
   assert.doesNotMatch(workbench, /venueApi/)
 })
 
-test('排号贴近有元素区域两侧而不是画布外沿', () => {
+test('排号贴近所有元素区域两侧而不是只按座位外沿', () => {
   const canvas = source('../src/components/VenueCanvas.vue')
 
   assert.match(canvas, /rowLabelColumnBounds/)
+  assert.match(canvas, /computeElementColumnBounds/)
+  assert.match(canvas, /props\.workspace\.layout\.elements/)
   assert.match(canvas, /bounds\.minColumn/)
   assert.match(canvas, /bounds\.maxColumn/)
-  assert.match(canvas, /\.reduce\(\(current, element\) =>/)
   assert.match(canvas, /white-space:\s*nowrap/)
   assert.match(canvas, /font-size:\s*clamp\(8px,\s*calc\(var\(--unit\) \* 0\.2\),\s*12px\)/)
   assert.match(canvas, /writing-mode:\s*horizontal-tb/)
   assert.doesNotMatch(canvas, /\[side\]: '-34px'/)
   assert.doesNotMatch(canvas, /rowLabelBounds\.value\.get\(rowLabel\.sourceRow\)/)
+  assert.doesNotMatch(canvas, /\.filter\(isSeat\)[\s\S]*rowLabelColumnBounds/)
 })

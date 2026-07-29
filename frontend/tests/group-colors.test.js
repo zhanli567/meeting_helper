@@ -88,6 +88,7 @@ test('field color entries support user overrides for legend and participants', (
 test('group color legend collapses into a compact tab without leaving a blank card', async () => {
   const source = await readFile(new URL('../src/components/GroupColorLegend.vue', import.meta.url), 'utf8')
   const picker = await readFile(new URL('../src/components/ColorPickerPopover.vue', import.meta.url), 'utf8')
+  const legendSwatchBlock = source.match(/\.legend-swatch\s*\{[^}]*\}/)?.[0] || ''
 
   assert.match(source, /ref="legendRef"/)
   assert.match(source, /legendTop/)
@@ -102,6 +103,8 @@ test('group color legend collapses into a compact tab without leaving a blank ca
   assert.match(source, /closeColorPopovers/)
   assert.match(source, /meeting-helper:close-color-popovers/)
   assert.match(source, /requestLegendCollapse/)
+  assert.match(legendSwatchBlock, /border:\s*0;/)
+  assert.doesNotMatch(legendSwatchBlock, /border:\s*1px/)
   assert.doesNotMatch(source, /min-height:\s*100%;/)
   assert.doesNotMatch(source, /translateX\(calc\(-100%/)
   assert.match(picker, /<el-popover/)
@@ -111,6 +114,11 @@ test('group color legend collapses into a compact tab without leaving a blank ca
 test('shared color picker previews swatches and only applies on confirm', async () => {
   const picker = await readFile(new URL('../src/components/ColorPickerPopover.vue', import.meta.url), 'utf8')
   const chooseColorBody = picker.match(/function chooseColor\(value\) \{[\s\S]*?\n\}/)?.[0] || ''
+  const currentButtonBlock = picker.match(/\.current-color-button\s*\{[^}]*\}/)?.[0] || ''
+  const currentDotBlock = picker.match(/\.current-color-dot\s*\{[^}]*\}/)?.[0] || ''
+  const swatchBlock = picker.match(
+    /\.color-swatch-button,\s*\n\.custom-color-preview,\s*\n\.custom-preview-dot\s*\{[^}]*\}/,
+  )?.[0] || ''
 
   assert.match(picker, /const pendingColor = ref/)
   assert.match(picker, /unavailableColors/)
@@ -131,4 +139,10 @@ test('shared color picker previews swatches and only applies on confirm', async 
   assert.match(picker, /:title="rgbLabel\(swatch\.value\)"/)
   assert.match(picker, /:title="rgbLabel\(currentColor\)"/)
   assert.match(picker, /\.swatch-grid\s*\{[\s\S]*padding:\s*5px 4px 4px;/)
+  assert.match(currentButtonBlock, /border:\s*0;/)
+  assert.match(currentDotBlock, /border:\s*0;/)
+  assert.match(swatchBlock, /border:\s*0;/)
+  assert.doesNotMatch(currentButtonBlock, /border:\s*1px/)
+  assert.doesNotMatch(currentDotBlock, /border:\s*1px/)
+  assert.doesNotMatch(swatchBlock, /border:\s*1px/)
 })

@@ -465,6 +465,17 @@ test('取消重叠元素选择后清除该选择器来源的红显和错误缩�
   assert.equal(byClass(mounted.root, 'conflict-banner').length, 0)
 })
 
+test('布局编辑器在画布中展示座位排号且按所有元素范围定位', async () => {
+  const source = await readFile(new URL('../src/components/VenueLayoutEditor.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /computeSeatLabels/)
+  assert.match(source, /computeElementColumnBounds/)
+  assert.match(source, /layoutRowLabels/)
+  assert.match(source, /rowLabelStyle/)
+  assert.match(source, /row-label row-label-left/)
+  assert.match(source, /第\{\{ rowLabel\.displayRow \}\}排/)
+})
+
 test('真实组件运行时保持属性预览并支持移动缩放与撤销重做', async (t) => {
   const VenueLayoutEditor = await loadEditor(t)
   const mounted = await mountEditor(t, VenueLayoutEditor)

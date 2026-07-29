@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
 import { startParticipantDrag as performParticipantDrag } from '@/utils/participantActions'
 import { regionLabelAnchors, reservedItems } from '@/utils/seatRegions'
-import { computeSeatLabels } from '@/utils/seatNumbering'
+import { computeElementColumnBounds, computeSeatLabels } from '@/utils/seatNumbering'
 import { displayCellUnit, elementBox, previewFitZoom } from '@/utils/venueCanvasMetrics'
 const props = defineProps({
   workspace: { type: Object, required: true },
@@ -71,17 +71,10 @@ const regionAnchors = computed(() =>
 const markerSelectionSet = computed(() => new Set(props.markerSelectionIds || []))
 const seatNumbering = computed(() => computeSeatLabels(props.workspace.layout.elements || []))
 const rowLabelColumnBounds = computed(() =>
-  (props.workspace.layout.elements || [])
-    .filter(isSeat)
-    .reduce((current, element) => {
-      const column = Number(element.column)
-      if (!Number.isFinite(column)) return current
-      const columnSpan = Math.max(1, Number(element.columnSpan || 1))
-      return {
-        minColumn: Math.min(current.minColumn, column),
-        maxColumn: Math.max(current.maxColumn, column + columnSpan - 1),
-      }
-    }, { minColumn: props.workspace.layout.gridColumns, maxColumn: 1 }),
+  computeElementColumnBounds(props.workspace.layout.elements || [], {
+    minColumn: 1,
+    maxColumn: props.workspace.layout.gridColumns,
+  }),
 )
 const unit = computed(() => displayCellUnit(props.zoom))
 const markerSelectionRect = computed(() => {

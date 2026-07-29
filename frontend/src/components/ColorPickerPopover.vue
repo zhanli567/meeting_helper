@@ -204,8 +204,8 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   padding: 0;
-  background: #fff;
-  border: 1px solid #d5dfec;
+  background: transparent;
+  border: 0;
   border-radius: 8px;
   cursor: pointer;
 }
@@ -219,7 +219,7 @@ onBeforeUnmount(() => {
   width: 20px;
   height: 20px;
   display: block;
-  border: 1px solid rgba(15, 23, 42, 0.14);
+  border: 0;
   border-radius: 50%;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.46);
 }
@@ -258,7 +258,7 @@ onBeforeUnmount(() => {
   place-items: center;
   padding: 0;
   background: #fff;
-  border: 1px solid rgba(100, 116, 139, 0.28);
+  border: 0;
   border-radius: 7px;
 }
 

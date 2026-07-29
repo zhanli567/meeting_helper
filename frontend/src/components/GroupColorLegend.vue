@@ -200,7 +200,7 @@ onBeforeUnmount(stopLegendDrag)
 .legend-swatch {
   width: 18px;
   height: 18px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 0;
   border-radius: 50%;
 }
 

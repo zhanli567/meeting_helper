@@ -1,10 +1,31 @@
 const isSeat = (element) => element?.kind === 'SEAT'
 
+export function computeElementColumnBounds(elements, fallback = { minColumn: 1, maxColumn: 1 }) {
+  const initial = {
+    minColumn: Number(fallback.minColumn || 1),
+    maxColumn: Number(fallback.maxColumn || fallback.minColumn || 1),
+  }
+  const bounds = (elements || []).reduce((current, element) => {
+    const column = Number(element?.column)
+    if (!Number.isFinite(column)) return current
+    const columnSpan = Math.max(1, Number(element?.columnSpan || 1))
+    return {
+      minColumn: Math.min(current.minColumn, column),
+      maxColumn: Math.max(current.maxColumn, column + columnSpan - 1),
+      hasElement: true,
+    }
+  }, { minColumn: Infinity, maxColumn: -Infinity, hasElement: false })
+
+  return bounds.hasElement
+    ? { minColumn: bounds.minColumn, maxColumn: bounds.maxColumn }
+    : initial
+}
+
 export function computeSeatLabels(elements) {
   const seats = (elements || [])
     .filter(isSeat)
     .map((element) => ({
-      id: element.id,
+      id: element.id || element.editorId,
       row: Number(element.row),
       column: Number(element.column),
     }))

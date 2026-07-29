@@ -41,6 +41,7 @@ import {
   ELEMENT_KINDS,
   MIN_CANVAS_SIZE,
 } from '@/utils/venueModel'
+import { computeElementColumnBounds, computeSeatLabels } from '@/utils/seatNumbering'
 
 const props = defineProps({
   modelValue: {
@@ -293,6 +294,14 @@ const topToolbar = computed(() => props.toolbarPlacement === 'top')
 const sideToolbar = computed(() => props.toolbarPlacement === 'side')
 const canUndo = computed(() => undoStack.value.length > 0)
 const canRedo = computed(() => redoStack.value.length > 0)
+const renderedElements = computed(() => elements.value.map(renderedElement))
+const layoutRowLabels = computed(() => computeSeatLabels(renderedElements.value).rows)
+const rowLabelColumnBounds = computed(() =>
+  computeElementColumnBounds(renderedElements.value, {
+    minColumn: 1,
+    maxColumn: displayColumns.value,
+  }),
+)
 const stageStyle = computed(() => ({
   width: `${displayColumns.value * CELL_SIZE * zoom.value}px`,
   height: `${displayRows.value * CELL_SIZE * zoom.value}px`,
@@ -346,6 +355,17 @@ function elementStyle(element) {
     height: `${box.height}px`,
     backgroundColor: rendered.fillColor,
     borderColor: rendered.borderColor,
+  }
+}
+
+function rowLabelStyle(rowLabel, side) {
+  const bounds = rowLabelColumnBounds.value
+  return {
+    top: `${(rowLabel.sourceRow - 0.5) * CELL_SIZE}px`,
+    left:
+      side === 'left'
+        ? `${(bounds.minColumn - 1) * CELL_SIZE - 58}px`
+        : `${bounds.maxColumn * CELL_SIZE + 18}px`,
   }
 }
 
@@ -1077,6 +1097,15 @@ onBeforeUnmount(() => {
                     </template>
                   </div>
 
+                  <template v-for="rowLabel in layoutRowLabels" :key="rowLabel.sourceRow">
+                    <span class="row-label row-label-left" :style="rowLabelStyle(rowLabel, 'left')">
+                      第{{ rowLabel.displayRow }}排
+                    </span>
+                    <span class="row-label row-label-right" :style="rowLabelStyle(rowLabel, 'right')">
+                      第{{ rowLabel.displayRow }}排
+                    </span>
+                  </template>
+
                   <div
                     v-if="selectionRect"
                     class="selection-preview"
@@ -1445,6 +1474,29 @@ onBeforeUnmount(() => {
   box-shadow:
     0 0 0 2px #fff,
     0 0 0 5px var(--brand);
+}
+
+.row-label {
+  width: auto;
+  min-width: 42px;
+  height: 20px;
+  position: absolute;
+  z-index: 2;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  padding: 0 6px;
+  color: #475569;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: 7px;
+  box-shadow: 0 2px 7px rgba(15, 23, 42, 0.08);
+  font-size: clamp(8px, calc(var(--editor-cell) * 0.2), 12px);
+  font-weight: 650;
+  line-height: 1;
+  pointer-events: none;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
 }
 
 .layout-element.conflict {
