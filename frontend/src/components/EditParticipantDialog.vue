@@ -119,7 +119,7 @@ async function submit() {
         >
           <header class="record-card-header">
             <strong>记录 {{ index + 1 }}</strong>
-            <span v-if="form.records.length > 1">第 {{ record.recordOrder || index + 1 }} 条获奖信息</span>
+            <span v-if="form.records.length > 1">第 {{ record.recordOrder || index + 1 }} 条记录</span>
           </header>
           <div v-if="dynamicFields.length" class="record-field-grid">
             <el-form-item

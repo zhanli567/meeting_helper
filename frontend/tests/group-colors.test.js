@@ -87,9 +87,19 @@ test('field color entries support user overrides for legend and participants', (
 
 test('group color legend collapses into a compact tab without leaving a blank card', async () => {
   const source = await readFile(new URL('../src/components/GroupColorLegend.vue', import.meta.url), 'utf8')
+  const picker = await readFile(new URL('../src/components/ColorPickerPopover.vue', import.meta.url), 'utf8')
 
-  assert.match(source, /\.group-color-legend\s*\{[\s\S]*overflow:\s*hidden;/)
-  assert.match(source, /\.group-color-legend\.collapsed\s*\{[\s\S]*width:\s*34px;[\s\S]*grid-template-columns:\s*0 34px;/)
-  assert.match(source, /\.group-color-legend\.collapsed \.legend-content\s*\{[\s\S]*opacity:\s*0;[\s\S]*visibility:\s*hidden;/)
+  assert.match(source, /ref="legendRef"/)
+  assert.match(source, /legendTop/)
+  assert.match(source, /startLegendDrag/)
+  assert.match(source, /@pointerdown\.left="startLegendDrag"/)
+  assert.match(source, /class="legend-card"/)
+  assert.match(source, /\.group-color-legend\s*\{[\s\S]*overflow:\s*visible;/)
+  assert.match(source, /\.legend-toggle\s*\{[\s\S]*position:\s*absolute;[\s\S]*width:\s*28px;[\s\S]*height:\s*52px;/)
+  assert.match(source, /\.legend-card\s*\{[\s\S]*overflow:\s*visible;/)
+  assert.match(source, /\.group-color-legend\.collapsed \.legend-card\s*\{[\s\S]*opacity:\s*0;[\s\S]*visibility:\s*hidden;/)
+  assert.doesNotMatch(source, /min-height:\s*100%;/)
   assert.doesNotMatch(source, /translateX\(calc\(-100%/)
+  assert.match(picker, /<el-popover/)
+  assert.match(picker, /:teleported="true"/)
 })

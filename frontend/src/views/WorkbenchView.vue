@@ -1393,6 +1393,7 @@ async function onParticipantUpdated(participant) {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 390px;
+  grid-auto-rows: minmax(0, 1fr);
   gap: 14px;
   padding: 14px;
   background: var(--workspace);
@@ -1406,6 +1407,7 @@ async function onParticipantUpdated(participant) {
 
 .participant-side {
   grid-column: 2;
+  grid-row: 1;
   min-width: 0;
   min-height: 0;
   position: relative;
@@ -1447,6 +1449,7 @@ async function onParticipantUpdated(participant) {
 
 .canvas-shell {
   grid-column: 1;
+  grid-row: 1;
   min-width: 0;
   min-height: 0;
   display: flex;

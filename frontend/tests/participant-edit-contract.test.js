@@ -34,6 +34,8 @@ test('编辑人员弹窗工号只读并统一使用记录卡片编辑单条和�
   assert.match(source, /class="record-list"/)
   assert.match(source, /class="record-card"/)
   assert.match(source, /记录 \{\{ index \+ 1 \}\}/)
+  assert.match(source, /条记录/)
+  assert.doesNotMatch(source, /获奖信息/)
   assert.doesNotMatch(source, /el-table/)
   assert.doesNotMatch(source, /multiRecord/)
   assert.doesNotMatch(source, /placeholder=/)

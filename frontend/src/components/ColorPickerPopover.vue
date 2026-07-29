@@ -38,7 +38,6 @@ function refreshColors() {
 function toggleOpen() {
   if (props.disabled) return
   refreshColors()
-  open.value = !open.value
 }
 
 function chooseColor(value) {
@@ -68,69 +67,81 @@ function removeColor(swatch) {
 
 <template>
   <div class="color-picker-popover" @pointerdown.stop>
-    <button
-      type="button"
-      class="current-color-button"
+    <el-popover
+      v-model:visible="open"
+      trigger="click"
+      placement="bottom-end"
+      :width="236"
       :disabled="disabled"
-      :aria-label="`${label}：${currentColor}`"
-      :title="`${label}：${currentColor}`"
-      @click="toggleOpen"
+      :teleported="true"
+      popper-class="color-picker-popper"
     >
-      <span
-        class="current-color-dot"
-        :style="{ backgroundColor: currentColor, color: currentTextColor }"
-      />
-    </button>
-
-    <div v-show="open" class="color-popover-panel">
-      <div class="swatch-grid">
-        <span
-          v-for="swatch in swatches"
-          :key="swatch.value"
-          class="swatch-item"
-          :class="{ custom: swatch.custom }"
+      <template #reference>
+        <button
+          type="button"
+          class="current-color-button"
+          :disabled="disabled"
+          :aria-label="`${label}：${currentColor}`"
+          :title="`${label}：${currentColor}`"
+          @click="toggleOpen"
         >
-          <button
-            type="button"
-            class="color-swatch-button"
-            :class="{ active: currentColor === swatch.value }"
-            :title="swatch.title || swatch.name"
-            :aria-label="`${label} ${swatch.value}`"
-            :style="{ backgroundColor: swatch.value }"
-            @click="chooseColor(swatch.value)"
+          <span
+            class="current-color-dot"
+            :style="{ backgroundColor: currentColor, color: currentTextColor }"
           />
-          <button
-            v-if="swatch.custom"
-            type="button"
-            class="swatch-remove-button"
-            :aria-label="`删除自定义颜色 ${swatch.value}`"
-            @click.stop="removeColor(swatch)"
-          >
-            <Close />
-          </button>
-        </span>
-      </div>
-
-      <div class="custom-color-row">
-        <label class="custom-color-preview" title="选择自定义颜色">
-          <Plus />
-          <input
-            type="color"
-            :value="customPreview"
-            :aria-label="`选择${label}`"
-            @input="customPreview = $event.target.value"
-          >
-        </label>
-        <span
-          class="custom-preview-dot"
-          :style="{ backgroundColor: customPreview }"
-          :title="customPreview"
-        />
-        <button type="button" class="custom-confirm-button" @click="confirmCustomColor">
-          确定
         </button>
+      </template>
+
+      <div class="color-popover-panel" @pointerdown.stop>
+        <div class="swatch-grid">
+          <span
+            v-for="swatch in swatches"
+            :key="swatch.value"
+            class="swatch-item"
+            :class="{ custom: swatch.custom }"
+          >
+            <button
+              type="button"
+              class="color-swatch-button"
+              :class="{ active: currentColor === swatch.value }"
+              :title="swatch.title || swatch.name"
+              :aria-label="`${label} ${swatch.value}`"
+              :style="{ backgroundColor: swatch.value }"
+              @click="chooseColor(swatch.value)"
+            />
+            <button
+              v-if="swatch.custom"
+              type="button"
+              class="swatch-remove-button"
+              :aria-label="`删除自定义颜色 ${swatch.value}`"
+              @click.stop="removeColor(swatch)"
+            >
+              <Close />
+            </button>
+          </span>
+        </div>
+
+        <div class="custom-color-row">
+          <label class="custom-color-preview" title="选择自定义颜色">
+            <Plus />
+            <input
+              type="color"
+              :value="customPreview"
+              :aria-label="`选择${label}`"
+              @input="customPreview = $event.target.value"
+            >
+          </label>
+          <span
+            class="custom-preview-dot"
+            :style="{ backgroundColor: customPreview }"
+            :title="customPreview"
+          />
+          <button type="button" class="custom-confirm-button" @click="confirmCustomColor">
+            确定
+          </button>
+        </div>
       </div>
-    </div>
+    </el-popover>
   </div>
 </template>
 
@@ -168,18 +179,9 @@ function removeColor(swatch) {
 }
 
 .color-popover-panel {
-  width: 216px;
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 100;
   display: grid;
   gap: 10px;
-  padding: 10px;
   background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: var(--shadow-hover);
 }
 
 .swatch-grid {
