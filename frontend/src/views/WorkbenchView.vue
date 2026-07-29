@@ -74,6 +74,9 @@ const autoSaveSeconds = ref(0)
 const layoutEditorRef = ref()
 const venueCanvasRef = ref()
 const fabReady = ref(false)
+const FAB_SIZE = 48
+const FAB_EDGE_GAP = 24
+const FAB_BOTTOM_OFFSET = 96
 const fab = reactive({
   x: 0,
   y: 0,
@@ -1153,8 +1156,8 @@ async function saveMeetingLayout(silent = false) {
   }
 }
 function resetFab() {
-  fab.x = 24
-  fab.y = Math.max(76, window.innerHeight - 96)
+  fab.x = Math.max(FAB_EDGE_GAP, Math.floor(window.innerWidth / 2 - FAB_SIZE - FAB_EDGE_GAP))
+  fab.y = Math.max(76, window.innerHeight - FAB_BOTTOM_OFFSET)
   fabReady.value = true
 }
 function keepFabInViewport() {
