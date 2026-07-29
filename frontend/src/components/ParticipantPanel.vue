@@ -149,7 +149,6 @@ function leavePanel(event) {
       <el-input
         v-model="search"
         clearable
-        placeholder="姓名或工号搜索"
         aria-label="搜索参会人员"
       >
         <template #prefix>
@@ -160,7 +159,6 @@ function leavePanel(event) {
       <el-select
         v-model="groupField"
         clearable
-        placeholder="不分组"
         class="group-select"
         aria-label="人员分组方式"
       >

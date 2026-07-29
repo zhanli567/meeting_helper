@@ -13,19 +13,6 @@ const emit = defineEmits(['update:collapsed', 'set-color'])
 
 <template>
   <aside class="group-color-legend" :class="{ collapsed }" @pointerdown.stop>
-    <button
-      type="button"
-      class="legend-toggle"
-      :title="collapsed ? '展开着色说明' : '收起着色说明'"
-      :aria-label="collapsed ? '展开着色说明' : '收起着色说明'"
-      @click="emit('update:collapsed', !collapsed)"
-    >
-      <el-icon>
-        <DArrowRight v-if="collapsed" />
-        <DArrowLeft v-else />
-      </el-icon>
-    </button>
-
     <div class="legend-content">
       <header>
         <strong>{{ fieldLabel }}</strong>
@@ -46,6 +33,19 @@ const emit = defineEmits(['update:collapsed', 'set-color'])
         </div>
       </div>
     </div>
+
+    <button
+      type="button"
+      class="legend-toggle"
+      :title="collapsed ? '展开着色说明' : '收起着色说明'"
+      :aria-label="collapsed ? '展开着色说明' : '收起着色说明'"
+      @click="emit('update:collapsed', !collapsed)"
+    >
+      <el-icon>
+        <DArrowRight v-if="collapsed" />
+        <DArrowLeft v-else />
+      </el-icon>
+    </button>
   </aside>
 </template>
 
@@ -59,15 +59,24 @@ const emit = defineEmits(['update:collapsed', 'set-color'])
   z-index: 62;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 28px;
+  overflow: hidden;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow-hover);
-  transition: transform 0.18s ease;
+  transition:
+    width 0.18s ease,
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .group-color-legend.collapsed {
-  transform: translateX(calc(-100% + 32px));
+  width: 34px;
+  grid-template-columns: 0 34px;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .legend-content {
@@ -79,6 +88,9 @@ const emit = defineEmits(['update:collapsed', 'set-color'])
 }
 
 .group-color-legend.collapsed .legend-content {
+  padding: 0;
+  opacity: 0;
+  visibility: hidden;
   pointer-events: none;
 }
 
@@ -141,7 +153,7 @@ header span {
 }
 
 .legend-toggle {
-  width: 28px;
+  width: 100%;
   min-height: 100%;
   display: grid;
   place-items: center;
@@ -152,6 +164,14 @@ header span {
   border-left: 1px solid var(--line);
   border-radius: 0 8px 8px 0;
   cursor: pointer;
+}
+
+.group-color-legend.collapsed .legend-toggle {
+  min-height: 84px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
 }
 
 .legend-toggle:hover {

@@ -227,7 +227,6 @@ async function removeMeeting(meeting) {
             maxlength="80"
             clearable
             autofocus
-            placeholder="请输入会议名称"
           />
         </el-form-item>
       </el-form>

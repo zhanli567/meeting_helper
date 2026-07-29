@@ -53,7 +53,6 @@ function submit() {
           v-model="form.versionName"
           maxlength="120"
           show-word-limit
-          placeholder="例如：会务最终确认版"
           @keyup.enter="submit"
         />
       </el-form-item>
@@ -64,7 +63,6 @@ function submit() {
           :rows="3"
           maxlength="500"
           show-word-limit
-          placeholder="记录本次版本的主要调整，可不填"
         />
       </el-form-item>
     </el-form>

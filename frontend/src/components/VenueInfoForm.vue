@@ -39,12 +39,12 @@ async function validateLocationAvailability(_rule, value, callback) {
 
 const rules = {
   location: [
-    { required: true, message: '请输入地点', trigger: ['blur', 'change'] },
-    { max: 200, message: '地点不能超过 200 个字符', trigger: 'blur' },
-    { validator: validateLocationAvailability, trigger: 'blur' },
+    { required: true, message: '请输入地点' },
+    { max: 200, message: '地点不能超过 200 个字符' },
+    { validator: validateLocationAvailability },
   ],
-  campus: [{ max: 120, message: '园区不能超过 120 个字符', trigger: 'blur' }],
-  contactInfo: [{ max: 500, message: '接口人不能超过 500 个字符', trigger: 'blur' }],
+  campus: [{ max: 120, message: '园区不能超过 120 个字符' }],
+  contactInfo: [{ max: 500, message: '接口人不能超过 500 个字符' }],
 }
 
 watch(
@@ -69,6 +69,7 @@ defineExpose({
     ref="formRef"
     :model="form"
     :rules="rules"
+    :validate-on-rule-change="false"
     :disabled="disabled"
     label-position="top"
     class="venue-info-form"
@@ -80,11 +81,11 @@ defineExpose({
           <el-input
             v-model="form.location"
             maxlength="200"
-            placeholder="例如：A 座 201 会议室"
+            :validate-event="false"
           />
         </el-form-item>
         <el-form-item label="园区" prop="campus">
-          <el-input v-model="form.campus" maxlength="120" placeholder="例如：科技园区" />
+          <el-input v-model="form.campus" maxlength="120" :validate-event="false" />
         </el-form-item>
         <el-form-item label="容纳人数">
           <el-input-number
@@ -92,11 +93,11 @@ defineExpose({
             :min="0"
             :precision="0"
             controls-position="right"
-            placeholder="选填"
+            :validate-event="false"
           />
         </el-form-item>
         <el-form-item label="接口人" prop="contactInfo">
-          <el-input v-model="form.contactInfo" maxlength="500" placeholder="姓名或联系方式" />
+          <el-input v-model="form.contactInfo" maxlength="500" :validate-event="false" />
         </el-form-item>
         <el-form-item label="备注" class="form-grid-wide">
           <el-input
@@ -105,6 +106,7 @@ defineExpose({
             :rows="3"
             maxlength="2000"
             show-word-limit
+            :validate-event="false"
           />
         </el-form-item>
       </div>

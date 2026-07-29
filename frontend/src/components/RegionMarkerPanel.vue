@@ -78,7 +78,6 @@ function patchColor(color) {
           :model-value="modelValue.label"
           maxlength="20"
           show-word-limit
-          placeholder="例如：嘉宾"
           @update:model-value="patchMarker({ label: $event })"
         />
       </el-form-item>

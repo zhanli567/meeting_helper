@@ -15,7 +15,7 @@ const Passthrough = defineComponent({
   },
 })
 
-test('地点失焦规则调用精确可用性接口并把重名结果显示为字段错误', async (t) => {
+test('地点提交校验规则调用精确可用性接口并把重名结果显示为字段错误', async (t) => {
   const server = await createServer({
     root: frontendRoot,
     appType: 'custom',
@@ -59,7 +59,7 @@ test('地点失焦规则调用精确可用性接口并把重名结果显示为�
 
   const availabilityRule = capturedRules.location.find((rule) => rule.validator)
   assert.ok(availabilityRule)
-  assert.equal(availabilityRule.trigger, 'blur')
+  assert.equal(availabilityRule.trigger, undefined)
 
   let fieldError
   await availabilityRule.validator({}, '  EXISTING HALL  ', (error) => {

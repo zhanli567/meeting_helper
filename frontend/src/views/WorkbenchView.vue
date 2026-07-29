@@ -1016,9 +1016,14 @@ async function onParticipantUpdated(participant) {
       class="workspace-shell"
       :class="{
         'participant-collapsed': participantPanelCollapsed && workbenchMode === 'seating',
-        'layout-wide': workbenchMode === 'layout',
       }"
     >
+      <div
+        v-if="workbenchMode === 'layout'"
+        id="workbench-layout-side"
+        class="participant-side layout-editor-host"
+      />
+
       <section class="canvas-shell">
         <div class="toolbar-card">
           <div class="canvas-title">
@@ -1058,7 +1063,7 @@ async function onParticipantUpdated(participant) {
             class="color-field-select"
             clearable
             size="small"
-            placeholder="按字段着色"
+            aria-label="按字段着色"
           >
             <el-option
               v-for="field in colorFieldOptions"
@@ -1106,6 +1111,7 @@ async function onParticipantUpdated(participant) {
             :show-back="false"
             :saving="layoutSaving"
             toolbar-placement="side"
+            side-panel-target="#workbench-layout-side"
             :manual-capacity="workspace.participants.length"
             :venue-name="workspace.meeting.layoutName"
             :protected-element-ids="protectedElementIds"
@@ -1398,15 +1404,17 @@ async function onParticipantUpdated(participant) {
   grid-template-columns: minmax(0, 1fr) 36px;
 }
 
-.workspace-shell.layout-wide {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 .participant-side {
+  grid-column: 2;
   min-width: 0;
   min-height: 0;
   position: relative;
   background: transparent;
+}
+
+.layout-editor-host {
+  display: flex;
+  flex-direction: column;
 }
 
 .participant-panel-toggle {
@@ -1438,6 +1446,7 @@ async function onParticipantUpdated(participant) {
 }
 
 .canvas-shell {
+  grid-column: 1;
   min-width: 0;
   min-height: 0;
   display: flex;

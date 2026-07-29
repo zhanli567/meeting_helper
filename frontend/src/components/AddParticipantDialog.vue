@@ -27,16 +27,15 @@ const form = reactive({
 const dynamicFields = computed(() => groupableFields(props.fieldDefinitions))
 const rules = {
   employeeNo: [
-    { required: true, message: '请输入工号', trigger: 'blur' },
+    { required: true, message: '请输入工号' },
     {
       validator: (_rule, value, callback) =>
         !isValidEmployeeNo(value)
           ? callback(new Error('工号必须为8位数字、1个小写字母加8位数字，或wx加6或7位数字'))
           : callback(),
-      trigger: ['blur', 'change'],
     },
   ],
-  name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  name: [{ required: true, message: '请输入姓名' }],
 }
 async function submit() {
   const valid = await formRef.value?.validate().catch(() => false)
@@ -87,19 +86,20 @@ function removeExtraField(index) {
       ref="formRef"
       :model="form"
       :rules="rules"
+      :validate-on-rule-change="false"
       label-position="top"
       class="participant-form-scroll"
     >
       <div class="form-grid">
         <el-form-item label="工号" prop="employeeNo">
-          <el-input v-model="form.employeeNo" maxlength="9" />
+          <el-input v-model="form.employeeNo" maxlength="9" :validate-event="false" />
         </el-form-item>
         <el-form-item label="姓名" prop="name">
-          <el-input v-model="form.name" />
+          <el-input v-model="form.name" :validate-event="false" />
         </el-form-item>
       </div>
       <el-form-item v-for="field in dynamicFields" :key="field.code" :label="field.label">
-        <el-input v-model="form.attributes[field.code]" />
+        <el-input v-model="form.attributes[field.code]" :validate-event="false" />
       </el-form-item>
       <div class="extra-field-section">
         <div class="extra-field-heading">
@@ -112,8 +112,8 @@ function removeExtraField(index) {
             :key="index"
             class="extra-field-row"
           >
-            <el-input v-model="field.name" aria-label="列名" maxlength="32" />
-            <el-input v-model="field.value" aria-label="列值" maxlength="80" />
+            <el-input v-model="field.name" aria-label="列名" maxlength="32" :validate-event="false" />
+            <el-input v-model="field.value" aria-label="列值" maxlength="80" :validate-event="false" />
             <el-button text type="danger" @click="removeExtraField(index)">移除</el-button>
           </div>
         </div>

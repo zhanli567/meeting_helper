@@ -155,7 +155,7 @@ function confirm() {
               :fetch-suggestions="queryNames"
               maxlength="80"
               clearable
-              placeholder="选择常用名称或直接输入"
+              aria-label="显示名称"
             />
           </el-form-item>
 

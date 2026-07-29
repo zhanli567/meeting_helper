@@ -135,8 +135,8 @@ function removeCustomElement(suggestion) {
         <el-input
           v-model="customName"
           maxlength="30"
-          placeholder="自定义元素名称"
           clearable
+          aria-label="自定义元素名称"
         />
         <el-button type="primary" native-type="submit" :disabled="!customName.trim()">
           添加

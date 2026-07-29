@@ -23,9 +23,8 @@ const form = reactive({
   fieldDefinitions: [],
 })
 const dynamicFields = computed(() => groupableFields(props.fieldDefinitions))
-const multiRecord = computed(() => form.records.length > 1)
 const rules = {
-  name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  name: [{ required: true, message: '请输入姓名' }],
 }
 
 function normalizeRecords(participant) {
@@ -99,43 +98,41 @@ async function submit() {
       ref="formRef"
       :model="form"
       :rules="rules"
+      :validate-on-rule-change="false"
       label-position="top"
       class="participant-form-scroll"
     >
       <div class="form-grid">
         <el-form-item label="工号">
-          <el-input v-model="form.employeeNo" disabled />
+          <el-input v-model="form.employeeNo" disabled :validate-event="false" />
         </el-form-item>
         <el-form-item label="姓名" prop="name">
-          <el-input v-model="form.name" placeholder="请输入姓名" />
+          <el-input v-model="form.name" :validate-event="false" />
         </el-form-item>
       </div>
 
-      <template v-if="multiRecord">
-        <el-table :data="form.records" border size="small" class="records-table" max-height="260">
-          <el-table-column prop="recordOrder" label="记录" width="72" />
-          <el-table-column
-            v-for="field in dynamicFields"
-            :key="field.code"
-            :label="field.label"
-            min-width="140"
-          >
-            <template #default="{ row }">
-              <el-input v-model="row.attributes[field.code]" size="small" />
-            </template>
-          </el-table-column>
-        </el-table>
-      </template>
-
-      <template v-else>
-        <el-form-item
-          v-for="field in dynamicFields"
-          :key="field.code"
-          :label="field.label"
+      <div class="record-list">
+        <section
+          v-for="(record, index) in form.records"
+          :key="record.id || index"
+          class="record-card"
         >
-          <el-input v-model="form.records[0].attributes[field.code]" />
-        </el-form-item>
-      </template>
+          <header class="record-card-header">
+            <strong>记录 {{ index + 1 }}</strong>
+            <span v-if="form.records.length > 1">第 {{ record.recordOrder || index + 1 }} 条获奖信息</span>
+          </header>
+          <div v-if="dynamicFields.length" class="record-field-grid">
+            <el-form-item
+              v-for="field in dynamicFields"
+              :key="field.code"
+              :label="field.label"
+            >
+              <el-input v-model="record.attributes[field.code]" :validate-event="false" />
+            </el-form-item>
+          </div>
+          <p v-else class="record-empty">暂无扩展字段</p>
+        </section>
+      </div>
 
       <div class="extra-field-section">
         <div class="extra-field-heading">
@@ -148,8 +145,8 @@ async function submit() {
             :key="index"
             class="extra-field-row"
           >
-            <el-input v-model="field.name" placeholder="列名" maxlength="32" />
-            <el-input v-model="field.value" placeholder="该人员的值" maxlength="80" />
+            <el-input v-model="field.name" aria-label="列名" maxlength="32" :validate-event="false" />
+            <el-input v-model="field.value" aria-label="列值" maxlength="80" :validate-event="false" />
             <el-button text type="danger" @click="removeExtraField(index)">移除</el-button>
           </div>
         </div>
@@ -177,8 +174,52 @@ async function submit() {
   gap: 0 18px;
 }
 
-.records-table {
+.record-list {
+  max-height: min(32vh, 300px);
+  display: grid;
+  align-content: start;
+  gap: 10px;
   margin-bottom: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.record-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: #f8fbff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.record-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.record-card-header strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.record-card-header span,
+.record-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.record-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+}
+
+.record-empty {
+  margin: 0;
 }
 
 .extra-field-section {

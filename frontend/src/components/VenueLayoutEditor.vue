@@ -87,6 +87,10 @@ const props = defineProps({
     type: String,
     default: 'top',
   },
+  sidePanelTarget: {
+    type: String,
+    default: '',
+  },
 })
 
 const emit = defineEmits(['update:modelValue', 'change', 'save', 'back'])
@@ -891,7 +895,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="venue-layout-editor" :class="{ 'side-toolbar-mode': sideToolbar }">
+  <section
+    class="venue-layout-editor"
+    :class="{
+      'side-toolbar-mode': sideToolbar,
+      'external-panel-mode': sidePanelTarget,
+    }"
+  >
     <header v-if="!sideToolbar" class="editor-toolbar">
       <el-button
         v-if="showBack"
@@ -939,7 +949,11 @@ onBeforeUnmount(() => {
     </header>
 
     <div class="editor-body" :class="`dock-${panelDock}`">
-      <aside class="editor-side-shell" :class="{ collapsed: panelCollapsed }">
+      <Teleport :to="sidePanelTarget || 'body'" :disabled="!sidePanelTarget">
+        <aside
+          class="editor-side-shell"
+          :class="{ collapsed: panelCollapsed, external: sidePanelTarget }"
+        >
         <div v-if="sideToolbar && !panelCollapsed" class="editor-side-toolbar">
           <div class="side-toolbar-title">
             <strong>{{ title }}</strong>
@@ -992,7 +1006,8 @@ onBeforeUnmount(() => {
           @toggle="panelCollapsed = !panelCollapsed"
           @dock="panelDock = $event"
         />
-      </aside>
+        </aside>
+      </Teleport>
 
       <main class="canvas-pane">
         <div ref="canvasSurfaceRef" class="canvas-surface">
@@ -1119,6 +1134,10 @@ onBeforeUnmount(() => {
   background: #f4f7fb;
 }
 
+.venue-layout-editor.external-panel-mode {
+  background: transparent;
+}
+
 .editor-toolbar {
   min-height: 58px;
   z-index: 20;
@@ -1179,6 +1198,12 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+.venue-layout-editor.external-panel-mode .editor-body {
+  gap: 0;
+  padding: 0;
+  background: transparent;
+}
+
 .editor-body.dock-right .editor-side-shell {
   order: 2;
 }
@@ -1197,9 +1222,32 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+.editor-side-shell.external {
+  width: 100%;
+  min-width: 0;
+}
+
 .editor-side-shell.collapsed {
   width: 52px;
   min-width: 52px;
+}
+
+.editor-side-shell.external.collapsed {
+  width: 52px;
+  min-width: 52px;
+  align-self: flex-end;
+}
+
+.editor-side-shell.external :deep(.venue-element-panel) {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+}
+
+.editor-side-shell.external :deep(.dock-actions) {
+  display: none;
 }
 
 .editor-side-toolbar {
@@ -1275,6 +1323,12 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow);
   overflow: hidden;
+}
+
+.venue-layout-editor.external-panel-mode .canvas-pane {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .canvas-surface {

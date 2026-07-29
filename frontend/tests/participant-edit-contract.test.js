@@ -26,12 +26,20 @@ test('人员面板使用三个统一图标按钮并暴露编辑事件', async ()
   assert.doesNotMatch(source, /移出会议<\/el-button>/)
 })
 
-test('编辑人员弹窗工号只读并支持多记录表格', async () => {
+test('编辑人员弹窗工号只读并统一使用记录卡片编辑单条和多条记录', async () => {
   const source = await readFile(new URL('../src/components/EditParticipantDialog.vue', import.meta.url), 'utf8')
 
   assert.match(source, /label="工号"/)
   assert.match(source, /disabled/)
-  assert.match(source, /el-table/)
+  assert.match(source, /class="record-list"/)
+  assert.match(source, /class="record-card"/)
+  assert.match(source, /记录 \{\{ index \+ 1 \}\}/)
+  assert.doesNotMatch(source, /el-table/)
+  assert.doesNotMatch(source, /multiRecord/)
+  assert.doesNotMatch(source, /placeholder=/)
+  assert.match(source, /:validate-on-rule-change="false"/)
+  assert.match(source, /:validate-event="false"/)
+  assert.doesNotMatch(source, /trigger:\s*(?:'|"|\[)/)
   assert.match(source, /添加列/)
 })
 

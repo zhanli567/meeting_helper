@@ -20,6 +20,9 @@ test('新增弹窗将完整上下文和提交事件接入可注入动作', () =>
   assert.match(rawDialog, />\s*增加\s*</)
   assert.doesNotMatch(rawDialog, /placeholder=/)
   assert.match(rawDialog, /wx加6或7位数字/)
+  assert.match(rawDialog, /:validate-on-rule-change="false"/)
+  assert.match(rawDialog, /:validate-event="false"/)
+  assert.doesNotMatch(rawDialog, /trigger:\s*(?:'|"|\[)/)
 })
 
 test('人员面板保持筛选、分页、分组和操作包装器的完整接线', () => {

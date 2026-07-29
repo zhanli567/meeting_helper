@@ -259,10 +259,9 @@ function displayText(value) {
             v-model="query.keyword"
             :prefix-icon="Search"
             clearable
-            placeholder="搜索地点"
             class="search-input"
           />
-          <el-select v-model="query.campus" clearable placeholder="全部园区" class="campus-select">
+          <el-select v-model="query.campus" clearable class="campus-select">
             <el-option
               v-for="campus in campusOptions"
               :key="campus"
@@ -399,7 +398,6 @@ function displayText(value) {
           <el-input
             v-model="meetingForm.name"
             maxlength="200"
-            placeholder="请输入会议名称"
           />
         </el-form-item>
       </el-form>

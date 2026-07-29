@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFile } from 'node:fs/promises'
 
 import {
   buildFieldColorEntries,
@@ -82,4 +83,13 @@ test('field color entries support user overrides for legend and participants', (
       { value: 'Batch 2', backgroundColor: '#12abc0', custom: true },
     ],
   )
+})
+
+test('group color legend collapses into a compact tab without leaving a blank card', async () => {
+  const source = await readFile(new URL('../src/components/GroupColorLegend.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /\.group-color-legend\s*\{[\s\S]*overflow:\s*hidden;/)
+  assert.match(source, /\.group-color-legend\.collapsed\s*\{[\s\S]*width:\s*34px;[\s\S]*grid-template-columns:\s*0 34px;/)
+  assert.match(source, /\.group-color-legend\.collapsed \.legend-content\s*\{[\s\S]*opacity:\s*0;[\s\S]*visibility:\s*hidden;/)
+  assert.doesNotMatch(source, /translateX\(calc\(-100%/)
 })

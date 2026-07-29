@@ -354,7 +354,7 @@ async function mountEditor(t, Editor, propOverrides = {}) {
 
 function selectedNameInput(root) {
   return allNodes(root).find(
-    (node) => node.tag === 'input' && node.props?.placeholder,
+    (node) => node.tag === 'input' && node.props?.['aria-label'] === '显示名称',
   )
 }
 
@@ -379,7 +379,6 @@ function assertPanelDraft(root, { name, fillColor, borderColor }) {
   const colorInputs = allNodes(root).filter(
     (node) =>
       node.tag === 'input' &&
-      !node.props?.placeholder &&
       String(node.props?.value || '').startsWith('#'),
   )
   assert.equal(selectedNameInput(root).props.value, name)
@@ -475,9 +474,7 @@ test('真实组件运行时保持属性预览并支持移动缩放与撤销重�
   mounted.window.dispatch('pointerup', pointerEvent(element))
   await settle()
 
-  let nameInput = allNodes(mounted.root).find(
-    (node) => node.tag === 'input' && node.props?.placeholder,
-  )
+  let nameInput = selectedNameInput(mounted.root)
   nameInput.props.onInput({ target: { value: '贵宾席' } })
   allNodes(mounted.root)
     .find((node) => node.props?.['aria-label'] === '填充色 #fef3c7')
@@ -510,9 +507,7 @@ test('真实组件运行时保持属性预览并支持移动缩放与撤销重�
   element.props.onPointerdown(pointerEvent(element))
   mounted.window.dispatch('pointerup', pointerEvent(element))
   await settle()
-  nameInput = allNodes(mounted.root).find(
-    (node) => node.tag === 'input' && node.props?.placeholder,
-  )
+  nameInput = selectedNameInput(mounted.root)
   nameInput.props.onInput({ target: { value: '贵宾席' } })
   allNodes(mounted.root)
     .find((node) => node.props?.['aria-label'] === '填充色 #fef3c7')
