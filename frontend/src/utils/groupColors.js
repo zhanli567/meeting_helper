@@ -12,13 +12,17 @@ export const GROUP_COLOR_PALETTE = [
 ]
 
 export function participantFieldValue(participant, fieldCode) {
-  if (!participant || !fieldCode) return ''
-  if (fieldCode === 'name') return participant.name || ''
-  if (fieldCode === 'employeeNo') return participant.employeeNo || ''
-  const value =
-    participant.primaryAttributes?.[fieldCode] ||
-    participant.attributeValues?.[fieldCode]?.find((item) => String(item || '').trim())
-  return String(value || '').trim()
+  return participantFieldValues(participant, fieldCode)[0] || ''
+}
+
+export function participantFieldValues(participant, fieldCode) {
+  if (!participant || !fieldCode) return []
+  if (fieldCode === 'name') return cleanUniqueValues([participant.name])
+  if (fieldCode === 'employeeNo') return cleanUniqueValues([participant.employeeNo])
+  return cleanUniqueValues([
+    participant.primaryAttributes?.[fieldCode],
+    ...(participant.attributeValues?.[fieldCode] || []),
+  ])
 }
 
 export function buildParticipantColorMap(participants, fieldCode, palette = GROUP_COLOR_PALETTE) {
@@ -27,15 +31,51 @@ export function buildParticipantColorMap(participants, fieldCode, palette = GROU
   if (!fieldCode || !palette.length) return colorsByParticipantId
 
   ;(participants || []).forEach((participant) => {
-    const value = participantFieldValue(participant, fieldCode)
-    if (!value) return
-    if (!colorsByValue.has(value)) {
-      colorsByValue.set(value, {
-        ...palette[colorsByValue.size % palette.length],
-        value,
-      })
+    const values = participantFieldValues(participant, fieldCode)
+    if (!values.length) return
+    const styles = values.map((value) => styleForValue(colorsByValue, value, palette))
+    if (styles.length === 1) {
+      colorsByParticipantId.set(participant.id, { ...styles[0], multiValue: false })
+      return
     }
-    colorsByParticipantId.set(participant.id, colorsByValue.get(value))
+    colorsByParticipantId.set(participant.id, {
+      backgroundColor: '#f8fafc',
+      backgroundImage: multiValueGradient(styles),
+      textColor: '#172033',
+      value: values.join('、'),
+      multiValue: true,
+    })
   })
   return colorsByParticipantId
+}
+
+function cleanUniqueValues(values) {
+  const seen = new Set()
+  return (values || [])
+    .map((value) => String(value || '').trim())
+    .filter((value) => {
+      if (!value || seen.has(value)) return false
+      seen.add(value)
+      return true
+    })
+}
+
+function styleForValue(colorsByValue, value, palette) {
+  if (!colorsByValue.has(value)) {
+    colorsByValue.set(value, {
+      ...palette[colorsByValue.size % palette.length],
+      value,
+    })
+  }
+  return colorsByValue.get(value)
+}
+
+function multiValueGradient(styles) {
+  const step = 100 / styles.length
+  const stops = styles.flatMap((style, index) => {
+    const start = (index * step).toFixed(2)
+    const end = ((index + 1) * step).toFixed(2)
+    return [`${style.backgroundColor} ${start}%`, `${style.backgroundColor} ${end}%`]
+  })
+  return `linear-gradient(135deg, ${stops.join(', ')})`
 }

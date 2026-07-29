@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.company.meetinghelper.common.repository.AbstractMyBatisRepository;
 import com.company.meetinghelper.seating.entity.SeatingPlanEntity;
 import com.company.meetinghelper.seating.mapper.SeatingPlanMapper;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
@@ -38,5 +39,17 @@ public class SeatingPlanRepository extends AbstractMyBatisRepository<SeatingPlan
                 .eq(SeatingPlanEntity::getMeetingId, meetingId)
                 .orderByAsc(SeatingPlanEntity::getCreatedAt)
                 .last("limit 1")));
+    }
+
+    /**
+     * 查询会议下的全部有效排座方案。
+     *
+     * @param meetingId 会议ID
+     * @return 排座方案列表
+     */
+    public List<SeatingPlanEntity> findAllByMeetingIdOrderByCreatedAtAsc(String meetingId) {
+        return planMapper.selectList(new LambdaQueryWrapper<SeatingPlanEntity>()
+                .eq(SeatingPlanEntity::getMeetingId, meetingId)
+                .orderByAsc(SeatingPlanEntity::getCreatedAt));
     }
 }

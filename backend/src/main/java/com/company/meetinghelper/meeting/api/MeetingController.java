@@ -71,6 +71,17 @@ public class MeetingController {
     }
 
     /**
+     * 删除会议及其独立工作区数据。
+     *
+     * @param meetingId 会议ID
+     * @return 被删除的会议信息
+     */
+    @PostMapping("/{meetingId}/delete")
+    public MeetingSummary delete(@PathVariable String meetingId) {
+        return meetingService.delete(meetingId);
+    }
+
+    /**
      * 更新会议草稿布局。
      *
      * @param meetingId 会议ID

@@ -105,7 +105,12 @@ function removeCustomElement(suggestion) {
           :key="suggestion.name"
           class="suggestion-card"
         >
-          <button type="button" class="suggestion-choice" @click="chooseSuggestion(suggestion)">
+          <button
+            type="button"
+            class="suggestion-choice"
+            :title="suggestion.name"
+            @click="chooseSuggestion(suggestion)"
+          >
             <i
               :style="{
                 backgroundColor: suggestion.fillColor,
@@ -180,8 +185,9 @@ header span {
   min-height: 182px;
   max-height: 292px;
   display: grid;
+  align-content: start;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  gap: 4px 6px;
   overflow-x: hidden;
   overflow-y: auto;
   padding: 2px 8px 2px 2px;
@@ -194,11 +200,12 @@ header span {
 
 .suggestion-choice {
   width: 100%;
+  min-height: 38px;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 24px 7px 8px;
+  padding: 6px 24px 6px 8px;
   color: #35445a;
   background: #fff;
   border: 1px solid #dce5f1;

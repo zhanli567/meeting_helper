@@ -1042,7 +1042,7 @@ async function onParticipantUpdated(participant) {
               @click="redo"
             />
           </el-button-group>
-          <el-button-group>
+          <el-button-group v-if="workbenchMode !== 'layout'" class="canvas-zoom-controls">
             <el-button :icon="ZoomOut" :disabled="zoom <= 0.4" @click="changeZoom(-0.1)" />
             <el-button class="zoom-value">{{ Math.round(zoom * 100) }}%</el-button>
             <el-button :icon="ZoomIn" :disabled="zoom >= 2.5" @click="changeZoom(0.1)" />

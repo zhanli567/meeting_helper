@@ -2459,6 +2459,40 @@ class MeetingHelperIntegrationTests {
         )).hasMessage("会议名称已存在");
     }
 
+    @Test
+    void meetingCanBeDeletedWithOwnedWorkspaceData() throws Exception {
+        VenueSummary venue = defaultVenue();
+        MeetingSummary meeting = meetingService.create(
+                new CreateMeetingRequest("待删除会议-" + UUID.randomUUID(), venue.id())
+        );
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        ElementView seat = workspace.layout().elements().stream()
+                .filter(element -> "SEAT".equals(element.kind()))
+                .findFirst()
+                .orElseThrow();
+        ParticipantResult participant = participantService.create(
+                meeting.id(),
+                new CreateParticipantRequest("a92000001", "待删除人员", Map.of("部门", "研发"), null)
+        );
+        seatingService.assign(workspace.plan().id(), new AssignmentRequest(participant.id(), seat.id()));
+        planVersionService.create(workspace.plan().id(), new CreateVersionRequest("删除前版本", "", false));
+
+        mockMvc.perform(post("/meetings/{meetingId}/delete", meeting.id()).header(USER_HEADER, DEFAULT_USER))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(meeting.id()));
+
+        assertThat(meetingService.list()).extracting(MeetingSummary::id).doesNotContain(meeting.id());
+        assertThatThrownBy(() -> workspaceService.getWorkspace(meeting.id()))
+                .hasMessage("会议不存在");
+        assertThat(participantRepository.findAllByMeetingIdOrderByNameAsc(meeting.id())).isEmpty();
+        assertThat(fieldRepository.findAllByMeetingIdOrderBySortOrderAsc(meeting.id())).isEmpty();
+        assertThat(recordRepository.findAllByParticipantIdInOrderByParticipantIdAscRecordOrderAsc(
+                List.of(participant.id())
+        )).isEmpty();
+        assertThat(itemRepository.findAllByPlanIdOrderByCreatedAtAsc(workspace.plan().id())).isEmpty();
+        assertThat(planVersionRepository.findAllByPlanIdOrderByVersionNoDesc(workspace.plan().id())).isEmpty();
+    }
+
     private VenueDetail createVenueWithElements(
             String location,
             String campus,

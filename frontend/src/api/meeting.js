@@ -92,4 +92,7 @@ export const meetingApi = {
   async updateMeetingName(meetingId, name) {
     return unwrap(http.post(`/meetings/${meetingId}/name/update`, { name }))
   },
+  async deleteMeeting(meetingId) {
+    return unwrap(http.post(`/meetings/${meetingId}/delete`))
+  },
 }

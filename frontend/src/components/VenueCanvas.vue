@@ -148,6 +148,7 @@ function visualStyle(element) {
       item?.backgroundColor ||
       element.fillColor ||
       '#ffffff',
+    backgroundImage: participantStyle?.backgroundImage,
     color: participantStyle?.textColor || item?.textColor || '#172033',
     fontWeight: item?.bold ? '700' : undefined,
   }

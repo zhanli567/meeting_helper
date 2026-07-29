@@ -237,9 +237,11 @@ test('会议创建从场馆快照接口发起，会议 API 不再暴露场馆方
   try {
     assert.equal(await meetingApi.createMeeting('评审会', 'v1'), 'm1')
     assert.equal(await meetingApi.updateMeetingName('m1', '复盘会'), 'm1')
+    assert.equal(await meetingApi.deleteMeeting('m1'), 'm1')
     assert.deepEqual(calls, [
       { path: '/meetings/create-from-venue', data: { name: '评审会', venueTemplateId: 'v1' } },
       { path: '/meetings/m1/name/update', data: { name: '复盘会' } },
+      { path: '/meetings/m1/delete', data: undefined },
     ])
     assert.equal('venues' in meetingApi, false)
     assert.equal('venue' in meetingApi, false)

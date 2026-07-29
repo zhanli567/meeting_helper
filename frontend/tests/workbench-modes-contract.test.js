@@ -48,6 +48,8 @@ test('布局编辑模式复用编辑器并保存会议布局', async () => {
   assert.match(source, /saveMeetingLayout/)
   assert.match(source, /updateMeetingLayout/)
   assert.match(source, /save-label="保存布局"/)
+  assert.match(source, /class="canvas-zoom-controls"/)
+  assert.match(source, /v-if="workbenchMode !== 'layout'"/)
   assert.doesNotMatch(source, /save-label="保存会议布局"/)
 })
 

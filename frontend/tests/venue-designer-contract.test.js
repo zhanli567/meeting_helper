@@ -21,6 +21,10 @@ test('多格座位要求选择逐格或合并', async () => {
   const source = await readSource('src/components/VenueElementPicker.vue')
   assert.match(source, /逐格生成座位/)
   assert.match(source, /合并为一个座位/)
+  assert.match(source, /:title="suggestion\.name"/)
+  assert.match(source, /gap:\s*4px\s+6px/)
+  assert.match(source, /align-content:\s*start/)
+  assert.match(source, /min-height:\s*38px/)
 })
 
 test('编辑器提供完整画布手势、八向元素缩放和事件清理契约', async () => {

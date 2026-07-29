@@ -1,8 +1,15 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, Calendar, CirclePlus, Collection, EditPen } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import {
+  ArrowRight,
+  Calendar,
+  CirclePlus,
+  Collection,
+  Delete,
+  EditPen,
+} from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { apiErrorMessage } from '@/api/http'
 import { meetingApi } from '@/api/meeting'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -10,6 +17,7 @@ const router = useRouter()
 const store = useWorkspaceStore()
 const editVisible = ref(false)
 const editSubmitting = ref(false)
+const deleteSubmitting = ref('')
 const editingMeeting = reactive({
   id: '',
   name: '',
@@ -70,6 +78,45 @@ async function saveMeetingName() {
     ElMessage.error(apiErrorMessage(error))
   } finally {
     editSubmitting.value = false
+  }
+}
+async function removeMeeting(meeting) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除会议“${meeting.name}”？删除后人员名单、排座和版本记录都会一并移除。`,
+      '确认删除会议',
+      {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger',
+      },
+    )
+  } catch {
+    return
+  }
+  deleteSubmitting.value = meeting.id
+  try {
+    await meetingApi.deleteMeeting(meeting.id)
+    store.meetings = store.meetings.filter((item) => item.id !== meeting.id)
+    if (store.workspace?.meeting?.id === meeting.id) {
+      store.workspace = undefined
+    }
+    if (store.activeMeetingId === meeting.id) {
+      const nextMeeting = store.meetings[0]
+      store.rememberMeeting(nextMeeting?.id || '', 'draft')
+    }
+    if (editingMeeting.id === meeting.id) {
+      editVisible.value = false
+      editingMeeting.id = ''
+      editingMeeting.name = ''
+      editName.value = ''
+    }
+    ElMessage.success('会议已删除')
+  } catch (error) {
+    ElMessage.error(apiErrorMessage(error))
+  } finally {
+    deleteSubmitting.value = ''
   }
 }
 </script>
@@ -139,6 +186,15 @@ async function saveMeetingName() {
                   :icon="EditPen"
                   aria-label="编辑会议名称"
                   @click.stop="editMeeting(meeting)"
+                />
+                <el-button
+                  circle
+                  text
+                  type="danger"
+                  :icon="Delete"
+                  :loading="deleteSubmitting === meeting.id"
+                  aria-label="删除会议"
+                  @click.stop="removeMeeting(meeting)"
                 />
                 <el-button
                   circle

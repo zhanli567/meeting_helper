@@ -11,7 +11,15 @@ import com.company.meetinghelper.meeting.entity.MeetingElementEntity;
 import com.company.meetinghelper.meeting.entity.MeetingEntity;
 import com.company.meetinghelper.meeting.repository.MeetingElementRepository;
 import com.company.meetinghelper.meeting.repository.MeetingRepository;
+import com.company.meetinghelper.participant.entity.ParticipantEntity;
+import com.company.meetinghelper.participant.repository.MeetingParticipantFieldRepository;
+import com.company.meetinghelper.participant.repository.ParticipantRecordRepository;
+import com.company.meetinghelper.participant.repository.ParticipantRepository;
+import com.company.meetinghelper.seating.entity.PlanItemEntity;
 import com.company.meetinghelper.seating.entity.SeatingPlanEntity;
+import com.company.meetinghelper.seating.repository.PlanItemRepository;
+import com.company.meetinghelper.seating.repository.PlanItemTargetRepository;
+import com.company.meetinghelper.seating.repository.PlanVersionRepository;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
 import com.company.meetinghelper.seating.service.SeatingService;
 import com.company.meetinghelper.venue.api.dto.ElementInput;
@@ -40,6 +48,12 @@ public class MeetingService {
     private final VenueService venueService;
     private final VenueElementRepository venueElementRepository;
     private final SeatingPlanRepository planRepository;
+    private final PlanItemRepository itemRepository;
+    private final PlanItemTargetRepository targetRepository;
+    private final PlanVersionRepository versionRepository;
+    private final ParticipantRepository participantRepository;
+    private final ParticipantRecordRepository recordRepository;
+    private final MeetingParticipantFieldRepository fieldRepository;
     private final CurrentUserProvider currentUserProvider;
     private final SeatingService seatingService;
     private final WorkspaceService workspaceService;
@@ -53,6 +67,12 @@ public class MeetingService {
      * @param venueService 场馆服务
      * @param venueElementRepository 场馆元素仓储
      * @param planRepository 排座方案仓储
+     * @param itemRepository 排座明细仓储
+     * @param targetRepository 排座目标仓储
+     * @param versionRepository 版本仓储
+     * @param participantRepository 人员仓储
+     * @param recordRepository 人员扩展记录仓储
+     * @param fieldRepository 人员字段仓储
      * @param currentUserProvider 当前用户提供器
      * @param seatingService 排座服务
      * @param workspaceService 工作区服务
@@ -64,6 +84,12 @@ public class MeetingService {
             VenueService venueService,
             VenueElementRepository venueElementRepository,
             SeatingPlanRepository planRepository,
+            PlanItemRepository itemRepository,
+            PlanItemTargetRepository targetRepository,
+            PlanVersionRepository versionRepository,
+            ParticipantRepository participantRepository,
+            ParticipantRecordRepository recordRepository,
+            MeetingParticipantFieldRepository fieldRepository,
             CurrentUserProvider currentUserProvider,
             SeatingService seatingService,
             WorkspaceService workspaceService,
@@ -74,6 +100,12 @@ public class MeetingService {
         this.venueService = venueService;
         this.venueElementRepository = venueElementRepository;
         this.planRepository = planRepository;
+        this.itemRepository = itemRepository;
+        this.targetRepository = targetRepository;
+        this.versionRepository = versionRepository;
+        this.participantRepository = participantRepository;
+        this.recordRepository = recordRepository;
+        this.fieldRepository = fieldRepository;
         this.currentUserProvider = currentUserProvider;
         this.seatingService = seatingService;
         this.workspaceService = workspaceService;
@@ -177,6 +209,26 @@ public class MeetingService {
     }
 
     /**
+     * 删除当前用户拥有的会议及其独立工作区数据。
+     *
+     * @param meetingId 会议ID
+     * @return 被删除的会议信息
+     */
+    @Transactional
+    public MeetingSummary delete(String meetingId) {
+        String userId = currentUserProvider.requireUserId();
+        MeetingEntity meeting = meetingRepository.findByIdAndCreatedById(meetingId, userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议不存在"));
+        MeetingSummary summary = toSummary(meeting);
+
+        deletePlans(meetingId);
+        deleteParticipants(meetingId);
+        meetingElementRepository.deleteAllByMeetingId(meetingId);
+        meetingRepository.delete(meeting);
+        return summary;
+    }
+
+    /**
      * 更新会议自己的草稿布局快照，不修改来源场馆模板。
      *
      * @param meetingId 会议ID
@@ -257,6 +309,28 @@ public class MeetingService {
         element.setColumnSpan(source.columnSpan());
         element.setFillColor(source.fillColor());
         element.setBorderColor(source.borderColor());
+    }
+
+    private void deletePlans(String meetingId) {
+        List<SeatingPlanEntity> plans = planRepository.findAllByMeetingIdOrderByCreatedAtAsc(meetingId);
+        for (SeatingPlanEntity plan : plans) {
+            List<PlanItemEntity> items = itemRepository.findAllByPlanIdOrderByCreatedAtAsc(plan.getId());
+            for (PlanItemEntity item : items) {
+                targetRepository.deleteAllByPlanItemId(item.getId());
+            }
+            itemRepository.deleteAll(items);
+            versionRepository.deleteAll(versionRepository.findAllByPlanIdOrderByVersionNoDesc(plan.getId()));
+        }
+        planRepository.deleteAll(plans);
+    }
+
+    private void deleteParticipants(String meetingId) {
+        List<ParticipantEntity> participants = participantRepository.findAllByMeetingIdOrderByNameAsc(meetingId);
+        recordRepository.deleteAll(recordRepository.findAllByParticipantIdInOrderByParticipantIdAscRecordOrderAsc(
+                participants.stream().map(ParticipantEntity::getId).toList()
+        ));
+        participantRepository.deleteAll(participants);
+        fieldRepository.deleteAll(fieldRepository.findAllByMeetingIdOrderBySortOrderAsc(meetingId));
     }
 
     private MeetingSummary toSummary(MeetingEntity meeting) {
