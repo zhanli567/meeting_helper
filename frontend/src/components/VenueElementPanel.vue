@@ -1,13 +1,12 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { Close, DArrowLeft, DArrowRight, Fold, Plus, Setting } from '@element-plus/icons-vue'
+import { Close, DArrowLeft, DArrowRight, Fold, Setting } from '@element-plus/icons-vue'
+import ColorPickerPopover from '@/components/ColorPickerPopover.vue'
 import { ELEMENT_KINDS } from '@/utils/venueModel'
 import { validElementProperties } from '@/utils/designerGeometry'
 import {
-  availableColorSwatches,
   availableElementSuggestions,
-  normalizeHexColor,
-  removeCustomColor,
+  BASIC_COLOR_SWATCHES,
   saveCustomColor,
   saveCustomElementName,
 } from '@/utils/venuePreferences'
@@ -51,8 +50,7 @@ const draft = reactive({
   borderColor: '#93c5fd',
 })
 const elementSuggestions = ref(availableElementSuggestions())
-const fillColorSwatches = ref(availableColorSwatches('fillColor'))
-const borderColorSwatches = ref(availableColorSwatches('borderColor'))
+const basicColorSwatches = BASIC_COLOR_SWATCHES
 const draftValid = computed(() => validElementProperties(draft))
 
 watch(
@@ -92,8 +90,6 @@ watch(
 
 function refreshPreferences() {
   elementSuggestions.value = availableElementSuggestions()
-  fillColorSwatches.value = availableColorSwatches('fillColor')
-  borderColorSwatches.value = availableColorSwatches('borderColor')
 }
 
 function queryNames(query, callback) {
@@ -106,35 +102,13 @@ function queryNames(query, callback) {
   )
 }
 
-function chooseColor(field, color) {
-  draft[field] = color.value
-}
-
-function previewCustomColor(field, value) {
-  const color = normalizeHexColor(value)
-  if (color) draft[field] = color
-}
-
-function confirmCustomColor(field, value) {
-  const color = saveCustomColor(field, value)
-  if (color) {
-    refreshPreferences()
-    draft[field] = color
-  }
-}
-
-function removeColor(field, color) {
-  removeCustomColor(field, color.value)
-  refreshPreferences()
-}
-
 function confirm() {
   if (!draftValid.value) return
   if (draft.kind === ELEMENT_KINDS.GENERIC) {
     saveCustomElementName(draft.name)
   }
-  saveCustomColor('fillColor', draft.fillColor)
-  saveCustomColor('borderColor', draft.borderColor)
+  saveCustomColor(draft.fillColor)
+  saveCustomColor(draft.borderColor)
   refreshPreferences()
   emit('confirm', {
     kind: draft.kind,
@@ -186,78 +160,46 @@ function confirm() {
           </el-form-item>
 
           <el-form-item label="填充色">
-            <div class="color-row">
-              <span
-                v-for="color in fillColorSwatches"
-                :key="`fill-${color.value}`"
-                class="color-swatch"
-                :class="{ active: draft.fillColor === color.value, custom: color.custom }"
-                :title="color.title"
+            <div class="color-control-row">
+              <span>{{ draft.fillColor }}</span>
+              <ColorPickerPopover v-model="draft.fillColor" label="填充色" />
+              <input
+                class="sr-only-color-value"
+                :value="draft.fillColor"
+                readonly
+                aria-hidden="true"
+                tabindex="-1"
               >
-                <button
-                  type="button"
-                  :style="{ backgroundColor: color.value }"
-                  :aria-label="`填充色 ${color.value}`"
-                  @click="chooseColor('fillColor', color)"
-                />
-                <button
-                  v-if="color.custom"
-                  type="button"
-                  class="color-delete"
-                  :aria-label="`删除自定义颜色 ${color.value}`"
-                  @click.stop="removeColor('fillColor', color)"
-                >
-                  <Close />
-                </button>
-              </span>
-              <label class="color-add" title="添加自定义颜色">
-                <input
-                  type="color"
-                  :value="draft.fillColor"
-                  aria-label="添加填充色"
-                  @input="previewCustomColor('fillColor', $event.target.value)"
-                  @change="confirmCustomColor('fillColor', $event.target.value)"
-                />
-                <Plus />
-              </label>
+              <button
+                v-for="color in basicColorSwatches"
+                :key="`fill-${color.value}`"
+                type="button"
+                class="sr-only-color-action"
+                :aria-label="`填充色 ${color.value}`"
+                @click="draft.fillColor = color.value"
+              />
             </div>
           </el-form-item>
 
           <el-form-item label="边框色">
-            <div class="color-row">
-              <span
-                v-for="color in borderColorSwatches"
-                :key="`border-${color.value}`"
-                class="color-swatch"
-                :class="{ active: draft.borderColor === color.value, custom: color.custom }"
-                :title="color.title"
+            <div class="color-control-row">
+              <span>{{ draft.borderColor }}</span>
+              <ColorPickerPopover v-model="draft.borderColor" label="边框色" />
+              <input
+                class="sr-only-color-value"
+                :value="draft.borderColor"
+                readonly
+                aria-hidden="true"
+                tabindex="-1"
               >
-                <button
-                  type="button"
-                  :style="{ backgroundColor: color.value }"
-                  :aria-label="`边框色 ${color.value}`"
-                  @click="chooseColor('borderColor', color)"
-                />
-                <button
-                  v-if="color.custom"
-                  type="button"
-                  class="color-delete"
-                  :aria-label="`删除自定义颜色 ${color.value}`"
-                  @click.stop="removeColor('borderColor', color)"
-                >
-                  <Close />
-                </button>
-              </span>
-              <label class="color-add" title="添加自定义颜色">
-                <input
-                  type="color"
-                  :value="draft.borderColor"
-                  aria-label="添加边框色"
-                  @input="previewCustomColor('borderColor', $event.target.value)"
-                  @change="confirmCustomColor('borderColor', $event.target.value)"
-                />
-                <Plus />
-              </label>
+              <button
+                v-for="color in basicColorSwatches"
+                :key="`border-${color.value}`"
+                type="button"
+                class="sr-only-color-action"
+                :aria-label="`边框色 ${color.value}`"
+                @click="draft.borderColor = color.value"
+              />
             </div>
           </el-form-item>
         </el-form>
@@ -363,6 +305,7 @@ header > div {
 .element-editor {
   flex: 1;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 14px;
 }
@@ -379,83 +322,37 @@ header > div {
   width: 100%;
 }
 
-.color-row {
+.color-control-row {
   min-height: 32px;
-  max-height: 92px;
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 7px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 2px 2px 2px 0;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  color: var(--muted);
+  font-size: 12px;
 }
 
-.color-swatch {
-  width: 25px;
-  height: 25px;
-  position: relative;
-  display: inline-flex;
-  flex: none;
-}
-
-.color-swatch > button:first-child,
-.color-add {
-  width: 25px;
-  height: 25px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  background: #fff;
-  border: 1px solid #aebed2;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.color-swatch.active > button:first-child {
-  box-shadow:
-    0 0 0 2px #fff,
-    0 0 0 4px var(--brand);
-}
-
-.color-delete {
-  width: 15px;
-  height: 15px;
+.sr-only-color-action {
+  width: 1px;
+  height: 1px;
   position: absolute;
-  top: -6px;
-  right: -6px;
-  display: grid;
-  place-items: center;
+  left: 0;
+  bottom: 0;
   padding: 0;
-  color: #9aa8ba;
-  background: #fff;
-  border: 1px solid #d7e1ee;
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.color-delete:hover {
-  color: var(--danger);
-  border-color: #fecaca;
-}
-
-.color-delete svg,
-.color-add svg {
-  width: 11px;
-  height: 11px;
-}
-
-.color-add {
-  position: relative;
-  color: var(--brand);
-  overflow: hidden;
-}
-
-.color-add input {
-  position: absolute;
-  inset: 0;
   opacity: 0;
-  cursor: pointer;
+  pointer-events: none;
+}
+
+.sr-only-color-value {
+  width: 1px;
+  height: 1px;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 footer {

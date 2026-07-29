@@ -66,6 +66,7 @@ test('主要列表容器固定高度并在内部滚动', async () => {
   const importDialog = await readSource('src/components/ImportDialog.vue')
   const regionPanel = await readSource('src/components/RegionMarkerPanel.vue')
   const regionCreate = await readSource('src/components/RegionCreateDialog.vue')
+  const colorPicker = await readSource('src/components/ColorPickerPopover.vue')
   const elementPicker = await readSource('src/components/VenueElementPicker.vue')
   const elementPanel = await readSource('src/components/VenueElementPanel.vue')
 
@@ -85,10 +86,11 @@ test('主要列表容器固定高度并在内部滚动', async () => {
   assert.match(importDialog, /\.field-section\s*\{[\s\S]*max-height:[\s\S]*overflow-y:\s*auto;/)
   assert.match(regionPanel, /\.marker-list\s*\{[\s\S]*min-height:[\s\S]*max-height:[\s\S]*overflow-y:\s*auto;/)
   assert.match(regionPanel, /\.marker-form\s*\{[\s\S]*overflow-y:\s*auto;/)
-  assert.match(regionPanel, /\.swatch-row\s*\{[\s\S]*min-height:[\s\S]*max-height:[\s\S]*overflow-y:\s*auto;/)
-  assert.match(regionCreate, /\.swatch-row\s*\{[\s\S]*min-height:[\s\S]*max-height:[\s\S]*overflow-y:\s*auto;/)
+  assert.match(regionPanel, /ColorPickerPopover/)
+  assert.match(regionCreate, /ColorPickerPopover/)
+  assert.match(colorPicker, /\.swatch-grid\s*\{[\s\S]*min-height:[\s\S]*max-height:[\s\S]*overflow-y:\s*auto;/)
   assert.match(elementPicker, /\.suggestion-grid\s*\{[\s\S]*min-height:[\s\S]*max-height:[\s\S]*overflow-y:\s*auto;/)
-  assert.match(elementPanel, /\.color-row\s*\{[\s\S]*min-height:[\s\S]*max-height:[\s\S]*overflow-y:\s*auto;/)
+  assert.match(elementPanel, /ColorPickerPopover/)
 })
 
 test('预览和工作区读取通用元素字段且不渲染旋转', async () => {

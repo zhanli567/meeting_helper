@@ -2,31 +2,32 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  buildFieldColorEntries,
   buildParticipantColorMap,
   participantFieldValue,
   participantFieldValues,
 } from '../src/utils/groupColors.js'
 
-test('人员字段取值优先读取主属性并忽略空值', () => {
+test('participant field values prefer primary attributes and ignore blanks', () => {
   const person = {
     id: 'p1',
-    name: '张三',
+    name: 'Alice',
     employeeNo: '001',
-    primaryAttributes: { department: '研发部' },
-    attributeValues: { batch: ['', '第一批'] },
+    primaryAttributes: { department: 'R&D' },
+    attributeValues: { batch: ['', 'Batch 1'] },
   }
 
-  assert.equal(participantFieldValue(person, 'name'), '张三')
-  assert.equal(participantFieldValue(person, 'department'), '研发部')
-  assert.equal(participantFieldValue(person, 'batch'), '第一批')
-  assert.deepEqual(participantFieldValues(person, 'batch'), ['第一批'])
+  assert.equal(participantFieldValue(person, 'name'), 'Alice')
+  assert.equal(participantFieldValue(person, 'department'), 'R&D')
+  assert.equal(participantFieldValue(person, 'batch'), 'Batch 1')
+  assert.deepEqual(participantFieldValues(person, 'batch'), ['Batch 1'])
 })
 
-test('相同字段值使用相同浅色且空字段不着色', () => {
+test('same field value shares the same soft color and empty value has no color', () => {
   const colors = buildParticipantColorMap([
-    { id: 'p1', primaryAttributes: { department: '研发部' } },
-    { id: 'p2', primaryAttributes: { department: '市场部' } },
-    { id: 'p3', primaryAttributes: { department: '研发部' } },
+    { id: 'p1', primaryAttributes: { department: 'A' } },
+    { id: 'p2', primaryAttributes: { department: 'B' } },
+    { id: 'p3', primaryAttributes: { department: 'A' } },
     { id: 'p4', primaryAttributes: { department: '' } },
   ], 'department')
 
@@ -35,26 +36,50 @@ test('相同字段值使用相同浅色且空字段不着色', () => {
   assert.equal(colors.has('p4'), false)
 })
 
-test('重复人员同一字段存在多个值时使用多段浅色标识', () => {
+test('participants with multiple values use a segmented gradient', () => {
   const colors = buildParticipantColorMap([
     {
       id: 'p1',
-      primaryAttributes: { batch: '第一批' },
-      attributeValues: { batch: ['第一批', '第三批'] },
+      primaryAttributes: { batch: 'Batch 1' },
+      attributeValues: { batch: ['Batch 1', 'Batch 3'] },
     },
     {
       id: 'p2',
-      primaryAttributes: { batch: '第二批' },
-      attributeValues: { batch: ['第二批'] },
+      primaryAttributes: { batch: 'Batch 2' },
+      attributeValues: { batch: ['Batch 2'] },
     },
   ], 'batch')
 
   assert.deepEqual(participantFieldValues({
-    primaryAttributes: { batch: '第一批' },
-    attributeValues: { batch: ['第一批', '第三批', ' '] },
-  }, 'batch'), ['第一批', '第三批'])
+    primaryAttributes: { batch: 'Batch 1' },
+    attributeValues: { batch: ['Batch 1', 'Batch 3', ' '] },
+  }, 'batch'), ['Batch 1', 'Batch 3'])
   assert.equal(colors.get('p1').multiValue, true)
   assert.match(colors.get('p1').backgroundImage, /linear-gradient/)
-  assert.equal(colors.get('p1').value, '第一批、第三批')
+  assert.equal(colors.get('p1').value, 'Batch 1、Batch 3')
   assert.equal(colors.get('p2').multiValue, false)
+})
+
+test('field color entries support user overrides for legend and participants', () => {
+  const participants = [
+    { id: 'p1', primaryAttributes: { batch: 'Batch 1' } },
+    { id: 'p2', primaryAttributes: { batch: 'Batch 2' } },
+  ]
+  const overrides = { 'Batch 2': '#12abc0' }
+  const colors = buildParticipantColorMap(participants, 'batch', undefined, overrides)
+  const entries = buildFieldColorEntries(participants, 'batch', undefined, overrides)
+
+  assert.equal(colors.get('p2').backgroundColor, '#12abc0')
+  assert.equal(colors.get('p2').custom, true)
+  assert.deepEqual(
+    entries.map((entry) => ({
+      value: entry.value,
+      backgroundColor: entry.backgroundColor,
+      custom: Boolean(entry.custom),
+    })),
+    [
+      { value: 'Batch 1', backgroundColor: '#FEF3C7', custom: false },
+      { value: 'Batch 2', backgroundColor: '#12abc0', custom: true },
+    ],
+  )
 })

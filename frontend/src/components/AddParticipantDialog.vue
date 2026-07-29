@@ -5,7 +5,8 @@ import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 import { groupableFields } from '@/utils/participantFields'
 import { submitParticipant } from '@/utils/participantActions'
-import { hasDuplicateEmployeeNo, isValidEmployeeNo } from '@/utils/participantRules'
+import { isValidEmployeeNo } from '@/utils/participantRules'
+
 const visible = defineModel({ required: true })
 const props = defineProps({
   meetingId: { type: String, required: true },
@@ -31,9 +32,7 @@ const rules = {
       validator: (_rule, value, callback) =>
         !isValidEmployeeNo(value)
           ? callback(new Error('工号必须为8位数字、1个小写字母加8位数字，或wx加6或7位数字'))
-          : hasDuplicateEmployeeNo(value, props.participants)
-            ? callback(new Error('该工号已在当前会议名单中'))
-            : callback(),
+          : callback(),
       trigger: ['blur', 'change'],
     },
   ],
@@ -52,7 +51,8 @@ async function submit() {
       targetElementId: props.targetElementId,
     })
     ElMessage.success(
-      props.targetElementId ? '人员已添加并安排到所选座位' : '人员已加入待排列表',
+      participant?.message ||
+        (props.targetElementId ? '人员已添加并安排到所选座位' : '人员已加入待排列表'),
     )
     visible.value = false
     Object.assign(form, {

@@ -595,6 +595,87 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
+    void participantCreateMergesExistingEmployeeRecordsAndAssignsTargetSeat() {
+        String meetingId = createImportMeeting();
+        ParticipantResult first = participantService.create(
+                meetingId,
+                new CreateParticipantRequest(
+                        "a93000001",
+                        "重复人员",
+                        Map.of("部门", "部门1", "获奖批次", "第一批"),
+                        null
+                )
+        );
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meetingId);
+        ElementView seat = workspace.layout().elements().stream()
+                .filter(value -> "SEAT".equals(value.kind()))
+                .findFirst()
+                .orElseThrow();
+
+        ParticipantResult appended = participantService.create(
+                meetingId,
+                new CreateParticipantRequest(
+                        "a93000001",
+                        "重复人员",
+                        Map.of("部门", "部门1", "获奖批次", "第四批"),
+                        seat.id()
+                )
+        );
+
+        assertThat(appended.id()).isEqualTo(first.id());
+        assertThat(appended.action()).isEqualTo("APPENDED");
+        assertThat(appended.message()).contains("追加").contains("安排");
+        assertThat(participantRepository.findAllByMeetingIdOrderByNameAsc(meetingId)).hasSize(1);
+        WorkspaceResponse refreshed = workspaceService.getWorkspace(meetingId);
+        ParticipantView participant = refreshed.participants().stream()
+                .filter(value -> value.id().equals(first.id()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(participant.assignedElementId()).isEqualTo(seat.id());
+        assertThat(participant.attributeValues().get("获奖批次"))
+                .containsExactly("第一批", "第四批");
+    }
+
+    @Test
+    void participantCreateSkipsSameRecordAndRejectsDifferentNameForSameEmployee() {
+        String meetingId = createImportMeeting();
+        ParticipantResult first = participantService.create(
+                meetingId,
+                new CreateParticipantRequest(
+                        "a93000002",
+                        "真实姓名",
+                        Map.of("部门", "部门1", "获奖批次", "第一批"),
+                        null
+                )
+        );
+
+        ParticipantResult skipped = participantService.create(
+                meetingId,
+                new CreateParticipantRequest(
+                        "a93000002",
+                        "真实姓名",
+                        Map.of("部门", "部门1", "获奖批次", "第一批"),
+                        null
+                )
+        );
+
+        assertThat(skipped.id()).isEqualTo(first.id());
+        assertThat(skipped.action()).isEqualTo("SKIPPED");
+        assertThat(skipped.message()).contains("已存在");
+        assertThat(recordRepository.findAllByParticipantIdOrderByRecordOrderAsc(first.id()))
+                .hasSize(1);
+        assertThatThrownBy(() -> participantService.create(
+                meetingId,
+                new CreateParticipantRequest(
+                        "a93000002",
+                        "另一个姓名",
+                        Map.of("部门", "部门1"),
+                        null
+                )
+        )).hasMessageContaining("工号a93000002已对应人员真实姓名");
+    }
+
+    @Test
     void participantUpdateRejectsBlankNameAndBlankNewFieldValues() throws Exception {
         String meetingId = createImportMeeting();
         ParticipantResult participant = participantService.create(

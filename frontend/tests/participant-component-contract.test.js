@@ -15,6 +15,8 @@ test('新增弹窗将完整上下文和提交事件接入可注入动作', () =>
     /submitParticipant\(\{ addParticipant: meetingApi\.addParticipant, meetingId: props\.meetingId, form, targetElementId: props\.targetElementId, \}\)/,
   )
   assert.match(dialog, /<el-button type="primary" :loading="submitting" @click="submit">/)
+  assert.match(dialog, /participant\?\.message/)
+  assert.doesNotMatch(dialog, /hasDuplicateEmployeeNo/)
   assert.match(rawDialog, />\s*增加\s*</)
   assert.doesNotMatch(rawDialog, /placeholder=/)
   assert.match(rawDialog, /wx加6或7位数字/)

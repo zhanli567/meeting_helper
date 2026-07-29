@@ -338,7 +338,10 @@ function onSeatClick(element) {
   }
   const item = itemFor(element.id)
   const person = participantFor(element.id)
-  if (person) emit('select', person)
+  if (person) {
+    emit('select', person)
+    emit('seatClick', element)
+  }
   else if (!item) emit('seatClick', element)
 }
 function selectReservedRegionFromSeat(element) {

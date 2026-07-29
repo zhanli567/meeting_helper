@@ -1,15 +1,7 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { Close, Plus } from '@element-plus/icons-vue'
-import {
-  availableColorSwatches,
-  normalizeHexColor,
-  removeCustomColor,
-  saveCustomColor,
-  textColorForBackground,
-} from '@/utils/venuePreferences'
-
-const colorSwatches = ref(availableColorSwatches('fillColor'))
+import { computed } from 'vue'
+import ColorPickerPopover from '@/components/ColorPickerPopover.vue'
+import { textColorForBackground } from '@/utils/venuePreferences'
 
 const props = defineProps({
   modelValue: {
@@ -39,38 +31,12 @@ function patchMarker(value) {
   })
 }
 
-function refreshColors() {
-  colorSwatches.value = availableColorSwatches('fillColor')
-}
-
-function selectSwatch(swatch) {
-  patchMarker({
-    backgroundColor: swatch.value,
-    textColor: textColorForBackground(swatch.value),
-    bold: true,
-  })
-}
-
-function previewCustomColor(value) {
-  const color = normalizeHexColor(value)
-  if (!color) return
+function patchColor(color) {
   patchMarker({
     backgroundColor: color,
     textColor: textColorForBackground(color),
     bold: true,
   })
-}
-
-function confirmCustomColor(value) {
-  const color = saveCustomColor('fillColor', value)
-  if (!color) return
-  refreshColors()
-  selectSwatch({ value: color })
-}
-
-function removeColor(color) {
-  removeCustomColor('fillColor', color.value)
-  refreshColors()
 }
 </script>
 
@@ -118,38 +84,15 @@ function removeColor(color) {
       </el-form-item>
 
       <el-form-item label="区域颜色">
-        <div class="swatch-row">
-          <button
-            v-for="swatch in colorSwatches"
-            :key="swatch.value"
-            type="button"
-            class="marker-swatch"
-            :class="{ active: modelValue.backgroundColor === swatch.value }"
-            :title="swatch.title || swatch.name"
-            :style="{ backgroundColor: swatch.value }"
-            @click="selectSwatch(swatch)"
-          >
-            <el-icon
-              v-if="swatch.custom"
-              class="swatch-delete"
-              @click.stop="removeColor(swatch)"
-            >
-              <Close />
-            </el-icon>
-          </button>
-          <label class="marker-swatch color-add" title="添加自定义颜色">
-            <Plus />
-            <input
-              type="color"
-              :value="modelValue.backgroundColor"
-              aria-label="添加区域颜色"
-              @input="previewCustomColor($event.target.value)"
-              @change="confirmCustomColor($event.target.value)"
-            >
-          </label>
+        <div class="color-control-row">
+          <span>{{ modelValue.backgroundColor }}</span>
+          <ColorPickerPopover
+            :model-value="modelValue.backgroundColor"
+            label="区域颜色"
+            @update:model-value="patchColor"
+          />
         </div>
       </el-form-item>
-
     </el-form>
 
     <div class="panel-actions">
@@ -287,62 +230,15 @@ function removeColor(color) {
   padding-right: 2px;
 }
 
-.swatch-row {
-  min-height: 76px;
-  max-height: min(180px, 28vh);
+.color-control-row {
+  min-height: 32px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 9px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 2px 2px 2px 0;
-}
-
-.marker-swatch {
-  width: 30px;
-  height: 30px;
-  position: relative;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  color: #64748b;
-  border: 1px solid rgba(100, 116, 139, 0.26);
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.marker-swatch.active {
-  box-shadow:
-    0 0 0 2px #fff,
-    0 0 0 4px var(--brand);
-}
-
-.color-add {
-  overflow: hidden;
-}
-
-.color-add input {
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   width: 100%;
-  height: 100%;
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.swatch-delete {
-  width: 16px;
-  height: 16px;
-  position: absolute;
-  top: -7px;
-  right: -7px;
-  display: grid;
-  place-items: center;
-  color: #64748b;
-  background: #fff;
-  border: 1px solid #d6e2f3;
-  border-radius: 50%;
-  font-size: 10px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .panel-actions {

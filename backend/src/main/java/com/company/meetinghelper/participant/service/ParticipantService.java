@@ -21,6 +21,7 @@ import com.company.meetinghelper.seating.repository.PlanItemRepository;
 import com.company.meetinghelper.seating.repository.PlanItemTargetRepository;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
 import com.company.meetinghelper.seating.service.SeatingService;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,21 +42,9 @@ public class ParticipantService {
     private final PlanItemRepository itemRepository;
     private final PlanItemTargetRepository targetRepository;
     private final SeatingService seatingService;
+    private final ParticipantRecordMerger recordMerger;
     private final ObjectMapper objectMapper;
 
-    /**
-     * 创建参会人员服务。
-     *
-     * @param meetingAccessService 会议归属校验服务
-     * @param participantRepository 参会人员仓储
-     * @param fieldRegistrationService 人员动态字段注册服务
-     * @param recordRepository 人员动态记录仓储
-     * @param planRepository 排座方案仓储
-     * @param itemRepository 排座明细仓储
-     * @param targetRepository 排座目标仓储
-     * @param seatingService 排座服务
-     * @param objectMapper JSON序列化器
-     */
     public ParticipantService(
             MeetingAccessService meetingAccessService,
             ParticipantRepository participantRepository,
@@ -65,6 +54,7 @@ public class ParticipantService {
             PlanItemRepository itemRepository,
             PlanItemTargetRepository targetRepository,
             SeatingService seatingService,
+            ParticipantRecordMerger recordMerger,
             ObjectMapper objectMapper
     ) {
         this.meetingAccessService = meetingAccessService;
@@ -75,42 +65,49 @@ public class ParticipantService {
         this.itemRepository = itemRepository;
         this.targetRepository = targetRepository;
         this.seatingService = seatingService;
+        this.recordMerger = recordMerger;
         this.objectMapper = objectMapper;
     }
 
-    /**
-     * 向指定会议添加一名参会人员。
-     *
-     * @param meetingId 会议ID
-     * @param request 人员创建请求
-     * @return 新增人员信息
-     */
     @Transactional
     public ParticipantResult create(String meetingId, CreateParticipantRequest request) {
         meetingAccessService.requireOwnedMeeting(meetingId);
         Map<String,String> incomingAttributes = request.attributes();
         Map<String,String> canonicalNames = fieldRegistrationService.registerFields(
                 meetingId,
-                incomingAttributes == null
-                        ? List.of()
-                        : incomingAttributes.keySet()
+                incomingAttributes == null ? List.of() : incomingAttributes.keySet()
         );
         String employeeNo = request.employeeNo().trim();
-        if (participantRepository
+        String name = request.name().trim();
+        Map<String,String> attributes = canonicalAttributes(incomingAttributes, canonicalNames);
+
+        ParticipantEntity existing = participantRepository
                 .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, employeeNo)
-                .isPresent()) {
-            throw new ApiException(HttpStatus.CONFLICT, "该工号已在会议名单中");
+                .orElse(null);
+        if (existing != null) {
+            if (!existing.getName().equals(name)) {
+                throw new ApiException(
+                        HttpStatus.CONFLICT,
+                        "工号" + employeeNo + "已对应人员" + existing.getName()
+                );
+            }
+            return updateExistingParticipantRecord(
+                    meetingId,
+                    existing,
+                    attributes,
+                    request.targetElementId()
+            );
         }
+
         ParticipantEntity participant = new ParticipantEntity();
         participant.setMeetingId(meetingId);
         participant.setEmployeeNo(employeeNo);
-        participant.setName(request.name());
+        participant.setName(name);
         try {
             participantRepository.saveAndFlush(participant);
         } catch (DataIntegrityViolationException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "该工号已在会议名单中");
         }
-        Map<String,String> attributes = canonicalAttributes(incomingAttributes, canonicalNames);
         if (!attributes.isEmpty()) {
             ParticipantRecordEntity record = new ParticipantRecordEntity();
             record.setParticipantId(participant.getId());
@@ -118,25 +115,20 @@ public class ParticipantService {
             record.setAttributesJson(writeAttributes(attributes));
             recordRepository.save(record);
         }
-        if (request.targetElementId() != null && !request.targetElementId().isBlank()) {
-            SeatingPlanEntity plan = planRepository.findFirstByMeetingIdOrderByCreatedAtAsc(meetingId)
-                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
-            seatingService.assign(
-                    plan.getId(),
-                    new AssignmentRequest(participant.getId(), request.targetElementId())
-            );
-        }
-        return new ParticipantResult(participant.getId(), participant.getEmployeeNo(), participant.getName());
+        boolean assigned = assignTargetElementIfPresent(
+                meetingId,
+                participant.getId(),
+                request.targetElementId()
+        );
+        return new ParticipantResult(
+                participant.getId(),
+                participant.getEmployeeNo(),
+                participant.getName(),
+                "CREATED",
+                assigned ? "人员已新增，并安排到所选座位" : "人员已新增"
+        );
     }
 
-    /**
-     * 更新参会人员姓名和动态记录，工号保持不可变。
-     *
-     * @param meetingId 会议ID
-     * @param participantId 参会人员ID
-     * @param request 人员更新请求
-     * @return 更新后的人员基础信息
-     */
     @Transactional
     public ParticipantResult update(
             String meetingId,
@@ -185,13 +177,6 @@ public class ParticipantService {
         return new ParticipantResult(participant.getId(), participant.getEmployeeNo(), participant.getName());
     }
 
-    /**
-     * 更新参会人员的出席状态；标记为临时不出席时同步释放其座位。
-     *
-     * @param meetingId 会议ID
-     * @param participantId 参会人员ID
-     * @param request 出席状态请求
-     */
     @Transactional
     public void updateAttendance(
             String meetingId,
@@ -209,12 +194,6 @@ public class ParticipantService {
         participantRepository.save(participant);
     }
 
-    /**
-     * 从会议名单中删除人员及其排座关系。
-     *
-     * @param meetingId 会议ID
-     * @param participantId 参会人员ID
-     */
     @Transactional
     public void delete(String meetingId, String participantId) {
         meetingAccessService.requireOwnedMeeting(meetingId);
@@ -228,6 +207,96 @@ public class ParticipantService {
         participantRepository.delete(participant);
     }
 
+    private ParticipantResult updateExistingParticipantRecord(
+            String meetingId,
+            ParticipantEntity participant,
+            Map<String,String> attributes,
+            String targetElementId
+    ) {
+        ParticipantRecordMerger.Action action = ParticipantRecordMerger.Action.SKIP;
+        if (!attributes.isEmpty()) {
+            List<ParticipantRecordEntity> records = recordRepository
+                    .findAllByParticipantIdOrderByRecordOrderAsc(participant.getId());
+            ParticipantRecordMerger.MergeDecision decision = recordMerger.decide(
+                    attributes,
+                    mergerValues(records)
+            );
+            action = decision.action();
+            switch (decision.action()) {
+                case SKIP -> {
+                    // Same dynamic record already exists. Keep data unchanged and tell the user.
+                }
+                case MERGE -> {
+                    ParticipantRecordEntity target = records.stream()
+                            .filter(record -> record.getId().equals(decision.targetRecordId()))
+                            .findFirst()
+                            .orElseThrow(() -> new ApiException(
+                                    HttpStatus.INTERNAL_SERVER_ERROR,
+                                    "待合并人员记录不存在"
+                            ));
+                    target.setAttributesJson(writeAttributes(decision.mergedAttributes()));
+                    recordRepository.save(target);
+                }
+                case APPEND -> {
+                    ParticipantRecordEntity record = new ParticipantRecordEntity();
+                    record.setParticipantId(participant.getId());
+                    record.setRecordOrder(records.stream()
+                            .mapToInt(ParticipantRecordEntity::getRecordOrder)
+                            .max()
+                            .orElse(0) + 1);
+                    record.setAttributesJson(writeAttributes(decision.mergedAttributes()));
+                    recordRepository.save(record);
+                }
+            }
+        }
+        boolean assigned = assignTargetElementIfPresent(
+                meetingId,
+                participant.getId(),
+                targetElementId
+        );
+        return new ParticipantResult(
+                participant.getId(),
+                participant.getEmployeeNo(),
+                participant.getName(),
+                existingParticipantActionCode(action),
+                existingParticipantMessage(action, assigned)
+        );
+    }
+
+    private String existingParticipantActionCode(ParticipantRecordMerger.Action action) {
+        return switch (action) {
+            case SKIP -> "SKIPPED";
+            case MERGE -> "MERGED";
+            case APPEND -> "APPENDED";
+        };
+    }
+
+    private String existingParticipantMessage(
+            ParticipantRecordMerger.Action action,
+            boolean assigned
+    ) {
+        String message = switch (action) {
+            case SKIP -> "该人员记录已存在，未重复添加";
+            case MERGE -> "已合并到已有人员记录";
+            case APPEND -> "已为已有人员追加一条记录";
+        };
+        return assigned ? message + "，并安排到所选座位" : message;
+    }
+
+    private boolean assignTargetElementIfPresent(
+            String meetingId,
+            String participantId,
+            String targetElementId
+    ) {
+        if (targetElementId == null || targetElementId.isBlank()) {
+            return false;
+        }
+        SeatingPlanEntity plan = planRepository.findFirstByMeetingIdOrderByCreatedAtAsc(meetingId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
+        seatingService.assign(plan.getId(), new AssignmentRequest(participantId, targetElementId));
+        return true;
+    }
+
     private void removeAssignment(String meetingId, String participantId) {
         SeatingPlanEntity plan = planRepository.findFirstByMeetingIdOrderByCreatedAtAsc(meetingId).orElse(null);
         if (plan == null) {
@@ -238,6 +307,18 @@ public class ParticipantService {
             targetRepository.deleteAllByPlanItemId(item.getId());
             itemRepository.delete(item);
         });
+    }
+
+    private List<ParticipantRecordMerger.RecordValue> mergerValues(
+            List<ParticipantRecordEntity> records
+    ) {
+        return records.stream()
+                .map(record -> new ParticipantRecordMerger.RecordValue(
+                        record.getId(),
+                        record.getRecordOrder(),
+                        readAttributes(record.getAttributesJson())
+                ))
+                .toList();
     }
 
     private Map<String, String> canonicalAttributes(
@@ -255,7 +336,7 @@ public class ParticipantService {
                 continue;
             }
             String canonicalName = canonicalNames.get(fieldName.toLowerCase(ROOT));
-            attributes.put(canonicalName, value);
+            attributes.put(canonicalName, value.trim());
         }
         return attributes;
     }
@@ -287,6 +368,18 @@ public class ParticipantService {
         return record == null || record.attributes() == null ? Map.of() : record.attributes();
     }
 
+    private Map<String, String> readAttributes(String json) {
+        if (json == null || json.isBlank()) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {
+            });
+        } catch (Exception exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "人员动态记录格式不正确");
+        }
+    }
+
     private String writeAttributes(Map<String, String> attributes) {
         try {
             return objectMapper.writeValueAsString(attributes);
@@ -294,5 +387,4 @@ public class ParticipantService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "人员动态记录无法保存");
         }
     }
-
 }

@@ -83,6 +83,10 @@ const props = defineProps({
     type: Function,
     default: undefined,
   },
+  toolbarPlacement: {
+    type: String,
+    default: 'top',
+  },
 })
 
 const emit = defineEmits(['update:modelValue', 'change', 'save', 'back'])
@@ -281,6 +285,7 @@ const seatCount = computed(
 const capacityMismatch = computed(
   () => props.manualCapacity !== null && seatCount.value !== props.manualCapacity,
 )
+const sideToolbar = computed(() => props.toolbarPlacement === 'side')
 const stageStyle = computed(() => ({
   width: `${displayColumns.value * CELL_SIZE * zoom.value}px`,
   height: `${displayRows.value * CELL_SIZE * zoom.value}px`,
@@ -886,8 +891,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="venue-layout-editor">
-    <header class="editor-toolbar">
+  <section class="venue-layout-editor" :class="{ 'side-toolbar-mode': sideToolbar }">
+    <header v-if="!sideToolbar" class="editor-toolbar">
       <el-button
         v-if="showBack"
         text
@@ -934,21 +939,60 @@ onBeforeUnmount(() => {
     </header>
 
     <div class="editor-body" :class="`dock-${panelDock}`">
-      <VenueElementPanel
-        ref="panelRef"
-        :element="selectedElement"
-        :venue-name="venueName"
-        :venue-description="venueDescription"
-        :grid-rows="displayRows"
-        :grid-columns="displayColumns"
-        :collapsed="panelCollapsed"
-        :dock="panelDock"
-        @preview="previewElement"
-        @confirm="confirmElement"
-        @cancel="closeElementPanel"
-        @toggle="panelCollapsed = !panelCollapsed"
-        @dock="panelDock = $event"
-      />
+      <aside class="editor-side-shell" :class="{ collapsed: panelCollapsed }">
+        <div v-if="sideToolbar && !panelCollapsed" class="editor-side-toolbar">
+          <div class="side-toolbar-title">
+            <strong>{{ title }}</strong>
+            <span>{{ displayRows }} × {{ displayColumns }}</span>
+          </div>
+          <p>
+            布局座位数 {{ seatCount }} · 人工容纳人数 {{ manualCapacity ?? '未填写' }}
+          </p>
+          <el-tag
+            v-if="capacityMismatch"
+            class="capacity-warning"
+            type="warning"
+            effect="plain"
+          >
+            容量不一致
+          </el-tag>
+          <div class="side-toolbar-actions">
+            <el-button-group>
+              <el-button :icon="RefreshLeft" :disabled="!undoStack.length" @click="undo" />
+              <el-button :icon="RefreshRight" :disabled="!redoStack.length" @click="redo" />
+            </el-button-group>
+            <el-button :icon="Aim" @click="fitCanvas">适应</el-button>
+          </div>
+          <div class="side-toolbar-actions">
+            <el-button-group>
+              <el-button :icon="Minus" aria-label="缩小画布" @click="setZoom(zoom - 0.1)" />
+              <el-button class="zoom-value" @click="setZoom(1)">
+                {{ Math.round(zoom * 100) }}%
+              </el-button>
+              <el-button :icon="Plus" aria-label="放大画布" @click="setZoom(zoom + 0.1)" />
+            </el-button-group>
+          </div>
+          <el-button type="primary" :icon="Check" :loading="saving" @click="emit('save')">
+            {{ saveLabel }}
+          </el-button>
+        </div>
+
+        <VenueElementPanel
+          ref="panelRef"
+          :element="selectedElement"
+          :venue-name="venueName"
+          :venue-description="venueDescription"
+          :grid-rows="displayRows"
+          :grid-columns="displayColumns"
+          :collapsed="panelCollapsed"
+          :dock="panelDock"
+          @preview="previewElement"
+          @confirm="confirmElement"
+          @cancel="closeElementPanel"
+          @toggle="panelCollapsed = !panelCollapsed"
+          @dock="panelDock = $event"
+        />
+      </aside>
 
       <main class="canvas-pane">
         <div ref="canvasSurfaceRef" class="canvas-surface">
@@ -1135,15 +1179,85 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.editor-body.dock-right .venue-element-panel {
+.editor-body.dock-right .editor-side-shell {
   order: 2;
 }
 
-.editor-body.dock-left .venue-element-panel {
+.editor-body.dock-left .editor-side-shell {
   order: 0;
 }
 
+.editor-side-shell {
+  width: 310px;
+  min-width: 310px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.editor-side-shell.collapsed {
+  width: 52px;
+  min-width: 52px;
+}
+
+.editor-side-toolbar {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+}
+
+.side-toolbar-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.side-toolbar-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-toolbar-title span {
+  flex: none;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.editor-side-toolbar p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.side-toolbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.side-toolbar-actions > .el-button-group,
+.side-toolbar-actions > .el-button {
+  flex: 1;
+}
+
+.side-toolbar-actions :deep(.el-button) {
+  flex: 1;
+}
+
 .editor-body .venue-element-panel {
+  flex: 1;
+  min-height: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow);

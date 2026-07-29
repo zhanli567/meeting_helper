@@ -8,6 +8,7 @@ export const CUSTOM_COLOR_STORAGE_KEYS = Object.freeze({
   fillColor: CUSTOM_FILL_COLOR_STORAGE_KEY,
   borderColor: CUSTOM_BORDER_COLOR_STORAGE_KEY,
 })
+export const RECENT_CUSTOM_COLOR_LIMIT = 5
 
 export const BASIC_COLOR_SWATCHES = Object.freeze([
   Object.freeze({ name: '白色', value: '#ffffff', title: '白色' }),
@@ -42,7 +43,16 @@ function writeArray(key, values, storage = browserStorage()) {
   try {
     storage.setItem(key, JSON.stringify(values))
   } catch {
-    // 本地存储不可用时，偏好不影响主流程。
+    // Local preferences are nice to have; editing should keep working without storage.
+  }
+}
+
+function removeStoredArray(key, storage = browserStorage()) {
+  if (!storage || typeof storage.removeItem !== 'function') return
+  try {
+    storage.removeItem(key)
+  } catch {
+    // Ignore unavailable storage cleanup.
   }
 }
 
@@ -52,10 +62,6 @@ function isStorageLike(value) {
 
 function normalizeColorField(value) {
   return value === 'borderColor' ? 'borderColor' : 'fillColor'
-}
-
-function colorStorageKey(field) {
-  return CUSTOM_COLOR_STORAGE_KEYS[normalizeColorField(field)]
 }
 
 function resolveColorListArgs(scopeOrStorage = 'fillColor', storage) {
@@ -165,17 +171,35 @@ export function textColorForBackground(value) {
   return luminance > 170 ? '#172033' : '#ffffff'
 }
 
-export function customColorValues(scopeOrStorage = 'fillColor', storage = browserStorage()) {
-  const args = resolveColorListArgs(scopeOrStorage, storage)
+function normalizedCustomColorList(values) {
   const seen = new Set(BASIC_COLOR_VALUES)
   const colors = []
-  for (const value of readArray(colorStorageKey(args.field), args.storage)) {
+  for (const value of values) {
     const color = normalizeHexColor(value)
     if (!color || seen.has(color)) continue
     seen.add(color)
     colors.push(color)
   }
-  return colors
+  return colors.slice(0, RECENT_CUSTOM_COLOR_LIMIT)
+}
+
+function readUnifiedCustomColors(storage = browserStorage()) {
+  return normalizedCustomColorList([
+    ...readArray(CUSTOM_COLOR_STORAGE_KEY, storage),
+    ...readArray(CUSTOM_FILL_COLOR_STORAGE_KEY, storage),
+    ...readArray(CUSTOM_BORDER_COLOR_STORAGE_KEY, storage),
+  ])
+}
+
+function writeUnifiedCustomColors(colors, storage = browserStorage()) {
+  writeArray(CUSTOM_COLOR_STORAGE_KEY, colors.slice(0, RECENT_CUSTOM_COLOR_LIMIT), storage)
+  removeStoredArray(CUSTOM_FILL_COLOR_STORAGE_KEY, storage)
+  removeStoredArray(CUSTOM_BORDER_COLOR_STORAGE_KEY, storage)
+}
+
+export function customColorValues(scopeOrStorage = 'fillColor', storage = browserStorage()) {
+  const args = resolveColorListArgs(scopeOrStorage, storage)
+  return readUnifiedCustomColors(args.storage)
 }
 
 export function availableColorSwatches(scopeOrStorage = 'fillColor', storage = browserStorage()) {
@@ -195,17 +219,14 @@ export function saveCustomColor(scopeOrValue, valueOrStorage, storage = browserS
   const args = resolveColorValueArgs(scopeOrValue, valueOrStorage, storage)
   const color = normalizeHexColor(args.value)
   if (!color || BASIC_COLOR_VALUES.has(color)) return ''
-  const colors = customColorValues(args.field, args.storage)
-  if (!colors.includes(color)) {
-    colors.push(color)
-    writeArray(colorStorageKey(args.field), colors.slice(-24), args.storage)
-  }
+  const colors = readUnifiedCustomColors(args.storage).filter((current) => current !== color)
+  writeUnifiedCustomColors([color, ...colors], args.storage)
   return color
 }
 
 export function removeCustomColor(scopeOrValue, valueOrStorage, storage = browserStorage()) {
   const args = resolveColorValueArgs(scopeOrValue, valueOrStorage, storage)
   const color = normalizeHexColor(args.value)
-  const colors = customColorValues(args.field, args.storage).filter((current) => current !== color)
-  writeArray(colorStorageKey(args.field), colors, args.storage)
+  const colors = readUnifiedCustomColors(args.storage).filter((current) => current !== color)
+  writeUnifiedCustomColors(colors, args.storage)
 }

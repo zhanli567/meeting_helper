@@ -17,6 +17,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import AddParticipantDialog from '@/components/AddParticipantDialog.vue'
 import EditParticipantDialog from '@/components/EditParticipantDialog.vue'
 import ExportOptionsDialog from '@/components/ExportOptionsDialog.vue'
+import GroupColorLegend from '@/components/GroupColorLegend.vue'
 import ImportDialog from '@/components/ImportDialog.vue'
 import ParticipantPanel from '@/components/ParticipantPanel.vue'
 import PublishVersionDialog from '@/components/PublishVersionDialog.vue'
@@ -27,7 +28,13 @@ import VenueLayoutEditor from '@/components/VenueLayoutEditor.vue'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { buildParticipantColorMap } from '@/utils/groupColors'
+import {
+  buildFieldColorEntries,
+  buildParticipantColorMap,
+  GROUP_COLOR_PALETTE,
+  readGroupColorOverrides,
+  saveGroupColorOverride,
+} from '@/utils/groupColors'
 import { attendingPendingCount } from '@/utils/participantRules'
 import { reservedItems, toggleSeatSelection } from '@/utils/seatRegions'
 import { normalizeHexColor } from '@/utils/venuePreferences'
@@ -47,6 +54,8 @@ const draggingParticipantId = ref()
 const activeVersionKey = ref('draft')
 const workbenchMode = ref('seating')
 const groupColorFieldCode = ref('')
+const groupColorLegendCollapsed = ref(false)
+const groupColorOverrides = ref(readGroupColorOverrides())
 const publishedWorkspace = ref()
 const loadingVersion = ref(false)
 const publishing = ref(false)
@@ -128,12 +137,28 @@ const colorFieldOptions = computed(() =>
     (field) => !['name', 'employeeNo'].includes(field.code),
   ),
 )
+const activeColorField = computed(() =>
+  colorFieldOptions.value.find((field) => field.code === groupColorFieldCode.value),
+)
+const groupColorFieldOverrides = computed(
+  () => groupColorOverrides.value?.[groupColorFieldCode.value] || {},
+)
 const participantColorById = computed(() =>
   Object.fromEntries(
     buildParticipantColorMap(
       workspace.value?.participants || [],
       groupColorFieldCode.value,
+      GROUP_COLOR_PALETTE,
+      groupColorFieldOverrides.value,
     ),
+  ),
+)
+const groupColorEntries = computed(() =>
+  buildFieldColorEntries(
+    workspace.value?.participants || [],
+    groupColorFieldCode.value,
+    GROUP_COLOR_PALETTE,
+    groupColorFieldOverrides.value,
   ),
 )
 const fabStyle = computed(() => ({
@@ -614,6 +639,9 @@ watch(colorFieldOptions, (options) => {
     groupColorFieldCode.value = ''
   }
 })
+watch(groupColorFieldCode, () => {
+  groupColorLegendCollapsed.value = false
+})
 watch(workbenchMode, (mode) => {
   if (mode !== 'marker') resetMarkerDraft()
   if (mode !== 'seating') {
@@ -686,10 +714,22 @@ async function redo() {
 }
 async function onSeatClick(element) {
   if (readonlyMode.value || workbenchMode.value !== 'seating' || !element?.id) return
+  const occupied = workspace.value?.participants.find(
+    (person) => person.assignedElementId === element.id,
+  )
+  if (occupied) {
+    await openParticipantEdit(occupied)
+    return
+  }
   if (!(await saveDraft(true))) return
   addTargetElementId.value = element.id
   addMenuVisible.value = false
   addVisible.value = true
+}
+function setGroupColorOverride(payload) {
+  if (!groupColorFieldCode.value || !payload?.value || !payload?.color) return
+  saveGroupColorOverride(groupColorFieldCode.value, payload.value, payload.color)
+  groupColorOverrides.value = readGroupColorOverrides()
 }
 function selectParticipant(person) {
   store.selectParticipant(store.selectedParticipantId === person?.id ? undefined : person)
@@ -1013,7 +1053,7 @@ async function onParticipantUpdated(participant) {
             <el-radio-button label="区域模式" value="marker" />
           </el-radio-group>
           <el-select
-            v-if="workbenchMode === 'seating' && colorFieldOptions.length"
+            v-if="colorFieldOptions.length"
             v-model="groupColorFieldCode"
             class="color-field-select"
             clearable
@@ -1065,6 +1105,7 @@ async function onParticipantUpdated(participant) {
             save-label="保存布局"
             :show-back="false"
             :saving="layoutSaving"
+            toolbar-placement="side"
             :manual-capacity="workspace.participants.length"
             :venue-name="workspace.meeting.layoutName"
             :protected-element-ids="protectedElementIds"
@@ -1093,6 +1134,13 @@ async function onParticipantUpdated(participant) {
             @marker-rect-select="openRegionCreateDialog"
             @canvas-clear="clearCanvasSelection"
             @zoom-change="changeZoom($event)"
+          />
+          <GroupColorLegend
+            v-if="groupColorFieldCode && groupColorEntries.length"
+            v-model:collapsed="groupColorLegendCollapsed"
+            :field-label="activeColorField?.label || groupColorFieldCode"
+            :entries="groupColorEntries"
+            @set-color="setGroupColorOverride"
           />
         </div>
 
@@ -1491,6 +1539,7 @@ async function onParticipantUpdated(participant) {
 .canvas-body {
   flex: 1;
   min-height: 0;
+  position: relative;
   overflow: hidden;
 }
 
