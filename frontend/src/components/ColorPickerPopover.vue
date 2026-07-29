@@ -1,10 +1,11 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Close, Plus } from '@element-plus/icons-vue'
 import {
   availableColorSwatches,
   normalizeHexColor,
   removeCustomColor,
+  rgbLabel,
   saveCustomColor,
   textColorForBackground,
 } from '@/utils/venuePreferences'
@@ -13,6 +14,7 @@ const props = defineProps({
   modelValue: { type: String, default: '#ffffff' },
   label: { type: String, default: '颜色' },
   disabled: { type: Boolean, default: false },
+  unavailableColors: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['update:modelValue', 'change'])
@@ -24,6 +26,13 @@ const swatches = ref(availableColorSwatches())
 
 const currentColor = computed(() => normalizeHexColor(props.modelValue) || '#ffffff')
 const currentTextColor = computed(() => textColorForBackground(currentColor.value))
+const unavailableColorSet = computed(
+  () => new Set(
+    (props.unavailableColors || [])
+      .map((value) => normalizeHexColor(value))
+      .filter((value) => value && value !== currentColor.value),
+  ),
+)
 
 watch(
   () => props.modelValue,
@@ -52,7 +61,7 @@ function toggleOpen() {
 
 function chooseColor(value) {
   const color = normalizeHexColor(value)
-  if (!color) return
+  if (!color || isColorUnavailable(color)) return
   pendingColor.value = color
   customPreview.value = color
 }
@@ -66,7 +75,7 @@ function updateCustomPreview(value) {
 
 function confirmSelectedColor() {
   const color = normalizeHexColor(pendingColor.value)
-  if (!color) return
+  if (!color || isColorUnavailable(color)) return
   saveCustomColor(pendingColor.value)
   refreshColors()
   emit('update:modelValue', color)
@@ -82,6 +91,23 @@ function removeColor(swatch) {
   }
   refreshColors()
 }
+
+function isColorUnavailable(value) {
+  const color = normalizeHexColor(value)
+  return Boolean(color && unavailableColorSet.value.has(color))
+}
+
+function closeColorPopover() {
+  open.value = false
+}
+
+onMounted(() => {
+  window.addEventListener('meeting-helper:close-color-popovers', closeColorPopover)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('meeting-helper:close-color-popovers', closeColorPopover)
+})
 </script>
 
 <template>
@@ -101,7 +127,7 @@ function removeColor(swatch) {
           class="current-color-button"
           :disabled="disabled"
           :aria-label="`${label}：${currentColor}`"
-          :title="`${label}：${currentColor}`"
+          :title="rgbLabel(currentColor)"
           @click="toggleOpen"
         >
           <span
@@ -122,8 +148,9 @@ function removeColor(swatch) {
             <button
               type="button"
               class="color-swatch-button"
-              :class="{ active: pendingColor === swatch.value }"
-              :title="swatch.title || swatch.name"
+              :class="{ active: pendingColor === swatch.value, unavailable: isColorUnavailable(swatch.value) }"
+              :disabled="isColorUnavailable(swatch.value)"
+              :title="rgbLabel(swatch.value)"
               :aria-label="`${label} ${swatch.value}`"
               :style="{ backgroundColor: swatch.value }"
               @click="chooseColor(swatch.value)"
@@ -153,7 +180,7 @@ function removeColor(swatch) {
           <span
             class="custom-preview-dot"
             :style="{ backgroundColor: pendingColor }"
-            :title="pendingColor"
+            :title="rgbLabel(pendingColor)"
           />
           <button type="button" class="custom-confirm-button" @click="confirmSelectedColor">
             确定
@@ -212,7 +239,7 @@ function removeColor(swatch) {
   gap: 8px;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 2px 2px 2px 0;
+  padding: 5px 4px 4px;
 }
 
 .swatch-item {
@@ -237,6 +264,11 @@ function removeColor(swatch) {
 
 .color-swatch-button {
   cursor: pointer;
+}
+
+.color-swatch-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
 }
 
 .color-swatch-button.active {

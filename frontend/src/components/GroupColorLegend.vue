@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { DArrowLeft, DArrowRight } from '@element-plus/icons-vue'
 import ColorPickerPopover from '@/components/ColorPickerPopover.vue'
 
-defineProps({
+const props = defineProps({
   fieldLabel: { type: String, default: '' },
   entries: { type: Array, default: () => [] },
   collapsed: { type: Boolean, default: false },
@@ -47,6 +47,21 @@ function startLegendDrag(event) {
   window.addEventListener('pointerup', stopLegendDrag)
 }
 
+function entryUnavailableColors(entry) {
+  return (props.entries || [])
+    .filter((value) => value.value !== entry.value)
+    .map((value) => value.backgroundColor)
+}
+
+function closeColorPopovers() {
+  window.dispatchEvent(new CustomEvent('meeting-helper:close-color-popovers'))
+}
+
+function requestLegendCollapse() {
+  closeColorPopovers()
+  emit('update:collapsed', !props.collapsed)
+}
+
 onBeforeUnmount(stopLegendDrag)
 </script>
 
@@ -73,6 +88,7 @@ onBeforeUnmount(stopLegendDrag)
           <ColorPickerPopover
             :model-value="entry.backgroundColor"
             :label="`${fieldLabel} ${entry.value}`"
+            :unavailable-colors="entryUnavailableColors(entry)"
             @update:model-value="emit('set-color', { value: entry.value, color: $event })"
           />
         </div>
@@ -84,7 +100,7 @@ onBeforeUnmount(stopLegendDrag)
       class="legend-toggle"
       :title="collapsed ? '展开着色说明' : '收起着色说明'"
       :aria-label="collapsed ? '展开着色说明' : '收起着色说明'"
-      @click="emit('update:collapsed', !collapsed)"
+      @click="requestLegendCollapse"
     >
       <el-icon>
         <DArrowRight v-if="collapsed" />

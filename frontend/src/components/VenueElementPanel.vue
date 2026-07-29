@@ -241,10 +241,13 @@ function confirm() {
   height: 100%;
   display: flex;
   flex-direction: column;
+  gap: 12px;
+  padding: 16px;
   overflow: hidden;
   background: #fff;
-  border-left: 1px solid #dbe4f0;
-  border-right: 1px solid #dbe4f0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
 }
 
 .venue-element-panel.collapsed {
@@ -253,13 +256,14 @@ function confirm() {
 }
 
 header {
-  min-height: 52px;
+  min-height: 34px;
+  flex: none;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 10px 0 14px;
-  background: #f8fbff;
-  border-bottom: 1px solid #e2e9f2;
+  padding: 0;
+  background: #fff;
+  border-bottom: 0;
 }
 
 header > div {
@@ -277,8 +281,10 @@ header > div {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 5px 10px;
-  padding: 14px;
-  border-bottom: 1px solid #e5ebf3;
+  padding: 10px;
+  background: #fbfcfd;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
 }
 
 .venue-summary strong {
@@ -307,7 +313,10 @@ header > div {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 14px;
+  padding: 10px;
+  background: #fbfcfd;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
 }
 
 .section-title {
@@ -364,11 +373,12 @@ footer {
 }
 
 .dock-actions {
+  flex: none;
   display: flex;
   justify-content: center;
   margin-top: auto;
-  padding: 8px;
-  border-top: 1px solid #e5ebf3;
+  padding-top: 4px;
+  border-top: 0;
 }
 
 .dock-actions :deep(.el-button) {

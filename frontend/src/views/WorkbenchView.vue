@@ -69,6 +69,7 @@ const editingParticipant = ref()
 const sidePanelCollapsed = ref(false)
 const autoSaveSeconds = ref(0)
 const layoutEditorRef = ref()
+const venueCanvasRef = ref()
 const fabReady = ref(false)
 const fab = reactive({
   x: 0,
@@ -90,7 +91,12 @@ const defaultMarkerDraft = {
 const regionCreateVisible = ref(false)
 const markerDraft = reactive({ ...defaultMarkerDraft })
 const markerSelection = ref(new Set())
+const markerAreaDrafts = ref([])
+const markerUndoStack = ref([])
+const markerRedoStack = ref([])
 const markerSubmitting = ref(false)
+const applyingMarkerHistory = ref(false)
+let markerTempId = 0
 let fabOffsetX = 0
 let fabOffsetY = 0
 let fabPointerStartX = 0
@@ -118,17 +124,42 @@ const protectedElementIds = computed(() => [
   ...new Set((workspace.value?.items || []).flatMap((item) => item.targetElementIds || [])),
 ])
 const markerSelectionIds = computed(() => [...markerSelection.value])
-const markerItems = computed(() => reservedItems(workspace.value?.items || []))
-const showModeSave = computed(
-  () => !readonlyMode.value && ['seating', 'layout'].includes(workbenchMode.value),
-)
+const markerItems = computed(() => markerAreaDrafts.value)
+const canvasWorkspace = computed(() => {
+  if (!workspace.value) return undefined
+  return {
+    ...workspace.value,
+    items: [
+      ...(workspace.value.items || []).filter((item) => item.type !== 'RESERVED'),
+      ...markerAreaDrafts.value,
+    ],
+  }
+})
+const showModeSave = computed(() => !readonlyMode.value)
 const currentSaveLabel = computed(() => (
-  workbenchMode.value === 'layout' ? '保存布局' : '保存排座'
+  {
+    seating: '保存排座',
+    layout: '保存布局',
+    marker: '保存区域',
+  }[workbenchMode.value] || '保存'
 ))
 const currentSaveLoading = computed(() => (
-  workbenchMode.value === 'layout' ? layoutSaving.value : store.saving
+  {
+    seating: store.saving,
+    layout: layoutSaving.value,
+    marker: markerSubmitting.value,
+  }[workbenchMode.value] || false
 ))
 const workspaceBusy = computed(() => store.saving || layoutSaving.value || markerSubmitting.value)
+const markerDirty = computed(() => (
+  comparableMarkerAreas(markerAreaDrafts.value) !==
+  comparableMarkerAreas(reservedItems(workspace.value?.items || []))
+))
+const activeModeDirty = computed(() => modeDirty(workbenchMode.value))
+const activeModeSaving = computed(() => modeSaving(workbenchMode.value))
+const hasAnyUnsavedChanges = computed(() =>
+  modeDirty('seating') || modeDirty('layout') || modeDirty('marker'),
+)
 const saveStatusText = computed(() => {
   if (readonlyMode.value) return '已发布版本'
   if (workbenchMode.value === 'layout') {
@@ -137,7 +168,7 @@ const saveStatusText = computed(() => {
   }
   if (workbenchMode.value === 'marker') {
     if (markerSubmitting.value) return '区域保存中'
-    return '区域模式'
+    return markerDirty.value ? '区域未保存' : '区域已保存'
   }
   if (store.saving) return '排座保存中'
   return store.dirty ? '排座未保存' : '排座已保存'
@@ -180,12 +211,14 @@ const toolbarUndoDisabled = computed(() => {
   if (readonlyMode.value) return true
   if (workbenchMode.value === 'layout') return !layoutPublicValue('canUndo', false)
   if (workbenchMode.value === 'seating') return !undoStack.value.length
+  if (workbenchMode.value === 'marker') return !markerUndoStack.value.length
   return true
 })
 const toolbarRedoDisabled = computed(() => {
   if (readonlyMode.value) return true
   if (workbenchMode.value === 'layout') return !layoutPublicValue('canRedo', false)
   if (workbenchMode.value === 'seating') return !redoStack.value.length
+  if (workbenchMode.value === 'marker') return !markerRedoStack.value.length
   return true
 })
 const toolbarZoomValue = computed(() => (
@@ -234,27 +267,120 @@ function cloneLayout(layout) {
 function resetLayoutDraft() {
   if (workspace.value?.layout) layoutDraft.value = cloneLayout(workspace.value.layout)
 }
-async function confirmDiscardLayoutChanges() {
-  if (!layoutDirty.value) return true
-  try {
-    await ElMessageBox.confirm(
-      '布局模式有未保存修改，切换模式后这些修改会被放弃。',
-      '离开布局模式',
-      {
-        type: 'warning',
-        confirmButtonText: '放弃修改',
-        cancelButtonText: '继续编辑',
-      },
-    )
-    resetLayoutDraft()
-    return true
-  } catch {
-    return false
+function cloneMarkerArea(area) {
+  return {
+    id: area.id,
+    type: 'RESERVED',
+    label: area.label || '',
+    backgroundColor: area.backgroundColor || defaultMarkerDraft.backgroundColor,
+    textColor: area.textColor || defaultMarkerDraft.textColor,
+    bold: area.bold !== false,
+    targetElementIds: [...(area.targetElementIds || [])],
   }
+}
+function comparableMarkerAreas(areas) {
+  return JSON.stringify(
+    (areas || [])
+      .map((area) => ({
+        id: area.id || '',
+        label: String(area.label || '').trim(),
+        backgroundColor: normalizeHexColor(area.backgroundColor) || '',
+        textColor: normalizeHexColor(area.textColor) || '',
+        bold: area.bold !== false,
+        targetElementIds: [...(area.targetElementIds || [])].sort(),
+      }))
+      .sort((left, right) => `${left.id}:${left.label}`.localeCompare(`${right.id}:${right.label}`)),
+  )
+}
+function resetMarkerAreaDrafts() {
+  markerAreaDrafts.value = reservedItems(workspace.value?.items || []).map(cloneMarkerArea)
+  markerUndoStack.value = []
+  markerRedoStack.value = []
+}
+function createMarkerTempId() {
+  markerTempId += 1
+  return `marker-temp-${Date.now()}-${markerTempId}`
+}
+function markerHistorySnapshot() {
+  return {
+    areas: markerAreaDrafts.value.map(cloneMarkerArea),
+    draft: { ...markerDraft },
+    selection: markerSelectionIds.value,
+  }
+}
+function restoreMarkerHistorySnapshot(snapshot) {
+  markerAreaDrafts.value = (snapshot?.areas || []).map(cloneMarkerArea)
+  Object.assign(markerDraft, snapshot?.draft || defaultMarkerDraft)
+  markerSelection.value = new Set(snapshot?.selection || [])
+}
+function pushMarkerHistory(stack, snapshot) {
+  const next = [...stack, snapshot]
+  return next.slice(-50)
+}
+function recordMarkerHistory() {
+  if (applyingMarkerHistory.value) return
+  markerUndoStack.value = pushMarkerHistory(markerUndoStack.value, markerHistorySnapshot())
+  markerRedoStack.value = []
+}
+function performMarkerUndo() {
+  const snapshot = markerUndoStack.value.at(-1)
+  if (!snapshot) return
+  markerUndoStack.value = markerUndoStack.value.slice(0, -1)
+  markerRedoStack.value = pushMarkerHistory(markerRedoStack.value, markerHistorySnapshot())
+  applyingMarkerHistory.value = true
+  restoreMarkerHistorySnapshot(snapshot)
+  applyingMarkerHistory.value = false
+}
+function performMarkerRedo() {
+  const snapshot = markerRedoStack.value.at(-1)
+  if (!snapshot) return
+  markerRedoStack.value = markerRedoStack.value.slice(0, -1)
+  markerUndoStack.value = pushMarkerHistory(markerUndoStack.value, markerHistorySnapshot())
+  applyingMarkerHistory.value = true
+  restoreMarkerHistorySnapshot(snapshot)
+  applyingMarkerHistory.value = false
+}
+function activeMarkerAreaDraft() {
+  return markerAreaDrafts.value.find((item) => item.id === markerDraft.id)
+}
+function syncActiveMarkerDraft() {
+  if (!markerDraft.id) return
+  const active = activeMarkerAreaDraft()
+  if (!active) return
+  Object.assign(active, {
+    label: markerDraft.label || '',
+    backgroundColor: markerDraft.backgroundColor || defaultMarkerDraft.backgroundColor,
+    textColor: markerDraft.textColor || defaultMarkerDraft.textColor,
+    bold: markerDraft.bold !== false,
+    targetElementIds: markerSelectionIds.value,
+  })
+}
+function toReservedAreaPayload(area) {
+  const id = String(area.id || '')
+  return {
+    id: id && !id.startsWith('marker-temp-') ? id : undefined,
+    label: String(area.label || '').trim(),
+    backgroundColor: area.backgroundColor || defaultMarkerDraft.backgroundColor,
+    textColor: area.textColor || defaultMarkerDraft.textColor,
+    bold: area.bold !== false,
+    targetElementIds: [...(area.targetElementIds || [])],
+  }
+}
+function modeDirty(mode) {
+  if (mode === 'seating') return Boolean(store.dirty)
+  if (mode === 'layout') return Boolean(layoutDirty.value)
+  if (mode === 'marker') return Boolean(markerDirty.value)
+  return false
+}
+function modeSaving(mode) {
+  if (mode === 'seating') return Boolean(store.saving)
+  if (mode === 'layout') return Boolean(layoutSaving.value)
+  if (mode === 'marker') return Boolean(markerSubmitting.value)
+  return false
 }
 async function changeWorkbenchMode(nextMode) {
   if (readonlyMode.value || nextMode === workbenchMode.value) return
-  if (workbenchMode.value === 'layout' && !(await confirmDiscardLayoutChanges())) return
+  if (!(await confirmUnsavedModeChanges(workbenchMode.value))) return
   workbenchMode.value = nextMode
 }
 function reservedAreaInputs(excludedId) {
@@ -308,13 +434,38 @@ function validateMarkerUniqueness(marker, excludedId) {
   }
   return true
 }
+function validateMarkerAreaDrafts(silent = false) {
+  const labels = new Map()
+  const colors = new Map()
+  for (const area of markerAreaDrafts.value) {
+    const label = normalizedMarkerLabel(area.label)
+    const color = normalizedMarkerColor(area.backgroundColor)
+    if (!label || !(area.targetElementIds || []).length) {
+      if (!silent) ElMessage.warning('请完善区域名称并至少选择一个座位')
+      return false
+    }
+    if (labels.has(label)) {
+      if (!silent) ElMessage.warning('区域名称已存在，请使用其他名称')
+      return false
+    }
+    if (color && colors.has(color)) {
+      if (!silent) ElMessage.warning('区域颜色已被其他区域使用，请选择其他颜色')
+      return false
+    }
+    labels.set(label, area.id)
+    if (color) colors.set(color, area.id)
+  }
+  return true
+}
 function resetMarkerDraft() {
   Object.assign(markerDraft, defaultMarkerDraft)
   markerSelection.value = new Set()
   regionCreateVisible.value = false
 }
 function updateMarkerDraft(value) {
+  recordMarkerHistory()
   Object.assign(markerDraft, value)
+  syncActiveMarkerDraft()
 }
 function selectedRegionSeatIdsFromRect(elementIds) {
   return (elementIds || []).filter((id) => !markerBlockingItem(id))
@@ -332,15 +483,27 @@ function openRegionCreateDialog(elementIds) {
 }
 async function createReservedAreaFromDialog(payload) {
   if (!validateMarkerUniqueness(payload)) return
+  recordMarkerHistory()
+  const id = createMarkerTempId()
   Object.assign(markerDraft, {
-    id: '',
+    id,
     label: payload.label || '',
     backgroundColor: payload.backgroundColor || defaultMarkerDraft.backgroundColor,
     textColor: payload.textColor || '#172033',
     bold: payload.bold !== false,
   })
-  const saved = await saveReservedAreas()
-  if (saved) regionCreateVisible.value = false
+  markerAreaDrafts.value = [
+    ...markerAreaDrafts.value,
+    cloneMarkerArea({
+      id,
+      label: markerDraft.label,
+      backgroundColor: markerDraft.backgroundColor,
+      textColor: markerDraft.textColor,
+      bold: markerDraft.bold,
+      targetElementIds: markerSelectionIds.value,
+    }),
+  ]
+  regionCreateVisible.value = false
 }
 async function mergeReservedAreaFromDialog(payload) {
   const target = markerItems.value.find((item) => item.id === payload?.targetMarkerId)
@@ -348,6 +511,7 @@ async function mergeReservedAreaFromDialog(payload) {
     ElMessage.warning('请选择要合并的区域')
     return
   }
+  recordMarkerHistory()
   Object.assign(markerDraft, {
     id: target.id,
     label: target.label || '',
@@ -359,8 +523,8 @@ async function mergeReservedAreaFromDialog(payload) {
     ...(target.targetElementIds || []),
     ...markerSelectionIds.value,
   ])
-  const saved = await saveReservedAreas()
-  if (saved) regionCreateVisible.value = false
+  syncActiveMarkerDraft()
+  regionCreateVisible.value = false
 }
 function selectReservedMarker(item) {
   if (readonlyMode.value || workbenchMode.value !== 'marker' || !item || item.type !== 'RESERVED') return
@@ -378,7 +542,7 @@ function selectReservedMarker(item) {
   markerSelection.value = new Set(item.targetElementIds || [])
 }
 function markerBlockingItem(elementId) {
-  const item = (workspace.value?.items || []).find((value) =>
+  const item = (canvasWorkspace.value?.items || []).find((value) =>
     (value.targetElementIds || []).includes(elementId),
   )
   if (!item) return undefined
@@ -402,39 +566,32 @@ async function toggleMarkerSeat(element) {
     ElMessage.warning('请先框选座位创建区域')
     return
   }
-  markerSelection.value = toggleSeatSelection(markerSelection.value, element.id)
-  if (removing && markerDraft.id && markerSelection.value.size === 0) {
-    await deleteReservedMarker(true)
+  const nextSelection = toggleSeatSelection(markerSelection.value, element.id)
+  recordMarkerHistory()
+  markerSelection.value = nextSelection
+  syncActiveMarkerDraft()
+  if (removing && markerDraft.id && nextSelection.size === 0) {
+    await deleteReservedMarker(true, false)
   }
 }
-async function saveReservedAreas() {
+async function saveReservedAreas(silent = false) {
   if (!store.workspace || readonlyMode.value) return false
-  if (markerDraft.id && !markerSelection.value.size) {
-    return deleteReservedMarker(true)
-  }
-  if (!markerDraft.label.trim()) {
-    ElMessage.warning('请填写区域名称')
-    return false
-  }
-  if (!markerSelection.value.size) {
-    ElMessage.warning('请至少选择一个座位')
-    return false
-  }
-  if (!validateMarkerUniqueness(markerDraft, markerDraft.id)) return false
+  syncActiveMarkerDraft()
+  if (!markerDirty.value) return true
+  if (!validateMarkerAreaDrafts(silent)) return false
+  const areaPayload = markerAreaDrafts.value.map(toReservedAreaPayload)
   if (!(await saveDraft(true))) return false
   markerSubmitting.value = true
   try {
     await meetingApi.saveReservedAreas(store.workspace.plan.id, {
-      reservedAreas: [
-        ...reservedAreaInputs(markerDraft.id),
-        currentMarkerInput(),
-      ],
+      reservedAreas: areaPayload,
     })
     await store.loadWorkspace()
+    resetMarkerAreaDrafts()
     resetMarkerDraft()
-    undoStack.value = []
-    redoStack.value = []
-    ElMessage.success('区域已保存')
+    markerUndoStack.value = []
+    markerRedoStack.value = []
+    if (!silent) ElMessage.success('区域已保存')
     return true
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
@@ -443,7 +600,7 @@ async function saveReservedAreas() {
     markerSubmitting.value = false
   }
 }
-async function deleteReservedMarker(skipConfirm = false) {
+async function deleteReservedMarker(skipConfirm = false, recordHistory = true) {
   if (!store.workspace || readonlyMode.value) return false
   if (!markerDraft.id) {
     resetMarkerDraft()
@@ -460,24 +617,11 @@ async function deleteReservedMarker(skipConfirm = false) {
       return false
     }
   }
-  if (!(await saveDraft(true))) return false
-  markerSubmitting.value = true
-  try {
-    await meetingApi.saveReservedAreas(store.workspace.plan.id, {
-      reservedAreas: reservedAreaInputs(markerDraft.id),
-    })
-    await store.loadWorkspace()
-    resetMarkerDraft()
-    undoStack.value = []
-    redoStack.value = []
-    ElMessage.success(skipConfirm ? '区域座位已清空，区域已删除' : '区域已删除')
-    return true
-  } catch (error) {
-    ElMessage.error(apiErrorMessage(error))
-    return false
-  } finally {
-    markerSubmitting.value = false
-  }
+  if (recordHistory) recordMarkerHistory()
+  markerAreaDrafts.value = markerAreaDrafts.value.filter((item) => item.id !== markerDraft.id)
+  resetMarkerDraft()
+  if (!skipConfirm) ElMessage.success('区域已删除，保存后生效')
+  return true
 }
 function routeVersionKey() {
   return typeof route.query.version === 'string' ? route.query.version : ''
@@ -520,7 +664,7 @@ onBeforeUnmount(() => {
   stopFabDrag()
 })
 async function switchMeeting(meetingId) {
-  if (!(await saveDraft(true))) return
+  if (!(await confirmAllUnsavedChanges())) return
   activeVersionKey.value = 'draft'
   workbenchMode.value = 'seating'
   publishedWorkspace.value = undefined
@@ -531,7 +675,7 @@ async function switchMeeting(meetingId) {
   await router.replace(workbenchRoute(meetingId, 'draft'))
 }
 async function switchVersion(versionKey) {
-  if (versionKey !== 'draft' && !(await saveDraft(true))) return
+  if (!(await confirmAllUnsavedChanges())) return
   const meetingId = store.workspace?.meeting?.id || store.activeMeetingId
   activeVersionKey.value = versionKey
   if (versionKey !== 'draft') workbenchMode.value = 'seating'
@@ -584,7 +728,7 @@ async function publishDraft() {
 async function confirmPublish(payload) {
   if (!store.workspace || readonlyMode.value) return
   try {
-    if (!(await saveDraft(true))) return
+    if (!(await confirmAllUnsavedChanges())) return
     publishing.value = true
     const version = await meetingApi.createVersion(store.workspace.plan.id, payload)
     await store.loadWorkspace()
@@ -631,11 +775,65 @@ async function saveDraft(silent = false) {
   return store.saveAssignments({ silent })
 }
 async function saveCurrentMode(silent = false) {
-  if (workbenchMode.value === 'layout') return saveMeetingLayout(silent)
-  return saveDraft(silent)
+  return modeSave(workbenchMode.value, silent)
+}
+async function modeSave(mode, silent = false) {
+  if (mode === 'seating') return saveDraft(silent)
+  if (mode === 'layout') return saveMeetingLayout(silent)
+  if (mode === 'marker') return saveReservedAreas(silent)
+  return true
+}
+async function modeDiscard(mode) {
+  if (mode === 'seating') {
+    if (store.dirty) await store.loadWorkspace()
+    undoStack.value = []
+    redoStack.value = []
+    return
+  }
+  if (mode === 'layout') {
+    resetLayoutDraft()
+    return
+  }
+  if (mode === 'marker') {
+    resetMarkerAreaDrafts()
+    resetMarkerDraft()
+  }
+}
+async function confirmUnsavedModeChanges(mode) {
+  if (!modeDirty(mode)) return true
+  const modeName = {
+    seating: '排座模式',
+    layout: '布局模式',
+    marker: '区域模式',
+  }[mode]
+  try {
+    await ElMessageBox.confirm(
+      `${modeName}有未保存修改，离开前是否保存？`,
+      `离开${modeName}`,
+      {
+        type: 'warning',
+        distinguishCancelAndClose: true,
+        confirmButtonText: '保存并离开',
+        cancelButtonText: '放弃修改',
+      },
+    )
+    return modeSave(mode, true)
+  } catch (action) {
+    if (action === 'cancel') {
+      await modeDiscard(mode)
+      return true
+    }
+    return false
+  }
+}
+async function confirmAllUnsavedChanges() {
+  for (const mode of ['seating', 'layout', 'marker']) {
+    if (!(await confirmUnsavedModeChanges(mode))) return false
+  }
+  return true
 }
 async function goHome() {
-  if (!(await saveDraft(true))) return
+  if (!(await confirmAllUnsavedChanges())) return
   if (store.workspace?.meeting?.id) {
     store.rememberMeeting(store.workspace.meeting.id, activeVersionKey.value)
   }
@@ -651,13 +849,17 @@ function resetAutoSaveTimer() {
       saveMeetingLayout(true)
       return
     }
+    if (workbenchMode.value === 'marker' && markerDirty.value && !markerSubmitting.value) {
+      saveReservedAreas(true)
+      return
+    }
     if (workbenchMode.value === 'seating' && store.dirty && !store.saving) {
       saveDraft(true)
     }
   }, autoSaveSeconds.value * 1000)
 }
 function warnUnsavedChanges(event) {
-  if (!store.dirty && !layoutDirty.value) return
+  if (!hasAnyUnsavedChanges.value) return
   event.preventDefault()
   event.returnValue = ''
 }
@@ -666,6 +868,13 @@ watch(
   () => workspace.value?.layout,
   (layout) => {
     if (layout) layoutDraft.value = cloneLayout(layout)
+  },
+  { immediate: true, deep: true },
+)
+watch(
+  () => workspace.value?.items,
+  () => {
+    resetMarkerAreaDrafts()
   },
   { immediate: true, deep: true },
 )
@@ -759,12 +968,20 @@ function performToolbarUndo() {
     layoutEditorRef.value?.undo()
     return
   }
+  if (workbenchMode.value === 'marker') {
+    performMarkerUndo()
+    return
+  }
   undo()
 }
 function performToolbarRedo() {
   if (toolbarRedoDisabled.value) return
   if (workbenchMode.value === 'layout') {
     layoutEditorRef.value?.redo()
+    return
+  }
+  if (workbenchMode.value === 'marker') {
+    performMarkerRedo()
     return
   }
   redo()
@@ -774,7 +991,7 @@ function performToolbarFit() {
     layoutEditorRef.value?.fitCanvas()
     return
   }
-  zoom.value = 1
+  venueCanvasRef.value?.fitCanvas()
 }
 async function onSeatClick(element) {
   if (readonlyMode.value || workbenchMode.value !== 'seating' || !element?.id) return
@@ -792,6 +1009,18 @@ async function onSeatClick(element) {
 }
 function setGroupColorOverride(payload) {
   if (!groupColorFieldCode.value || !payload?.value || !payload?.color) return
+  const color = normalizeHexColor(payload.color)
+  if (
+    color &&
+    groupColorEntries.value.some(
+      (entry) =>
+        entry.value !== payload.value &&
+        normalizeHexColor(entry.backgroundColor) === color,
+    )
+  ) {
+    ElMessage.warning('该颜色已被其他分组使用，请选择其他颜色')
+    return
+  }
   saveGroupColorOverride(groupColorFieldCode.value, payload.value, payload.color)
   groupColorOverrides.value = readGroupColorOverrides()
 }
@@ -866,7 +1095,7 @@ function openExportOptions() {
   exportOptionsVisible.value = true
 }
 async function exportPlan(options) {
-  if (!readonlyMode.value && !(await saveDraft(true))) return
+  if (!readonlyMode.value && !(await confirmAllUnsavedChanges())) return
   exportOptionsVisible.value = false
   await store.exportPlan(activeVersionId.value, options)
 }
@@ -1046,7 +1275,7 @@ async function onParticipantUpdated(participant) {
         首页
       </el-button>
       <span class="save-state">
-        <i :class="{ active: store.saving || layoutSaving || markerSubmitting, dirty: store.dirty || layoutDirty }" />
+        <i :class="{ active: activeModeSaving, dirty: activeModeDirty }" />
         {{ saveStatusText }}
       </span>
       <div v-if="showModeSave" class="header-save-control">
@@ -1122,7 +1351,6 @@ async function onParticipantUpdated(participant) {
             @update:model-value="updateMarkerDraft"
             @select="selectReservedMarker"
             @new="resetMarkerDraft"
-            @save="saveReservedAreas"
             @delete="deleteReservedMarker"
             @cancel="resetMarkerDraft"
           />
@@ -1196,18 +1424,17 @@ async function onParticipantUpdated(participant) {
             <el-button
               :icon="RefreshLeft"
               :disabled="toolbarUndoDisabled"
-              title="撤销"
+              title="回退"
               @click="performToolbarUndo"
             />
             <el-button
               :icon="RefreshRight"
               :disabled="toolbarRedoDisabled"
-              title="重做"
+              title="前进"
               @click="performToolbarRedo"
             />
           </el-button-group>
           <el-button
-            v-if="workbenchMode === 'layout'"
             :icon="Aim"
             title="适应画布"
             @click="performToolbarFit"
@@ -1256,7 +1483,8 @@ async function onParticipantUpdated(participant) {
           />
           <VenueCanvas
             v-else
-            :workspace="workspace"
+            ref="venueCanvasRef"
+            :workspace="canvasWorkspace"
             :zoom="zoom"
             :readonly="readonlyMode"
             :marker-mode="workbenchMode === 'marker'"

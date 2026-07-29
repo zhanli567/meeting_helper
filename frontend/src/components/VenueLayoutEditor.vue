@@ -943,10 +943,10 @@ onBeforeUnmount(() => {
       <span class="toolbar-spacer" />
       <el-button-group>
         <el-button :icon="RefreshLeft" :disabled="!undoStack.length" @click="undo">
-          撤销
+          回退
         </el-button>
         <el-button :icon="RefreshRight" :disabled="!redoStack.length" @click="redo">
-          重做
+          前进
         </el-button>
       </el-button-group>
       <el-button :icon="Aim" @click="fitCanvas">适应画布</el-button>

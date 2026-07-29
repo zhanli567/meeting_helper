@@ -4,7 +4,7 @@ import { Lock } from '@element-plus/icons-vue'
 import { startParticipantDrag as performParticipantDrag } from '@/utils/participantActions'
 import { regionLabelAnchors, reservedItems } from '@/utils/seatRegions'
 import { computeSeatLabels } from '@/utils/seatNumbering'
-import { displayCellUnit, elementBox } from '@/utils/venueCanvasMetrics'
+import { displayCellUnit, elementBox, previewFitZoom } from '@/utils/venueCanvasMetrics'
 const props = defineProps({
   workspace: { type: Object, required: true },
   zoom: { type: Number, required: true },
@@ -416,9 +416,25 @@ function centerCanvas() {
   container.scrollLeft = Math.max(0, (container.scrollWidth - container.clientWidth) / 2)
   container.scrollTop = Math.max(0, (container.scrollHeight - container.clientHeight) / 2)
 }
+function fitCanvas() {
+  const container = scrollRef.value
+  if (!container) return
+  const nextZoom = previewFitZoom({
+    gridRows: props.workspace.layout.gridRows,
+    gridColumns: props.workspace.layout.gridColumns,
+    viewportWidth: container.clientWidth,
+    viewportHeight: container.clientHeight,
+  })
+  emit('zoomChange', nextZoom - props.zoom)
+  nextTick(centerCanvas)
+}
 function centerCanvasAfterRender() {
   nextTick(centerCanvas)
 }
+
+defineExpose({
+  fitCanvas,
+})
 onMounted(centerCanvasAfterRender)
 watch(
   () => [

@@ -553,7 +553,7 @@ test('真实组件运行时保持属性预览并支持移动缩放与撤销重�
     { rowSpan: 2, columnSpan: 2 },
   )
 
-  byText(mounted.root, '撤销').props.onClick()
+  byText(mounted.root, '回退').props.onClick()
   await settle()
   assert.deepEqual(
     {
@@ -562,7 +562,7 @@ test('真实组件运行时保持属性预览并支持移动缩放与撤销重�
     },
     { rowSpan: 1, columnSpan: 1 },
   )
-  byText(mounted.root, '重做').props.onClick()
+  byText(mounted.root, '前进').props.onClick()
   await settle()
   assert.deepEqual(
     {

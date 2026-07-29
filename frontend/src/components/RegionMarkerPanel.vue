@@ -23,6 +23,12 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'select', 'new', 'save', 'delete', 'cancel'])
 
 const isEditing = computed(() => Boolean(props.modelValue?.id))
+const usedMarkerColors = computed(() =>
+  (props.markers || [])
+    .filter((marker) => marker.id !== props.modelValue?.id)
+    .map((marker) => marker.backgroundColor)
+    .filter(Boolean),
+)
 
 function patchMarker(value) {
   emit('update:modelValue', {
@@ -42,15 +48,15 @@ function patchColor(color) {
 
 <template>
   <aside class="region-marker-panel">
-    <header class="panel-header">
+    <header class="panel-heading">
       <div>
-        <h2>{{ isEditing ? '编辑区域' : '新建区域' }}</h2>
+        <h2 class="panel-title">{{ isEditing ? '编辑区域' : '新建区域' }}</h2>
         <p>已选座位 {{ selectedSeatCount }}</p>
       </div>
       <el-button text @click="emit('cancel')">重置</el-button>
     </header>
 
-    <section class="marker-list-section">
+    <section class="panel-tools marker-list-section">
       <div class="section-title">
         <span>已有区域</span>
         <el-button link size="small" @click="emit('new')">新建区域</el-button>
@@ -88,6 +94,7 @@ function patchColor(color) {
           <ColorPickerPopover
             :model-value="modelValue.backgroundColor"
             label="区域颜色"
+            :unavailable-colors="usedMarkerColors"
             @update:model-value="patchColor"
           />
         </div>
@@ -102,13 +109,6 @@ function patchColor(color) {
       >
         删除区域
       </el-button>
-      <el-button
-        type="primary"
-        :loading="submitting"
-        @click="emit('save')"
-      >
-        保存区域
-      </el-button>
     </div>
   </aside>
 </template>
@@ -118,37 +118,47 @@ function patchColor(color) {
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 18px;
+  gap: 12px;
+  padding: 16px;
+  overflow: hidden;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow);
 }
 
-.panel-header {
+.panel-heading {
+  flex: none;
   display: flex;
-  align-items: flex-start;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 12px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--line);
 }
 
-.panel-header h2 {
+.panel-heading h2 {
   margin: 0;
   color: var(--ink);
   font-size: 18px;
 }
 
-.panel-header p {
+.panel-heading p {
   margin: 6px 0 0;
   color: var(--muted);
   font-size: 12px;
 }
 
+.panel-tools {
+  flex: none;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  background: #fbfcfd;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
 .marker-list-section {
-  padding: 14px 0 4px;
-  border-bottom: 1px solid var(--line);
+  min-height: 182px;
 }
 
 .section-title {
@@ -225,7 +235,6 @@ function patchColor(color) {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding-top: 16px;
   padding-right: 2px;
 }
 
@@ -241,6 +250,7 @@ function patchColor(color) {
 }
 
 .panel-actions {
+  flex: none;
   display: flex;
   gap: 10px;
   padding-top: 14px;
