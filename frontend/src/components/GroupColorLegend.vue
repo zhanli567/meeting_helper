@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { ref } from 'vue'
 import { DArrowLeft, DArrowRight } from '@element-plus/icons-vue'
 import ColorPickerPopover from '@/components/ColorPickerPopover.vue'
 
@@ -11,41 +11,6 @@ const props = defineProps({
 
 const emit = defineEmits(['update:collapsed', 'set-color'])
 const legendRef = ref()
-const legendTop = ref(14)
-const dragState = ref()
-
-const legendStyle = computed(() => ({
-  top: `${legendTop.value}px`,
-}))
-
-function clampLegendTop(value) {
-  const containerHeight = legendRef.value?.parentElement?.clientHeight || window.innerHeight || 360
-  const legendHeight = Math.min(legendRef.value?.offsetHeight || 180, containerHeight - 20)
-  return Math.min(Math.max(10, value), Math.max(10, containerHeight - legendHeight - 10))
-}
-
-function stopLegendDrag() {
-  dragState.value = undefined
-  window.removeEventListener('pointermove', dragLegend)
-  window.removeEventListener('pointerup', stopLegendDrag)
-}
-
-function dragLegend(event) {
-  if (!dragState.value) return
-  legendTop.value = clampLegendTop(
-    dragState.value.startTop + event.clientY - dragState.value.startY,
-  )
-}
-
-function startLegendDrag(event) {
-  if (event.button !== 0) return
-  dragState.value = {
-    startY: event.clientY,
-    startTop: legendTop.value,
-  }
-  window.addEventListener('pointermove', dragLegend)
-  window.addEventListener('pointerup', stopLegendDrag)
-}
 
 function entryUnavailableColors(entry) {
   return (props.entries || [])
@@ -61,8 +26,6 @@ function requestLegendCollapse() {
   closeColorPopovers()
   emit('update:collapsed', !props.collapsed)
 }
-
-onBeforeUnmount(stopLegendDrag)
 </script>
 
 <template>
@@ -70,11 +33,10 @@ onBeforeUnmount(stopLegendDrag)
     ref="legendRef"
     class="group-color-legend"
     :class="{ collapsed }"
-    :style="legendStyle"
     @pointerdown.stop
   >
     <div class="legend-card">
-      <header class="legend-header" @pointerdown.left="startLegendDrag">
+      <header class="legend-header">
         <strong>{{ fieldLabel }}</strong>
         <span>{{ entries.length }} 项</span>
       </header>
@@ -115,6 +77,7 @@ onBeforeUnmount(stopLegendDrag)
   width: 258px;
   position: absolute;
   left: 14px;
+  bottom: 14px;
   z-index: 62;
   overflow: visible;
   transition:
@@ -152,12 +115,7 @@ onBeforeUnmount(stopLegendDrag)
   gap: 12px;
   padding-right: 10px;
   color: var(--ink);
-  cursor: grab;
   user-select: none;
-}
-
-.legend-header:active {
-  cursor: grabbing;
 }
 
 .legend-header strong,

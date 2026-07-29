@@ -91,10 +91,12 @@ test('group color legend collapses into a compact tab without leaving a blank ca
   const legendSwatchBlock = source.match(/\.legend-swatch\s*\{[^}]*\}/)?.[0] || ''
 
   assert.match(source, /ref="legendRef"/)
-  assert.match(source, /legendTop/)
-  assert.match(source, /startLegendDrag/)
-  assert.match(source, /@pointerdown\.left="startLegendDrag"/)
+  assert.doesNotMatch(source, /legendTop/)
+  assert.doesNotMatch(source, /startLegendDrag/)
+  assert.doesNotMatch(source, /@pointerdown\.left="startLegendDrag"/)
   assert.match(source, /class="legend-card"/)
+  assert.match(source, /bottom:\s*14px;/)
+  assert.match(source, /left:\s*14px;/)
   assert.match(source, /\.group-color-legend\s*\{[\s\S]*overflow:\s*visible;/)
   assert.match(source, /\.legend-toggle\s*\{[\s\S]*position:\s*absolute;[\s\S]*width:\s*28px;[\s\S]*height:\s*52px;/)
   assert.match(source, /\.legend-toggle\s*\{[\s\S]*right:\s*-28px;/)
@@ -103,6 +105,7 @@ test('group color legend collapses into a compact tab without leaving a blank ca
   assert.match(source, /closeColorPopovers/)
   assert.match(source, /meeting-helper:close-color-popovers/)
   assert.match(source, /requestLegendCollapse/)
+  assert.match(source, /closeColorPopovers\(\)[\s\S]*emit\('update:collapsed'/)
   assert.match(legendSwatchBlock, /border:\s*0;/)
   assert.doesNotMatch(legendSwatchBlock, /border:\s*1px/)
   assert.doesNotMatch(source, /min-height:\s*100%;/)

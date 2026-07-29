@@ -17,6 +17,31 @@ export function canStartParticipantDrag({ readonly, locked, participant }) {
   return !readonly && !locked && !isTemporarilyAbsent(participant)
 }
 
+export function createParticipantDragPreview(participant) {
+  if (typeof document === 'undefined') return undefined
+  const preview = document.createElement('div')
+  preview.className = 'participant-drag-preview'
+  preview.textContent = participant?.employeeNo
+    ? `${participant.name || '参会人员'} · ${participant.employeeNo}`
+    : participant?.name || '参会人员'
+  document.body.appendChild(preview)
+  return preview
+}
+
+export function disposeParticipantDragPreview(preview) {
+  preview?.parentElement?.removeChild(preview)
+}
+
+function scheduleParticipantDragPreviewDisposal(preview) {
+  if (!preview) return
+  const cleanup = () => disposeParticipantDragPreview(preview)
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(cleanup)
+    return
+  }
+  setTimeout(cleanup, 0)
+}
+
 export function startParticipantDrag({
   event,
   participant,
@@ -31,7 +56,16 @@ export function startParticipantDrag({
   }
   const dragData = participantDragData(participant)
   event.dataTransfer?.setData(dragData.type, dragData.value)
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = dragData.effectAllowed
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = dragData.effectAllowed
+    if (typeof event.dataTransfer.setDragImage === 'function') {
+      const preview = createParticipantDragPreview(participant)
+      if (preview) {
+        event.dataTransfer.setDragImage(preview, 18, 18)
+        scheduleParticipantDragPreviewDisposal(preview)
+      }
+    }
+  }
   onSelect(participant)
   onDragState(participant.id)
   return true

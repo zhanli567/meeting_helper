@@ -24,6 +24,7 @@ import ParticipantPanel from '@/components/ParticipantPanel.vue'
 import PublishVersionDialog from '@/components/PublishVersionDialog.vue'
 import RegionCreateDialog from '@/components/RegionCreateDialog.vue'
 import RegionMarkerPanel from '@/components/RegionMarkerPanel.vue'
+import SelectedParticipantInfo from '@/components/SelectedParticipantInfo.vue'
 import VenueCanvas from '@/components/VenueCanvas.vue'
 import VenueLayoutEditor from '@/components/VenueLayoutEditor.vue'
 import { meetingApi } from '@/api/meeting'
@@ -38,6 +39,7 @@ import {
 } from '@/utils/groupColors'
 import { attendingPendingCount } from '@/utils/participantRules'
 import { reservedItems, toggleSeatSelection } from '@/utils/seatRegions'
+import { computeSeatLabels } from '@/utils/seatNumbering'
 import { normalizeHexColor } from '@/utils/venuePreferences'
 import { toElementPayload } from '@/utils/venueModel'
 import { placeFloatingMenu } from '@/utils/workbenchLayout'
@@ -56,6 +58,7 @@ const activeVersionKey = ref('draft')
 const workbenchMode = ref('seating')
 const groupColorFieldCode = ref('')
 const groupColorLegendCollapsed = ref(false)
+const participantInfoCollapsed = ref(false)
 const groupColorOverrides = ref(readGroupColorOverrides())
 const publishedWorkspace = ref()
 const loadingVersion = ref(false)
@@ -134,6 +137,17 @@ const canvasWorkspace = computed(() => {
       ...markerAreaDrafts.value,
     ],
   }
+})
+const selectedParticipant = computed(() =>
+  workspace.value?.participants.find((person) => person.id === store.selectedParticipantId),
+)
+const selectedParticipantSeatLabel = computed(() => {
+  const elementId = selectedParticipant.value?.assignedElementId
+  if (!elementId || !canvasWorkspace.value?.layout?.elements) return ''
+  return (
+    computeSeatLabels(canvasWorkspace.value.layout.elements || []).labelsByElementId.get(elementId) ||
+    ''
+  )
 })
 const showModeSave = computed(() => !readonlyMode.value)
 const currentSaveLabel = computed(() => (
@@ -998,10 +1012,7 @@ async function onSeatClick(element) {
   const occupied = workspace.value?.participants.find(
     (person) => person.assignedElementId === element.id,
   )
-  if (occupied) {
-    await openParticipantEdit(occupied)
-    return
-  }
+  if (occupied) return
   if (!(await saveDraft(true))) return
   addTargetElementId.value = element.id
   addMenuVisible.value = false
@@ -1228,6 +1239,15 @@ async function onParticipantUpdated(participant) {
   const updated = store.workspace?.participants.find((person) => person.id === participantId)
   if (updated) store.selectParticipant(updated)
 }
+
+watch(
+  () => store.selectedParticipantId,
+  (participantId, previousParticipantId) => {
+    if (participantId && participantId !== previousParticipantId) {
+      participantInfoCollapsed.value = false
+    }
+  },
+)
 </script>
 
 <template>
@@ -1511,6 +1531,15 @@ async function onParticipantUpdated(participant) {
             :field-label="activeColorField?.label || groupColorFieldCode"
             :entries="groupColorEntries"
             @set-color="setGroupColorOverride"
+          />
+          <SelectedParticipantInfo
+            v-if="workbenchMode === 'seating' && selectedParticipant"
+            v-model:collapsed="participantInfoCollapsed"
+            :participant="selectedParticipant"
+            :field-definitions="workspace.fieldDefinitions"
+            :seat-label="selectedParticipantSeatLabel"
+            :readonly="readonlyMode"
+            @edit="openParticipantEdit"
           />
         </div>
 

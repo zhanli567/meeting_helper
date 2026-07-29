@@ -62,18 +62,25 @@ test('人员面板保持筛选、分页、分组和操作包装器的完整接�
   assert.doesNotMatch(rawPanel, /assigned-dot/)
 })
 
-test('座位画布保持悬浮信息和拖放包装器的完整接线', () => {
+test('座位画布移除座位悬浮详情并统一拖拽预览', () => {
   const rawCanvas = source('../src/components/VenueCanvas.vue')
   const canvas = normalize(rawCanvas)
+  const rawActions = source('../src/utils/participantActions.js')
 
-  assert.match(canvas, /participantTooltipRows\(participantFor\(element\.id\)\)/)
-  assert.match(canvas, /tooltipSuppressed/)
-  assert.match(canvas, /:disabled="seatTooltipDisabled"/)
+  assert.doesNotMatch(rawCanvas, /<el-tooltip/)
+  assert.doesNotMatch(rawCanvas, /participantTooltipRows/)
+  assert.doesNotMatch(rawCanvas, /seatTooltipDisabled/)
+  assert.doesNotMatch(rawCanvas, /tooltipSuppressed/)
+  assert.doesNotMatch(rawCanvas, /tooltip-card/)
+  assert.doesNotMatch(rawCanvas, /空座位，可拖入人员/)
   assert.match(
     canvas,
     /performParticipantDrag\(\{ event, participant, readonly: props\.readonly, locked: participant\.locked, onSelect: \(person\) => emit\('select', person\), onDragState: \(participantId\) => emit\('dragState', participantId\), \}\)/,
   )
   assert.match(canvas, /@dragstart="startParticipantDrag\(\$event, element\.id\)"/)
+  assert.match(rawActions, /createParticipantDragPreview/)
+  assert.match(rawActions, /setDragImage/)
+  assert.match(rawActions, /participant-drag-preview/)
   assert.doesNotMatch(rawCanvas, /drop-copy/)
   assert.doesNotMatch(rawCanvas, /participantSeatSummary/)
 })

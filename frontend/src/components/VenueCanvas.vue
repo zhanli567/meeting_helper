@@ -33,7 +33,6 @@ const emit = defineEmits([
 const scrollRef = ref()
 const canvasRef = ref()
 const dragTargetId = ref()
-const tooltipSuppressed = ref(false)
 const isPanning = ref(false)
 const markerDrawing = ref(false)
 const markerRectStart = ref()
@@ -81,9 +80,6 @@ const markerSelectionRect = computed(() => {
   if (!markerDrawing.value || !markerRectStart.value || !markerRectCurrent.value) return undefined
   return normalizeMarkerRect(markerRectStart.value, markerRectCurrent.value)
 })
-const seatTooltipDisabled = computed(() =>
-  Boolean(props.draggingParticipantId) || tooltipSuppressed.value || markerDrawing.value,
-)
 const canvasStyle = computed(() => ({
   width: `${props.workspace.layout.gridColumns * unit.value}px`,
   height: `${props.workspace.layout.gridRows * unit.value}px`,
@@ -114,20 +110,6 @@ function seatLabelFor(elementId) {
 }
 function participantStyleFor(person) {
   return person?.id ? props.participantColorById?.[person.id] : undefined
-}
-function participantTooltipRows(person) {
-  if (!person) return []
-  return (props.workspace.fieldDefinitions || [])
-    .filter((field) => !['name', 'employeeNo'].includes(field.code))
-    .map((field) => {
-      const values = person.attributeValues?.[field.code] || []
-      const value = values.length ? values.join('、') : person.primaryAttributes?.[field.code]
-      return {
-        label: field.label,
-        value: String(value || '').trim(),
-      }
-    })
-    .filter((row) => row.value)
 }
 function visualStyle(element) {
   const item = itemFor(element.id)
@@ -226,7 +208,6 @@ function startMarkerRectSelection(event) {
   markerMoved = false
   markerRectStart.value = point
   markerRectCurrent.value = point
-  tooltipSuppressed.value = true
   window.addEventListener('pointermove', moveMarkerRectSelection)
   window.addEventListener('pointerup', finishMarkerRectSelection)
   window.addEventListener('pointercancel', cancelMarkerRectSelection)
@@ -252,9 +233,6 @@ function cleanupMarkerRectSelection() {
   window.removeEventListener('pointermove', moveMarkerRectSelection)
   window.removeEventListener('pointerup', finishMarkerRectSelection)
   window.removeEventListener('pointercancel', cancelMarkerRectSelection)
-  window.setTimeout(() => {
-    tooltipSuppressed.value = false
-  }, 0)
 }
 function finishMarkerRectSelection(event) {
   if (!markerDrawing.value) return
@@ -289,16 +267,12 @@ function onDragStart(event, participant) {
 function startParticipantDrag(event, elementId) {
   const participant = participantFor(elementId)
   if (participant) {
-    tooltipSuppressed.value = true
     onDragStart(event, participant)
   }
 }
 function endParticipantDrag() {
   dragTargetId.value = undefined
   emit('dragState', undefined)
-  window.setTimeout(() => {
-    tooltipSuppressed.value = false
-  }, 0)
 }
 function onDragOver(event, element) {
   if (props.readonly || props.markerMode || !isSeat(element) || reservedItemByElementId.value.has(element.id)) {
@@ -321,7 +295,6 @@ function onDrop(event, element) {
   if (participantId) emit('assign', participantId, element.id)
   dragTargetId.value = undefined
   emit('dragState', undefined)
-  tooltipSuppressed.value = false
 }
 function onSeatClick(element) {
   if (panMoved || !isSeat(element)) return
@@ -437,16 +410,6 @@ watch(
   ],
   centerCanvasAfterRender,
 )
-watch(
-  () => props.draggingParticipantId,
-  (participantId) => {
-    if (!participantId) {
-      window.setTimeout(() => {
-        tooltipSuppressed.value = false
-      }, 0)
-    }
-  },
-)
 onBeforeUnmount(() => {
   endPan()
   cancelMarkerRectSelection()
@@ -472,37 +435,8 @@ onBeforeUnmount(() => {
         @click="onCanvasClear"
       >
         <template v-for="element in workspace.layout.elements" :key="element.id">
-        <el-tooltip
-          v-if="isSeat(element)"
-          :disabled="seatTooltipDisabled"
-          :show-after="360"
-          placement="top"
-          effect="light"
-          popper-class="seat-tooltip"
-        >
-          <template #content>
-            <div class="tooltip-card">
-              <strong>{{ seatLabelFor(element.id) }}</strong>
-              <template v-if="participantFor(element.id)">
-                <span>
-                  {{ participantFor(element.id)?.name }} ·
-                  {{ participantFor(element.id)?.employeeNo }}
-                </span>
-                <span
-                  v-for="row in participantTooltipRows(participantFor(element.id))"
-                  :key="row.label"
-                >
-                  {{ row.label }}：{{ row.value }}
-                </span>
-              </template>
-              <span v-else-if="itemFor(element.id)">
-                {{ itemFor(element.id)?.label || itemFor(element.id)?.type }}
-              </span>
-              <span v-else>空座位，可拖入人员</span>
-            </div>
-          </template>
-
           <div
+            v-if="isSeat(element)"
             class="layout-element seat-element"
             :class="{
               occupied: participantFor(element.id),
@@ -547,7 +481,6 @@ onBeforeUnmount(() => {
               {{ itemFor(element.id)?.label }}
             </span>
           </div>
-        </el-tooltip>
 
         <div
           v-else
@@ -798,18 +731,6 @@ onBeforeUnmount(() => {
   pointer-events: none;
   white-space: nowrap;
   writing-mode: horizontal-tb;
-}
-
-.tooltip-card {
-  display: grid;
-  min-width: 190px;
-  gap: 5px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.tooltip-card strong {
-  color: var(--ink);
 }
 
 @keyframes targetPulse {
