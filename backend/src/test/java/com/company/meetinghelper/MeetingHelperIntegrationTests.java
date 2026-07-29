@@ -558,6 +558,40 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
+    void creatingParticipantAcceptsFreeFormEmployeeNumberAndKeepsUniqueConflict() throws Exception {
+        String meetingId = createImportMeeting();
+        String employeeNo = "free-form-employee-001";
+
+        MvcResult created = mockMvc.perform(post("/meetings/{meetingId}/participants", meetingId)
+                        .header(USER_HEADER, DEFAULT_USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "employeeNo": "%s",
+                                  "name": "自由格式人员",
+                                  "attributes": {}
+                                }
+                                """.formatted(employeeNo)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(responseJson(created).path("employeeNo").asText()).isEqualTo(employeeNo);
+        mockMvc.perform(post("/meetings/{meetingId}/participants", meetingId)
+                        .header(USER_HEADER, DEFAULT_USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "employeeNo": "FREE-FORM-EMPLOYEE-001",
+                                  "name": "另一个姓名",
+                                  "attributes": {}
+                                }
+                                """))
+                .andExpect(status().isConflict());
+        assertThat(participantRepository.findAllByMeetingIdOrderByNameAsc(meetingId))
+                .hasSize(1);
+    }
+
+    @Test
     void participantCanBeUpdatedWithoutChangingEmployeeNoAndRegistersNewFields() throws Exception {
         String meetingId = createImportMeeting();
         ParticipantResult participant = participantService.create(
@@ -1750,7 +1784,7 @@ class MeetingHelperIntegrationTests {
     @Test
     void previewErrorsRejectCommitWithoutDatabaseWrites() throws Exception {
         String meetingId = createImportMeeting();
-        JsonNode preview = preview(meetingId, "工号,姓名,新字段\n错误工号,张三,值1");
+        JsonNode preview = preview(meetingId, "工号,姓名,新字段\n任意工号,,值1");
 
         assertThat(preview.path("errors").isEmpty()).isFalse();
         mockMvc.perform(post(

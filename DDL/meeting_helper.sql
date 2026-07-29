@@ -167,7 +167,7 @@ comment on column t_meeting_elements.row_version is '乐观锁版本号';
 create table if not exists t_participants (
     id varchar(36) primary key,
     meeting_id varchar(36) not null,
-    employee_no varchar(9) not null,
+    employee_no varchar(120) not null,
     name varchar(80) not null,
     attendance_status varchar(30) not null default 'PRESENT',
     locked boolean not null,
@@ -184,7 +184,7 @@ create table if not exists t_participants (
 comment on table t_participants is '会议参会人员';
 comment on column t_participants.id is '参会人员主键';
 comment on column t_participants.meeting_id is '所属会议标识';
-comment on column t_participants.employee_no is '公司工号，格式为8位数字或1个小写字母加8位数字';
+comment on column t_participants.employee_no is '人员唯一工号或编号';
 comment on column t_participants.name is '参会人员姓名';
 comment on column t_participants.attendance_status is '出席状态：PRESENT正常出席，TEMPORARILY_ABSENT临时不出席';
 comment on column t_participants.locked is '人员是否锁定不可移动';

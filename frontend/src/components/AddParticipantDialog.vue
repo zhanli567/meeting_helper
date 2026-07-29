@@ -5,7 +5,6 @@ import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
 import { groupableFields } from '@/utils/participantFields'
 import { submitParticipant } from '@/utils/participantActions'
-import { isValidEmployeeNo } from '@/utils/participantRules'
 
 const visible = defineModel({ required: true })
 const props = defineProps({
@@ -26,15 +25,7 @@ const form = reactive({
 })
 const dynamicFields = computed(() => groupableFields(props.fieldDefinitions))
 const rules = {
-  employeeNo: [
-    { required: true, message: '请输入工号' },
-    {
-      validator: (_rule, value, callback) =>
-        !isValidEmployeeNo(value)
-          ? callback(new Error('工号必须为8位数字、1个小写字母加8位数字，或wx加6或7位数字'))
-          : callback(),
-    },
-  ],
+  employeeNo: [{ required: true, message: '请输入工号' }],
   name: [{ required: true, message: '请输入姓名' }],
 }
 async function submit() {
@@ -92,7 +83,7 @@ function removeExtraField(index) {
     >
       <div class="form-grid">
         <el-form-item label="工号" prop="employeeNo">
-          <el-input v-model="form.employeeNo" maxlength="9" :validate-event="false" />
+          <el-input v-model="form.employeeNo" :validate-event="false" />
         </el-form-item>
         <el-form-item label="姓名" prop="name">
           <el-input v-model="form.name" :validate-event="false" />

@@ -95,12 +95,28 @@ class ParticipantWorkbookParserTests {
     }
 
     @Test
-    void reportsMalformedEmployeeNumbers() {
+    void reportsBlankEmployeeNumbers() {
         ParsedParticipantWorkbook parsed = parser.parse(workbookWith(
                 List.of("工号", "姓名"),
-                List.of(List.of("A12345678", "张三"))));
+                List.of(List.of("", "张三"))));
 
-        assertThat(parsed.errors()).anyMatch(error -> error.contains("工号格式"));
+        assertThat(parsed.errors()).anyMatch(error -> error.contains("工号") && error.contains("不能为空"));
+        assertThat(parsed.rows()).isEmpty();
+    }
+
+    @Test
+    void acceptsFreeFormEmployeeNumbers() {
+        ParsedParticipantWorkbook parsed = parser.parse(workbookWith(
+                List.of("工号", "姓名"),
+                List.of(
+                        List.of("A12345678", "张三"),
+                        List.of("自由工号-001", "李四"),
+                        List.of("wx12345678", "王五"))));
+
+        assertThat(parsed.errors()).isEmpty();
+        assertThat(parsed.rows())
+                .extracting(row -> row.employeeNo())
+                .containsExactly("A12345678", "自由工号-001", "wx12345678");
     }
 
     private XSSFWorkbook workbookWith(List<String> headers, List<List<String>> values) {

@@ -2,7 +2,7 @@ export const PRESENT = 'PRESENT'
 export const TEMPORARILY_ABSENT = 'TEMPORARILY_ABSENT'
 
 export function isValidEmployeeNo(value) {
-  return /^(?:\d{8}|[a-z]\d{8}|wx\d{6,7})$/.test(value?.trim() || '')
+  return Boolean(value?.trim())
 }
 
 export function hasDuplicateEmployeeNo(value, participants = []) {

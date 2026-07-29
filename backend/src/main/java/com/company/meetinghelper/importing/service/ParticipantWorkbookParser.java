@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -27,7 +26,6 @@ public class ParticipantWorkbookParser {
     private static final String PARTICIPANT_SHEET = "参会人员";
     private static final String EMPLOYEE_NO_HEADER = "工号";
     private static final String NAME_HEADER = "姓名";
-    private static final Pattern EMPLOYEE_NO_PATTERN = Pattern.compile("^(?:[0-9]{8}|[a-z][0-9]{8})$");
 
     private final DataFormatter formatter = new DataFormatter();
 
@@ -83,8 +81,8 @@ public class ParticipantWorkbookParser {
             int sourceRow = rowIndex + 1;
             String employeeNo = text(row, headers.employeeNoColumn());
             String name = text(row, headers.nameColumn());
-            if (!EMPLOYEE_NO_PATTERN.matcher(employeeNo).matches()) {
-                errors.add("第" + sourceRow + "行工号格式不正确");
+            if (employeeNo.isBlank()) {
+                errors.add("第" + sourceRow + "行工号不能为空");
                 continue;
             }
             if (name.isBlank()) {
