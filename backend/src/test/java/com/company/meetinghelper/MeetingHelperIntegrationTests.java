@@ -84,6 +84,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
@@ -2018,6 +2019,79 @@ class MeetingHelperIntegrationTests {
                     .isEqualTo(BorderStyle.THIN);
             assertThat(cellFill(department)).isNotEqualTo(cellFill(firstBatch));
             assertThat(cellFill(firstBatch)).isNotEqualTo(cellFill(secondBatch));
+        }
+    }
+
+    @Test
+    void layoutSheetMergesAdjacentSeatsWithSameFieldValueAcrossOneCanvasRow() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "同排字段合并排座图场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(
+                        seat("座位-2-3", 2, 3, 1, 1),
+                        seat("座位-2-4", 2, 4, 1, 1)
+                )
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "同排字段合并排座图-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        previewAndCommit(meeting.id(), "工号,姓名,部门,获奖批次", "a12345678,32ee,dafwf,第二");
+        previewAndCommit(meeting.id(), "工号,姓名,部门,获奖批次", "a12345678,32ee,dafwf,第一批");
+        previewAndCommit(meeting.id(), "工号,姓名,部门,获奖批次", "b12345678,张三,制造部, 第一批 ");
+        previewAndCommit(meeting.id(), "工号,姓名,部门,获奖批次", "b12345678,张三,制部,第二批");
+        previewAndCommit(meeting.id(), "工号,姓名,部门,获奖批次", "b12345678,张三,制部,第三批");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        Map<String, WorkspaceResponse.ParticipantView> participantByNo = workspace.participants().stream()
+                .collect(Collectors.toMap(WorkspaceResponse.ParticipantView::employeeNo, Function.identity()));
+        Map<Integer, WorkspaceResponse.ElementView> seatByColumn = workspace.layout().elements().stream()
+                .filter(value -> "SEAT".equals(value.kind()))
+                .collect(Collectors.toMap(WorkspaceResponse.ElementView::column, Function.identity()));
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(participantByNo.get("a12345678").id(), seatByColumn.get(3).id())
+        );
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(participantByNo.get("b12345678").id(), seatByColumn.get(4).id())
+        );
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {
+                      "enabled": true,
+                      "fieldCodes": ["部门", "获奖批次"],
+                      "colorFieldCodes": ["部门", "获奖批次"]
+                    },
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            Cell firstSeat = findCell(sheet, "1排01");
+            Cell secondSeat = findCell(sheet, "1排02");
+            Cell sharedBatch = findCell(sheet, "第一批");
+            Cell leftOnlyBatch = findCell(sheet, "第二");
+            Cell leftDepartment = findCell(sheet, "dafwf");
+            Cell rightDepartment = findCell(sheet, "制造部");
+
+            CellRangeAddress sharedBatchRegion = mergedRegion(sheet, sharedBatch);
+            assertThat(sharedBatchRegion.getFirstColumn()).isEqualTo(firstSeat.getColumnIndex());
+            assertThat(sharedBatchRegion.getLastColumn()).isEqualTo(secondSeat.getColumnIndex());
+            assertThat(sharedBatchRegion.getNumberOfCells()).isEqualTo(2);
+            assertThat(sharedBatch.getRowIndex()).isGreaterThan(rightDepartment.getRowIndex());
+
+            CellRangeAddress leftBatchRegion = mergedRegion(sheet, leftOnlyBatch);
+            assertThat(leftBatchRegion.getFirstColumn()).isEqualTo(firstSeat.getColumnIndex());
+            assertThat(leftBatchRegion.getLastColumn()).isEqualTo(firstSeat.getColumnIndex());
+            assertThat(leftBatchRegion.getNumberOfCells()).isEqualTo(2);
+
+            CellRangeAddress leftDepartmentRegion = mergedRegion(sheet, leftDepartment);
+            assertThat(leftDepartmentRegion.getFirstColumn()).isEqualTo(firstSeat.getColumnIndex());
+            assertThat(leftDepartmentRegion.getLastColumn()).isEqualTo(firstSeat.getColumnIndex());
+            assertThat(leftDepartmentRegion.getNumberOfCells()).isEqualTo(2);
         }
     }
 

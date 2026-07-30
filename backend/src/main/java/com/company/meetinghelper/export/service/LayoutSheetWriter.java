@@ -200,7 +200,7 @@ public class LayoutSheetWriter {
         for (WorkspaceResponse.FieldDefinitionView field : selectedFields) {
             LinkedHashSet<String> values = new LinkedHashSet<String>();
             for (Map<String, String> record : recordAttributes) {
-                String value = nullToEmpty(record.get(field.code()));
+                String value = normalizeFieldValue(record.get(field.code()));
                 if (!value.isBlank()) {
                     values.add(value);
                 }
@@ -350,7 +350,7 @@ public class LayoutSheetWriter {
                 if (participant.records() == null || participant.records().isEmpty()) {
                     String value = participant.primaryAttributes() == null
                             ? ""
-                            : nullToEmpty(participant.primaryAttributes().get(field.code()));
+                            : normalizeFieldValue(participant.primaryAttributes().get(field.code()));
                     if (!value.isBlank()) {
                         values.add(value);
                     }
@@ -362,7 +362,7 @@ public class LayoutSheetWriter {
                         ))
                         .map(record -> record.attributes() == null
                                 ? ""
-                                : nullToEmpty(record.attributes().get(field.code())))
+                                : normalizeFieldValue(record.attributes().get(field.code())))
                         .filter(value -> !value.isBlank())
                         .forEach(values::add);
             }
@@ -576,6 +576,7 @@ public class LayoutSheetWriter {
         XSSFCellStyle systemStyle = styles.style(ExportPalette.SYSTEM_LAYOUT_COLOR, true, true);
         Set<String> colorFieldCodes = new LinkedHashSet<String>(options.colorFieldCodes());
         Set<String> renderedReservedSeatIds = new LinkedHashSet<String>();
+        Set<Integer> renderedFieldRows = new LinkedHashSet<Integer>();
         for (WorkspaceResponse.ElementView element : elements) {
             if (!isSeat(element)) {
                 continue;
@@ -606,40 +607,29 @@ public class LayoutSheetWriter {
                     systemStyle
             );
 
-            SeatBlock block = blockByElement.getOrDefault(
-                    element.id(),
-                    new SeatBlock(emptyFieldRuns(selectedFields), 2 + selectedFields.size())
-            );
+            if (renderedFieldRows.add(element.row())) {
+                renderSeatFieldCells(
+                        sheet,
+                        measured,
+                        elements,
+                        element.row(),
+                        selectedFields,
+                        blockByElement,
+                        itemByElement,
+                        colorFieldCodes,
+                        colorsByFieldValue,
+                        styles
+                );
+            }
             Map<String, Integer> fieldHeights = fieldLabelHeights(
                     elements,
                     element.row(),
                     selectedFields,
                     blockByElement
             );
-            int currentRow = startRow + 1;
-            for (WorkspaceResponse.FieldDefinitionView field : selectedFields) {
-                List<FieldRun> rows = fieldRows(block, field);
-                int fieldHeight = Math.max(
-                        1,
-                        fieldHeights.getOrDefault(field.code(), rows.size())
-                );
-                for (int rowOffset = 0; rowOffset < fieldHeight; rowOffset++) {
-                    FieldRun run = rowOffset < rows.size()
-                            ? rows.get(rowOffset)
-                            : new FieldRun(field.code(), field.label(), "", 1);
-                    String fillColor = fieldValueColor(run, colorFieldCodes, colorsByFieldValue);
-                    mergeAndWrite(
-                            sheet,
-                            currentRow + rowOffset,
-                            currentRow + rowOffset,
-                            startColumn,
-                            endColumn,
-                            run.value(),
-                            styles.style(fillColor, true, false)
-                    );
-                }
-                currentRow += fieldHeight;
-            }
+            int currentRow = startRow + 1 + fieldHeights.values().stream()
+                    .mapToInt(Integer::intValue)
+                    .sum();
             while (currentRow < endRow) {
                 mergeAndWrite(
                         sheet,
@@ -672,6 +662,236 @@ public class LayoutSheetWriter {
                     styles.style(nameFill, true, participant != null)
             );
         }
+    }
+
+    private void renderSeatFieldCells(
+            XSSFSheet sheet,
+            MeasuredLayout measured,
+            List<WorkspaceResponse.ElementView> elements,
+            int canvasRow,
+            List<WorkspaceResponse.FieldDefinitionView> selectedFields,
+            Map<String, SeatBlock> blockByElement,
+            Map<String, WorkspaceResponse.PlanItemView> itemByElement,
+            Set<String> colorFieldCodes,
+            Map<String, Map<String, String>> colorsByFieldValue,
+            StyleCache styles
+    ) {
+        List<WorkspaceResponse.ElementView> rowSeats = elements.stream()
+                .filter(this::isSeat)
+                .filter(element -> element.row() == canvasRow)
+                .filter(element -> !isReserved(itemByElement.get(element.id())))
+                .sorted(Comparator.comparingInt(WorkspaceResponse.ElementView::column))
+                .toList();
+        if (rowSeats.isEmpty() || selectedFields.isEmpty()) {
+            return;
+        }
+        Map<String, Integer> fieldHeights = fieldLabelHeights(
+                elements,
+                canvasRow,
+                selectedFields,
+                blockByElement
+        );
+        int currentRow = measured.excelRowByCanvasRow().get(canvasRow) + 1;
+        for (WorkspaceResponse.FieldDefinitionView field : selectedFields) {
+            int fieldHeight = Math.max(1, fieldHeights.getOrDefault(field.code(), 1));
+            Map<String, List<FieldCellSpan>> spansByElement = planFieldSpans(
+                    rowSeats,
+                    field,
+                    fieldHeight,
+                    blockByElement
+            );
+            renderFieldSpans(
+                    sheet,
+                    measured,
+                    rowSeats,
+                    field,
+                    currentRow,
+                    spansByElement,
+                    colorFieldCodes,
+                    colorsByFieldValue,
+                    styles
+            );
+            currentRow += fieldHeight;
+        }
+    }
+
+    private Map<String, List<FieldCellSpan>> planFieldSpans(
+            List<WorkspaceResponse.ElementView> rowSeats,
+            WorkspaceResponse.FieldDefinitionView field,
+            int fieldHeight,
+            Map<String, SeatBlock> blockByElement
+    ) {
+        LinkedHashMap<String, List<String>> valuesByElement = new LinkedHashMap<String, List<String>>();
+        for (WorkspaceResponse.ElementView element : rowSeats) {
+            SeatBlock block = blockByElement.getOrDefault(
+                    element.id(),
+                    new SeatBlock(emptyFieldRuns(List.of(field)), 1)
+            );
+            List<String> values = fieldRows(block, field).stream()
+                    .map(FieldRun::value)
+                    .toList();
+            valuesByElement.put(element.id(), values);
+        }
+        List<String> sharedValues = sharedAdjacentValues(rowSeats, valuesByElement);
+        LinkedHashMap<String, Integer> sharedOffsets = new LinkedHashMap<String, Integer>();
+        for (String value : sharedValues) {
+            if (sharedOffsets.size() >= fieldHeight) {
+                break;
+            }
+            sharedOffsets.put(value, sharedOffsets.size());
+        }
+
+        LinkedHashMap<String, List<FieldCellSpan>> result =
+                new LinkedHashMap<String, List<FieldCellSpan>>();
+        for (WorkspaceResponse.ElementView element : rowSeats) {
+            List<String> values = valuesByElement.getOrDefault(element.id(), List.of(""));
+            LinkedHashSet<String> consumed = new LinkedHashSet<String>();
+            boolean[] occupied = new boolean[fieldHeight];
+            ArrayList<FieldCellSpan> spans = new ArrayList<FieldCellSpan>();
+            for (Map.Entry<String, Integer> entry : sharedOffsets.entrySet()) {
+                String value = entry.getKey();
+                int offset = entry.getValue();
+                if (values.contains(value)) {
+                    spans.add(new FieldCellSpan(field.code(), field.label(), value, offset, 1));
+                    consumed.add(value);
+                    occupied[offset] = true;
+                }
+            }
+
+            List<String> remainingValues = values.stream()
+                    .filter(value -> !value.isBlank())
+                    .filter(value -> !consumed.contains(value))
+                    .toList();
+            List<Integer> availableOffsets = new ArrayList<Integer>();
+            for (int index = 0; index < fieldHeight; index++) {
+                if (!occupied[index]) {
+                    availableOffsets.add(index);
+                }
+            }
+            if (remainingValues.isEmpty()) {
+                for (Integer offset : availableOffsets) {
+                    spans.add(new FieldCellSpan(field.code(), field.label(), "", offset, 1));
+                }
+            } else {
+                for (int index = 0; index < remainingValues.size() && index < availableOffsets.size(); index++) {
+                    int offset = availableOffsets.get(index);
+                    int height = index == remainingValues.size() - 1
+                            ? availableOffsets.size() - index
+                            : 1;
+                    spans.add(new FieldCellSpan(
+                            field.code(),
+                            field.label(),
+                            remainingValues.get(index),
+                            offset,
+                            Math.max(1, height)
+                    ));
+                }
+            }
+            result.put(element.id(), spans.stream()
+                    .sorted(Comparator.comparingInt(FieldCellSpan::offset))
+                    .toList());
+        }
+        return result;
+    }
+
+    private List<String> sharedAdjacentValues(
+            List<WorkspaceResponse.ElementView> rowSeats,
+            Map<String, List<String>> valuesByElement
+    ) {
+        LinkedHashSet<String> shared = new LinkedHashSet<String>();
+        for (int index = 0; index + 1 < rowSeats.size(); index++) {
+            WorkspaceResponse.ElementView left = rowSeats.get(index);
+            WorkspaceResponse.ElementView right = rowSeats.get(index + 1);
+            if (left.column() + left.columnSpan() != right.column()) {
+                continue;
+            }
+            Set<String> rightValues = valuesByElement.getOrDefault(right.id(), List.of()).stream()
+                    .filter(value -> !value.isBlank())
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            valuesByElement.getOrDefault(left.id(), List.of()).stream()
+                    .filter(value -> !value.isBlank())
+                    .filter(rightValues::contains)
+                    .forEach(shared::add);
+        }
+        return List.copyOf(shared);
+    }
+
+    private void renderFieldSpans(
+            XSSFSheet sheet,
+            MeasuredLayout measured,
+            List<WorkspaceResponse.ElementView> rowSeats,
+            WorkspaceResponse.FieldDefinitionView field,
+            int fieldStartRow,
+            Map<String, List<FieldCellSpan>> spansByElement,
+            Set<String> colorFieldCodes,
+            Map<String, Map<String, String>> colorsByFieldValue,
+            StyleCache styles
+    ) {
+        Set<String> rendered = new LinkedHashSet<String>();
+        for (WorkspaceResponse.ElementView element : rowSeats) {
+            List<FieldCellSpan> spans = spansByElement.getOrDefault(element.id(), List.of());
+            for (FieldCellSpan span : spans) {
+                String key = spanKey(element.id(), span);
+                if (rendered.contains(key)) {
+                    continue;
+                }
+                int firstSeatIndex = rowSeats.indexOf(element);
+                int lastSeatIndex = firstSeatIndex;
+                String fillColor = fieldValueColor(
+                        new FieldRun(field.code(), field.label(), span.value(), 1),
+                        colorFieldCodes,
+                        colorsByFieldValue
+                );
+                if (!span.value().isBlank()) {
+                    for (int candidateIndex = firstSeatIndex + 1;
+                            candidateIndex < rowSeats.size();
+                            candidateIndex++) {
+                        WorkspaceResponse.ElementView previous = rowSeats.get(candidateIndex - 1);
+                        WorkspaceResponse.ElementView candidate = rowSeats.get(candidateIndex);
+                        if (previous.column() + previous.columnSpan() != candidate.column()) {
+                            break;
+                        }
+                        FieldCellSpan candidateSpan = matchingSpan(
+                                spansByElement.getOrDefault(candidate.id(), List.of()),
+                                span
+                        );
+                        if (candidateSpan == null) {
+                            break;
+                        }
+                        rendered.add(spanKey(candidate.id(), candidateSpan));
+                        lastSeatIndex = candidateIndex;
+                    }
+                }
+                WorkspaceResponse.ElementView lastSeat = rowSeats.get(lastSeatIndex);
+                int firstColumn = measured.excelColumnByCanvasColumn().get(element.column());
+                int lastColumn = measured.excelColumnByCanvasColumn().get(
+                        lastSeat.column() + lastSeat.columnSpan() - 1
+                );
+                mergeAndWrite(
+                        sheet,
+                        fieldStartRow + span.offset(),
+                        fieldStartRow + span.offset() + span.height() - 1,
+                        firstColumn,
+                        lastColumn,
+                        span.value(),
+                        styles.style(fillColor, true, false)
+                );
+                rendered.add(key);
+            }
+        }
+    }
+
+    private FieldCellSpan matchingSpan(List<FieldCellSpan> spans, FieldCellSpan expected) {
+        return spans.stream()
+                .filter(span -> span.offset() == expected.offset())
+                .filter(span -> span.height() == expected.height())
+                .filter(span -> span.value().equals(expected.value()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String spanKey(String elementId, FieldCellSpan span) {
+        return elementId + ":" + span.fieldCode() + ":" + span.offset();
     }
 
     private List<FieldRun> fieldRows(
@@ -1041,6 +1261,10 @@ public class LayoutSheetWriter {
         return value == null ? "" : value;
     }
 
+    private String normalizeFieldValue(String value) {
+        return nullToEmpty(value).trim();
+    }
+
     private record CanvasBounds(int top, int bottom, int left, int right) {
     }
 
@@ -1058,6 +1282,9 @@ public class LayoutSheetWriter {
     }
 
     private record FieldRun(String fieldCode, String label, String value, int height) {
+    }
+
+    private record FieldCellSpan(String fieldCode, String label, String value, int offset, int height) {
     }
 
     private record SeatBlock(List<FieldRun> fieldRuns, int height) {

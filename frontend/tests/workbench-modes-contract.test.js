@@ -106,6 +106,7 @@ test('三种工作台模式初始缩放和画布背景保持一致', async () =>
   const source = await readFile(new URL('../src/views/WorkbenchView.vue', import.meta.url), 'utf8')
   const editor = await readFile(new URL('../src/components/VenueLayoutEditor.vue', import.meta.url), 'utf8')
   const canvas = await readFile(new URL('../src/components/VenueCanvas.vue', import.meta.url), 'utf8')
+  const shared = await readFile(new URL('../src/components/CanvasViewport.vue', import.meta.url), 'utf8')
 
   assert.match(source, /const DEFAULT_CANVAS_ZOOM = 0\.8/)
   assert.match(source, /const zoom = ref\(DEFAULT_CANVAS_ZOOM\)/)
@@ -116,10 +117,26 @@ test('三种工作台模式初始缩放和画布背景保持一致', async () =>
   assert.match(editor, /requestAnimationFrame/)
   assert.doesNotMatch(editor, /nextTick\(fitCanvas\)/)
   assert.match(editor, /function scheduleCenterCanvas/)
-  assert.match(editor, /\.venue-layout-editor\.external-panel-mode \.canvas-content\s*\{[\s\S]*display:\s*flex;/)
-  assert.match(canvas, /linear-gradient\(rgba\(0,\s*0,\s*0,\s*0\.045\) 1px,\s*transparent 1px\),/)
-  assert.match(editor, /linear-gradient\(rgba\(0,\s*0,\s*0,\s*0\.045\) 1px,\s*transparent 1px\),/)
-  assert.match(editor, /#f7f8fa;/)
+  assert.match(shared, /\.app-canvas-content\s*\{[\s\S]*display:\s*flex;/)
+  assert.match(shared, /linear-gradient\(rgba\(0,\s*0,\s*0,\s*0\.045\) 1px,\s*transparent 1px\),/)
+  assert.match(shared, /#f7f8fa;/)
+})
+
+test('场馆和会议画布复用统一画布视口组件', async () => {
+  const shared = await readFile(new URL('../src/components/CanvasViewport.vue', import.meta.url), 'utf8')
+  const editor = await readFile(new URL('../src/components/VenueLayoutEditor.vue', import.meta.url), 'utf8')
+  const canvas = await readFile(new URL('../src/components/VenueCanvas.vue', import.meta.url), 'utf8')
+
+  assert.match(shared, /function centerCanvas/)
+  assert.match(shared, /function getViewportElement/)
+  assert.match(shared, /\.app-canvas-viewport\s*\{[\s\S]*#f7f8fa/)
+  assert.match(shared, /\.app-canvas-content\s*\{[\s\S]*padding:\s*26px 68px 38px/)
+  assert.match(editor, /import CanvasViewport from '@\/components\/CanvasViewport\.vue'/)
+  assert.match(canvas, /import CanvasViewport from '@\/components\/CanvasViewport\.vue'/)
+  assert.match(editor, /<CanvasViewport[\s\S]*ref="viewportRef"/)
+  assert.match(canvas, /<CanvasViewport[\s\S]*ref="viewportRef"/)
+  assert.doesNotMatch(editor, /\.canvas-viewport\s*\{/)
+  assert.doesNotMatch(canvas, /\.canvas-scroll\s*\{[^}]*background:/)
 })
 
 test('三种模式离开前统一处理未保存状态', async () => {

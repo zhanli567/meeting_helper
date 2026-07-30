@@ -32,13 +32,15 @@ test('workbench shared toolbar does not expose a layout-only center button', () 
 
 test('layout mode canvas and right panel use the same rounded white shell as seating mode', () => {
   const editor = source('../src/components/VenueLayoutEditor.vue')
+  const canvasViewport = source('../src/components/CanvasViewport.vue')
   const elementPanel = source('../src/components/VenueElementPanel.vue')
   const markerPanel = source('../src/components/RegionMarkerPanel.vue')
 
   assert.doesNotMatch(editor, /\.venue-layout-editor\.external-panel-mode \.canvas-pane\s*\{[\s\S]*border-radius:\s*0;/)
   assert.match(editor, /\.venue-layout-editor\.external-panel-mode \.canvas-pane\s*\{[\s\S]*border-radius:\s*var\(--radius-md\);/)
   assert.match(editor, /\.venue-layout-editor\.external-panel-mode \.designer-canvas\s*\{[\s\S]*border-radius:\s*12px;/)
-  assert.match(editor, /\.venue-layout-editor\.external-panel-mode \.canvas-content\s*\{[\s\S]*display:\s*flex;[\s\S]*padding:\s*26px 68px 38px;/)
+  assert.match(canvasViewport, /\.app-canvas-viewport\s*\{[\s\S]*#f7f8fa;[\s\S]*scrollbar-gutter:\s*stable;/)
+  assert.match(canvasViewport, /\.app-canvas-content\s*\{[\s\S]*display:\s*flex;[\s\S]*padding:\s*26px 68px 38px;/)
   assert.match(elementPanel, /\.element-editor\s*\{[\s\S]*background:\s*#fff;/)
   assert.match(markerPanel, /\.marker-detail-section\s*\{[\s\S]*background:\s*#fff;/)
   assert.doesNotMatch(elementPanel, /\.panel-title\s*\{[\s\S]*font-size:\s*18px;/)

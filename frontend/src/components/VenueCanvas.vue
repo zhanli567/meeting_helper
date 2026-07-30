@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
+import CanvasViewport from '@/components/CanvasViewport.vue'
 import { startParticipantDrag as performParticipantDrag } from '@/utils/participantActions'
 import { regionLabelAnchors, reservedItems } from '@/utils/seatRegions'
 import { computeElementColumnBounds, computeSeatLabels } from '@/utils/seatNumbering'
@@ -30,7 +31,7 @@ const emit = defineEmits([
   'marker-rect-select',
   'canvas-clear',
 ])
-const scrollRef = ref()
+const viewportRef = ref()
 const canvasRef = ref()
 const dragTargetId = ref()
 const isPanning = ref(false)
@@ -86,6 +87,9 @@ const canvasStyle = computed(() => ({
   '--unit': `${unit.value}px`,
 }))
 const isSeat = (element) => element.kind === 'SEAT'
+function viewportElement() {
+  return viewportRef.value?.getViewportElement?.()
+}
 function elementStyle(element) {
   const box = elementBox(element, unit.value)
   return {
@@ -332,7 +336,7 @@ function onMarkerSeatToggle(element) {
 }
 function startPan(event) {
   if (event.button !== 2) return
-  const container = scrollRef.value
+  const container = viewportElement()
   if (!container) return
   isPanning.value = true
   panStartX = event.clientX
@@ -345,12 +349,13 @@ function startPan(event) {
   event.preventDefault()
 }
 function movePan(event) {
-  if (!isPanning.value || !scrollRef.value) return
+  const container = viewportElement()
+  if (!isPanning.value || !container) return
   if (Math.abs(event.clientX - panStartX) > 3 || Math.abs(event.clientY - panStartY) > 3) {
     panMoved = true
   }
-  scrollRef.value.scrollLeft = panScrollLeft - (event.clientX - panStartX)
-  scrollRef.value.scrollTop = panScrollTop - (event.clientY - panStartY)
+  container.scrollLeft = panScrollLeft - (event.clientX - panStartX)
+  container.scrollTop = panScrollTop - (event.clientY - panStartY)
 }
 function endPan() {
   isPanning.value = false
@@ -362,7 +367,7 @@ function endPan() {
 }
 function onWheel(event) {
   event.preventDefault()
-  const container = scrollRef.value
+  const container = viewportElement()
   if (!container) return
   const oldZoom = props.zoom
   const rect = container.getBoundingClientRect()
@@ -370,19 +375,17 @@ function onWheel(event) {
   const pointerY = event.clientY - rect.top + container.scrollTop
   emit('zoomChange', event.deltaY < 0 ? 0.08 : -0.08, event)
   nextTick(() => {
-    if (!scrollRef.value || props.zoom === oldZoom) return
-    scrollRef.value.scrollLeft = (pointerX / oldZoom) * props.zoom - (event.clientX - rect.left)
-    scrollRef.value.scrollTop = (pointerY / oldZoom) * props.zoom - (event.clientY - rect.top)
+    const current = viewportElement()
+    if (!current || props.zoom === oldZoom) return
+    current.scrollLeft = (pointerX / oldZoom) * props.zoom - (event.clientX - rect.left)
+    current.scrollTop = (pointerY / oldZoom) * props.zoom - (event.clientY - rect.top)
   })
 }
 function centerCanvas() {
-  const container = scrollRef.value
-  if (!container) return
-  container.scrollLeft = Math.max(0, (container.scrollWidth - container.clientWidth) / 2)
-  container.scrollTop = Math.max(0, (container.scrollHeight - container.clientHeight) / 2)
+  viewportRef.value?.centerCanvas?.()
 }
 function fitCanvas() {
-  const container = scrollRef.value
+  const container = viewportElement()
   if (!container) return
   const nextZoom = previewFitZoom({
     gridRows: props.workspace.layout.gridRows,
@@ -416,15 +419,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    ref="scrollRef"
+  <CanvasViewport
+    ref="viewportRef"
     class="canvas-scroll"
-    :class="{ panning: isPanning, 'drag-active': draggingParticipantId, 'marker-mode': markerMode }"
+    :class="{ 'drag-active': draggingParticipantId, 'marker-mode': markerMode }"
+    :panning="isPanning"
+    :center-key="[workspace.meeting.id, workspace.layout.gridRows, workspace.layout.gridColumns]"
     @mousedown="startPan"
     @contextmenu.prevent
     @wheel="onWheel"
   >
-    <div class="canvas-content">
       <div
         ref="canvasRef"
         class="venue-canvas"
@@ -511,36 +515,12 @@ onBeforeUnmount(() => {
           </span>
         </template>
       </div>
-    </div>
-  </div>
+  </CanvasViewport>
 </template>
 
 <style scoped>
 .canvas-scroll {
-  width: 100%;
-  height: 100%;
-  overflow: auto;
-  background:
-    linear-gradient(rgba(0, 0, 0, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.045) 1px, transparent 1px), #f7f8fa;
-  background-size: 24px 24px;
-  cursor: default;
-}
-
-.canvas-content {
-  width: max-content;
-  min-width: 100%;
-  height: max-content;
-  min-height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 26px 68px 38px;
-}
-
-.canvas-scroll.panning {
-  cursor: grabbing;
-  user-select: none;
+  display: block;
 }
 
 .venue-canvas {

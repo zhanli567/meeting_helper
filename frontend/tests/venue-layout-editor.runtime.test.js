@@ -29,6 +29,7 @@ async function loadEditor(t, componentIndex = 0, includeColorPicker = false) {
     '/src/components/VenueLayoutEditor.vue',
     '/src/components/VenueElementPanel.vue',
     '/src/components/VenueElementPicker.vue',
+    '/src/components/CanvasViewport.vue',
   ]
   if (includeColorPicker) componentPaths.push('/src/components/ColorPickerPopover.vue')
   const components = []

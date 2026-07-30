@@ -18,6 +18,7 @@ import {
   RefreshRight,
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import CanvasViewport from '@/components/CanvasViewport.vue'
 import VenueElementPanel from '@/components/VenueElementPanel.vue'
 import VenueElementPicker from '@/components/VenueElementPicker.vue'
 import {
@@ -135,6 +136,10 @@ let globalPointerTracking = false
 let panSession
 let activePointerId
 let pointerCaptureTarget
+
+function viewportElement() {
+  return viewportRef.value?.getViewportElement?.()
+}
 
 function nextElementId() {
   return (
@@ -695,7 +700,7 @@ function startCanvasResize(event, direction) {
 
 function maintainCanvasAnchor() {
   const session = canvasResizeSession.value
-  const viewport = viewportRef.value
+  const viewport = viewportElement()
   const currentBounds = canvasRef.value?.getBoundingClientRect()
   if (!session?.anchorBounds || !viewport || !currentBounds) return
   const adjustment = canvasAnchorAdjustment(
@@ -766,7 +771,7 @@ function finishCanvasResize() {
 
 function startPan(event) {
   if (event.button !== 2) return
-  const viewport = viewportRef.value
+  const viewport = viewportElement()
   if (!viewport) return
   if (!beginPointerSession(event)) return
   panSession = {
@@ -780,10 +785,11 @@ function startPan(event) {
 }
 
 function updatePan(event) {
-  if (!panSession || !viewportRef.value) return
-  viewportRef.value.scrollLeft =
+  const viewport = viewportElement()
+  if (!panSession || !viewport) return
+  viewport.scrollLeft =
     panSession.scrollLeft - (event.clientX - panSession.startX)
-  viewportRef.value.scrollTop =
+  viewport.scrollTop =
     panSession.scrollTop - (event.clientY - panSession.startY)
 }
 
@@ -848,7 +854,7 @@ function cancelPointerSession(event) {
 
 function onWheel(event) {
   event.preventDefault()
-  const viewport = viewportRef.value
+  const viewport = viewportElement()
   if (!viewport) return
   const oldZoom = zoom.value
   const nextZoom = Math.min(2.5, Math.max(0.25, oldZoom + (event.deltaY < 0 ? 0.1 : -0.1)))
@@ -873,10 +879,7 @@ function setZoom(value) {
 }
 
 function centerCanvas() {
-  const viewport = viewportRef.value
-  if (!viewport) return
-  viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2)
-  viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 2)
+  viewportRef.value?.centerCanvas?.()
 }
 
 function scheduleCenterCanvas() {
@@ -918,7 +921,7 @@ function centerLayout() {
 }
 
 function fitCanvas() {
-  const viewport = viewportRef.value
+  const viewport = viewportElement()
   if (!viewport) return
   canvasOffsetX.value = 0
   canvasOffsetY.value = 0
@@ -1123,15 +1126,15 @@ onBeforeUnmount(() => {
           >
             画布边界内仍有元素，当前尺寸未生效
           </div>
-          <div
+          <CanvasViewport
             ref="viewportRef"
             class="canvas-viewport"
-            :class="{ panning: isPanning }"
+            :panning="isPanning"
+            :center-key="[displayRows, displayColumns, sidePanelTarget]"
             @pointerdown="startPan"
             @contextmenu.prevent
             @wheel="onWheel"
           >
-            <div class="canvas-content">
               <div class="canvas-stage" :style="stageStyle">
                 <div
                   ref="canvasRef"
@@ -1220,8 +1223,7 @@ onBeforeUnmount(() => {
                   />
                 </div>
               </div>
-            </div>
-          </div>
+          </CanvasViewport>
         </div>
 
         <VenueElementPicker
@@ -1454,40 +1456,6 @@ onBeforeUnmount(() => {
   position: relative;
   overflow: hidden;
   border-radius: inherit;
-}
-
-.canvas-viewport {
-  width: 100%;
-  height: 100%;
-  overflow: auto;
-  background:
-    linear-gradient(rgba(0, 0, 0, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.045) 1px, transparent 1px),
-    #f7f8fa;
-  background-size: 24px 24px;
-  scrollbar-gutter: stable;
-}
-
-.canvas-viewport.panning {
-  cursor: grabbing;
-  user-select: none;
-}
-
-.canvas-content {
-  width: max-content;
-  min-width: 100%;
-  height: max-content;
-  min-height: 100%;
-  display: grid;
-  place-items: center;
-  padding: 84px;
-}
-
-.venue-layout-editor.external-panel-mode .canvas-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 26px 68px 38px;
 }
 
 .canvas-stage {
