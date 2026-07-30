@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
@@ -15,7 +15,9 @@ const props = defineProps({
 })
 const emit = defineEmits(['done'])
 const formRef = ref()
+const recordTableRef = ref()
 const submitting = ref(false)
+const recordTableHeight = 'min(36vh, 360px)'
 const form = reactive({
   employeeNo: '',
   name: '',
@@ -101,12 +103,25 @@ function addColumn() {
       record.attributes[id] = ''
     }
   })
+  scrollToNewestColumn()
 }
 
 function removeCustomColumn(field) {
   form.customFields = form.customFields.filter((item) => item.id !== field.id)
   form.records.forEach((record) => {
     delete record.attributes[field.code]
+  })
+}
+
+function scrollToNewestColumn() {
+  nextTick(() => {
+    const table = recordTableRef.value
+    if (typeof table?.setScrollLeft === 'function') {
+      table.setScrollLeft(Number.MAX_SAFE_INTEGER)
+      return
+    }
+    const scrollWrap = table?.$el?.querySelector?.('.el-scrollbar__wrap')
+    if (scrollWrap) scrollWrap.scrollLeft = scrollWrap.scrollWidth
   })
 }
 
@@ -188,8 +203,11 @@ async function submit() {
         </header>
         <div class="record-table-wrap">
           <el-table
+            ref="recordTableRef"
             :data="form.records"
+            :height="recordTableHeight"
             border
+            scrollbar-always-on
             size="small"
             :empty-text="recordFields.length ? '暂无记录' : '暂无扩展字段'"
           >
@@ -298,8 +316,7 @@ async function submit() {
 }
 
 .record-table-wrap {
-  max-height: min(36vh, 360px);
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
 }
