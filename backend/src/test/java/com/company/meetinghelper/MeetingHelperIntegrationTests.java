@@ -1524,12 +1524,11 @@ class MeetingHelperIntegrationTests {
             assertThat(sheet.isDisplayGridlines()).isFalse();
             assertThat(sheetText(sheet))
                     .contains("座位编号", "获奖批次", "姓名", "1排01", "第一批", "第二批", "姓名1", "主席台");
-            assertThat(mergedRegionTexts(sheet)).contains("第一排", "第一批", "主席台");
+            assertThat(mergedRegionTexts(sheet)).contains("第一排", "主席台");
 
             Cell firstBatch = findCell(sheet, "第一批");
             Cell secondBatch = findCell(sheet, "第二批");
             Cell seatNumber = findCell(sheet, "1排01");
-            assertThat(mergedRegion(sheet, firstBatch).getNumberOfCells()).isEqualTo(2);
             assertThat(firstBatch.getRowIndex()).isLessThan(secondBatch.getRowIndex());
             assertThat(cellFill(firstBatch)).isNotIn("#e5edf8", "#dbeafe");
             assertThat(cellFill(secondBatch)).isNotIn("#e5edf8", "#dbeafe");
@@ -1537,15 +1536,15 @@ class MeetingHelperIntegrationTests {
             assertThat(cellFill(seatNumber)).isEqualTo("#e5edf8");
 
             Cell leftRowLabel = findCell(sheet, "第一排");
-            assertThat(mergedRegion(sheet, leftRowLabel).getNumberOfCells()).isEqualTo(5);
+            assertThat(mergedRegion(sheet, leftRowLabel).getNumberOfCells()).isEqualTo(4);
             assertThat((Object) sheet.getRow(0)).isNull();
             assertThat(sheet.getRow(2).getCell(0)).isNull();
             assertThat(sheet.getRow(2).getCell(1)).isNull();
 
             Cell genericElement = findCell(sheet, "主席台");
             CellRangeAddress genericRegion = mergedRegion(sheet, genericElement);
-            assertThat(genericRegion.getFirstRow()).isEqualTo(10);
-            assertThat(genericRegion.getLastRow()).isEqualTo(15);
+            assertThat(genericRegion.getFirstRow()).isEqualTo(9);
+            assertThat(genericRegion.getLastRow()).isEqualTo(14);
             assertThat(genericRegion.getFirstColumn()).isEqualTo(4);
             assertThat(genericRegion.getLastColumn()).isEqualTo(5);
             assertThat(genericElement.getCellStyle().getBorderTop()).isEqualTo(BorderStyle.THIN);
@@ -1956,6 +1955,73 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
+    void layoutSheetDeduplicatesFieldValuesAndKeepsSeatRowGridAligned() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "多字段对齐排座图场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(
+                        seat("座位-1-1", 1, 1, 1, 1),
+                        seat("座位-1-2", 1, 2, 1, 1)
+                )
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "多字段对齐排座图-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        previewAndCommit(meeting.id(), "工号,姓名,部门,获奖批次", "a12345678,张三,制造部,第一批");
+        previewAndCommit(meeting.id(), "工号,姓名,部门,获奖批次", "a12345678,张三,制造部,第二批");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        ElementView firstSeat = workspace.layout().elements().stream()
+                .filter(value -> "SEAT".equals(value.kind()))
+                .findFirst()
+                .orElseThrow();
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(workspace.participants().getFirst().id(), firstSeat.id())
+        );
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {
+                      "enabled": true,
+                      "fieldCodes": ["部门", "获奖批次"],
+                      "colorFieldCodes": ["部门", "获奖批次"]
+                    },
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            Cell rowLabel = findCell(sheet, "第一排");
+            Cell seatNumber = findCell(sheet, "1排01");
+            Cell departmentLabel = findCell(sheet, "部门");
+            Cell batchLabel = findCell(sheet, "获奖批次");
+            Cell department = findCell(sheet, "制造部");
+            Cell firstBatch = findCell(sheet, "第一批");
+            Cell secondBatch = findCell(sheet, "第二批");
+            Cell participantName = findCell(sheet, "张三");
+
+            assertThat(mergedRegion(sheet, rowLabel).getNumberOfCells()).isEqualTo(5);
+            assertThat(departmentLabel.getRowIndex()).isEqualTo(seatNumber.getRowIndex() + 1);
+            assertThat(batchLabel.getRowIndex()).isEqualTo(departmentLabel.getRowIndex() + 1);
+            assertThat(department.getRowIndex()).isEqualTo(departmentLabel.getRowIndex());
+            assertThat(firstBatch.getRowIndex()).isEqualTo(batchLabel.getRowIndex());
+            assertThat(secondBatch.getRowIndex()).isEqualTo(batchLabel.getRowIndex() + 1);
+            assertThat(participantName.getRowIndex()).isEqualTo(seatNumber.getRowIndex() + 4);
+
+            int emptySeatColumn = findCell(sheet, "1排02").getColumnIndex();
+            assertThat(sheet.getRow(firstBatch.getRowIndex()).getCell(emptySeatColumn).getCellStyle().getBorderTop())
+                    .isEqualTo(BorderStyle.THIN);
+            assertThat(sheet.getRow(secondBatch.getRowIndex()).getCell(emptySeatColumn).getCellStyle().getBorderTop())
+                    .isEqualTo(BorderStyle.THIN);
+            assertThat(cellFill(department)).isNotEqualTo(cellFill(firstBatch));
+            assertThat(cellFill(firstBatch)).isNotEqualTo(cellFill(secondBatch));
+        }
+    }
+
+    @Test
     void layoutSheetUsesProvidedStyleRulesForFieldColors() throws Exception {
         VenueDetail venue = createVenueWithElements(
                 "前端颜色规则排座图场馆-" + UUID.randomUUID(),
@@ -2011,7 +2077,7 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
-    void layoutSheetMergesOneFieldLabelAcrossAllRecordRows() throws Exception {
+    void layoutSheetMergesOneFieldLabelAcrossDistinctValues() throws Exception {
         VenueDetail venue = createVenueWithElements(
                 "字段标签排座图场馆-" + UUID.randomUUID(),
                 "主校区",
@@ -2050,7 +2116,7 @@ class MeetingHelperIntegrationTests {
             List<Cell> fieldLabels = findCells(sheet, "获奖批次");
 
             assertThat(fieldLabels).hasSize(1);
-            assertThat(mergedRegion(sheet, fieldLabels.getFirst()).getNumberOfCells()).isEqualTo(3);
+            assertThat(mergedRegion(sheet, fieldLabels.getFirst()).getNumberOfCells()).isEqualTo(2);
         }
     }
 

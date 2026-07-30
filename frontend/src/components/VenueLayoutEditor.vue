@@ -260,6 +260,8 @@ watch(
       elements: layout.elements || [],
     })
     zoom.value = DEFAULT_EDITOR_ZOOM
+    canvasOffsetX.value = 0
+    canvasOffsetY.value = 0
     undoStack.value = []
     redoStack.value = []
     scheduleCenterCanvas()
@@ -879,6 +881,13 @@ function centerCanvas() {
 
 function scheduleCenterCanvas() {
   nextTick(centerCanvas)
+  const frame =
+    typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+      ? window.requestAnimationFrame.bind(window)
+      : undefined
+  if (frame) {
+    frame(centerCanvas)
+  }
   const defer =
     typeof window !== 'undefined' && typeof window.setTimeout === 'function'
       ? window.setTimeout.bind(window)

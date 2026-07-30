@@ -198,22 +198,17 @@ public class LayoutSheetWriter {
                                 .toList();
         ArrayList<FieldRun> runs = new ArrayList<FieldRun>();
         for (WorkspaceResponse.FieldDefinitionView field : selectedFields) {
-            String previousValue = null;
-            int height = 0;
+            LinkedHashSet<String> values = new LinkedHashSet<String>();
             for (Map<String, String> record : recordAttributes) {
                 String value = nullToEmpty(record.get(field.code()));
-                if (previousValue == null) {
-                    previousValue = value;
-                    height = 1;
-                } else if (previousValue.equals(value)) {
-                    height++;
-                } else {
-                    runs.add(new FieldRun(field.code(), field.label(), previousValue, height));
-                    previousValue = value;
-                    height = 1;
+                if (!value.isBlank()) {
+                    values.add(value);
                 }
             }
-            runs.add(new FieldRun(field.code(), field.label(), nullToEmpty(previousValue), height));
+            if (values.isEmpty()) {
+                values.add("");
+            }
+            values.forEach(value -> runs.add(new FieldRun(field.code(), field.label(), value, 1)));
         }
         int dynamicHeight = runs.stream().mapToInt(FieldRun::height).sum();
         return new SeatBlock(List.copyOf(runs), 2 + dynamicHeight);
@@ -615,22 +610,35 @@ public class LayoutSheetWriter {
                     element.id(),
                     new SeatBlock(emptyFieldRuns(selectedFields), 2 + selectedFields.size())
             );
+            Map<String, Integer> fieldHeights = fieldLabelHeights(
+                    elements,
+                    element.row(),
+                    selectedFields,
+                    blockByElement
+            );
             int currentRow = startRow + 1;
-            int slack = seatHeight - block.height();
-            for (int index = 0; index < block.fieldRuns().size(); index++) {
-                FieldRun run = block.fieldRuns().get(index);
-                int runHeight = run.height() + (index == block.fieldRuns().size() - 1 ? slack : 0);
-                String fillColor = fieldValueColor(run, colorFieldCodes, colorsByFieldValue);
-                mergeAndWrite(
-                        sheet,
-                        currentRow,
-                        currentRow + runHeight - 1,
-                        startColumn,
-                        endColumn,
-                        run.value(),
-                        styles.style(fillColor, true, false)
+            for (WorkspaceResponse.FieldDefinitionView field : selectedFields) {
+                List<FieldRun> rows = fieldRows(block, field);
+                int fieldHeight = Math.max(
+                        1,
+                        fieldHeights.getOrDefault(field.code(), rows.size())
                 );
-                currentRow += runHeight;
+                for (int rowOffset = 0; rowOffset < fieldHeight; rowOffset++) {
+                    FieldRun run = rowOffset < rows.size()
+                            ? rows.get(rowOffset)
+                            : new FieldRun(field.code(), field.label(), "", 1);
+                    String fillColor = fieldValueColor(run, colorFieldCodes, colorsByFieldValue);
+                    mergeAndWrite(
+                            sheet,
+                            currentRow + rowOffset,
+                            currentRow + rowOffset,
+                            startColumn,
+                            endColumn,
+                            run.value(),
+                            styles.style(fillColor, true, false)
+                    );
+                }
+                currentRow += fieldHeight;
             }
             while (currentRow < endRow) {
                 mergeAndWrite(
@@ -664,6 +672,25 @@ public class LayoutSheetWriter {
                     styles.style(nameFill, true, participant != null)
             );
         }
+    }
+
+    private List<FieldRun> fieldRows(
+            SeatBlock block,
+            WorkspaceResponse.FieldDefinitionView field
+    ) {
+        ArrayList<FieldRun> rows = new ArrayList<FieldRun>();
+        block.fieldRuns().stream()
+                .filter(run -> field.code().equals(run.fieldCode()))
+                .forEach(run -> {
+                    int height = Math.max(1, run.height());
+                    for (int index = 0; index < height; index++) {
+                        rows.add(new FieldRun(run.fieldCode(), run.label(), run.value(), 1));
+                    }
+                });
+        if (rows.isEmpty()) {
+            rows.add(new FieldRun(field.code(), field.label(), "", 1));
+        }
+        return rows;
     }
 
     private Set<String> renderReservedSeats(
