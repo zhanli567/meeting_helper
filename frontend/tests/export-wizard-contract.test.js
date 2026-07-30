@@ -19,13 +19,16 @@ test('export dialog is a sheet configuration wizard', async () => {
   assert.match(source, /座位明细配置/)
   assert.match(source, /layoutFieldCodes/)
   assert.match(source, /layoutColorFieldCodes/)
-  assert.match(source, /participants:\s*\{\s*enabled:\s*true/)
-  assert.match(source, /layout:\s*\{\s*enabled:\s*true/)
-  assert.match(source, /seatDetails:\s*\{\s*enabled:\s*true/)
+  assert.match(source, /participants:\s*\{\s*enabled:\s*false/)
+  assert.match(source, /layout:\s*\{\s*enabled:\s*false/)
+  assert.match(source, /seatDetails:\s*\{\s*enabled:\s*false/)
   assert.doesNotMatch(source, /el-steps/)
   assert.doesNotMatch(source, /固定字段/)
   assert.match(source, /width="880px"/)
   assert.match(source, /height:\s*min\(82vh,\s*760px\);/)
+  assert.match(source, /class="[^"]*export-side-nav[^"]*"/)
+  assert.match(source, /class="config-section"/)
+  assert.match(source, /class="check-card"/)
 })
 
 test('layout color fields are selected from layout fields only', async () => {
@@ -48,6 +51,8 @@ test('workbench passes resolved layout color rules to Excel export', async () =>
 
   assert.match(workbench, /buildExportColorRules/)
   assert.match(workbench, /styleRules:\s*buildExportColorRules/)
+  assert.match(workbench, /assignedParticipantsForColor/)
+  assert.match(workbench, /let reservedColors = \[\.\.\.layoutReservedColors\.value\]/)
   assert.match(request, /record StyleRule/)
   assert.match(request, /List<StyleRule> styleRules/)
   assert.match(writer, /styleRulesByFieldValue/)

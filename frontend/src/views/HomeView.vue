@@ -124,7 +124,6 @@ async function removeMeeting(meeting) {
 <template>
   <div class="app-page home-page" v-loading="store.loading">
     <header class="app-header home-header">
-      <span class="brand-slot" aria-hidden="true" />
       <span class="header-spacer" />
     </header>
 
@@ -250,14 +249,6 @@ async function removeMeeting(meeting) {
 
 .home-header {
   flex: none;
-}
-
-.brand-slot {
-  width: 148px;
-  min-width: 148px;
-  height: 34px;
-  display: block;
-  border-radius: 8px;
 }
 
 .home-scroll {

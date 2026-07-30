@@ -16,18 +16,18 @@ const dynamicFields = computed(() =>
 )
 const form = reactive({
   participants: {
-    enabled: true,
+    enabled: false,
     fieldCodes: [],
     includeAttendance: true,
     includeSeatLabel: true,
   },
   layout: {
-    enabled: true,
+    enabled: false,
     fieldCodes: [],
     colorFieldCodes: [],
   },
   seatDetails: {
-    enabled: true,
+    enabled: false,
     fieldCodes: [],
     includeOccupancyType: true,
     includeRegionName: true,
@@ -78,18 +78,18 @@ function resetOptions() {
   activeTab.value = 'sheets'
   confirmCollapse.value = ['sheets', 'participants', 'layout', 'seatDetails']
   form.participants = {
-    enabled: true,
+    enabled: false,
     fieldCodes: [...codes],
     includeAttendance: true,
     includeSeatLabel: true,
   }
   form.layout = {
-    enabled: true,
+    enabled: false,
     fieldCodes: [],
     colorFieldCodes: [],
   }
   form.seatDetails = {
-    enabled: true,
+    enabled: false,
     fieldCodes: [...codes],
     includeOccupancyType: true,
     includeRegionName: true,
@@ -185,7 +185,7 @@ watch(
     destroy-on-close
   >
     <div class="export-dialog-body">
-      <el-tabs v-model="activeTab" tab-position="left" class="export-tabs">
+      <el-tabs v-model="activeTab" tab-position="left" class="export-tabs export-side-nav">
         <el-tab-pane
           v-for="tab in exportTabs"
           :key="tab.name"
@@ -199,12 +199,12 @@ watch(
             @submit.prevent
           >
             <div class="config-scroll">
-              <el-form-item label="导出子表">
+              <el-form-item label="导出子表" class="config-section">
                 <div class="sheet-card-grid">
                   <label
                     v-for="sheet in sheetDefinitions"
                     :key="sheet.key"
-                    class="sheet-option"
+                    class="sheet-option check-card"
                     :class="{ 'sheet-option--active': form[sheet.key].enabled }"
                   >
                     <el-checkbox v-model="form[sheet.key].enabled">
@@ -223,22 +223,27 @@ watch(
             @submit.prevent
           >
             <div class="config-scroll">
-              <el-form-item label="扩展字段">
+              <el-form-item label="扩展字段" class="config-section">
                 <el-checkbox-group
                   v-if="dynamicFields.length"
                   v-model="form.participants.fieldCodes"
                   class="field-checks"
                 >
-                  <el-checkbox v-for="field in dynamicFields" :key="field.code" :label="field.code">
+                  <el-checkbox
+                    v-for="field in dynamicFields"
+                    :key="field.code"
+                    class="check-card"
+                    :label="field.code"
+                  >
                     {{ field.label }}
                   </el-checkbox>
                 </el-checkbox-group>
                 <p v-else class="empty-export-options">暂无扩展字段</p>
               </el-form-item>
-              <el-form-item label="其他列">
+              <el-form-item label="其他列" class="config-section">
                 <div class="extra-checks">
-                  <el-checkbox v-model="form.participants.includeAttendance">出席情况</el-checkbox>
-                  <el-checkbox v-model="form.participants.includeSeatLabel">座位编号</el-checkbox>
+                  <el-checkbox v-model="form.participants.includeAttendance" class="check-card">出席情况</el-checkbox>
+                  <el-checkbox v-model="form.participants.includeSeatLabel" class="check-card">座位编号</el-checkbox>
                 </div>
               </el-form-item>
             </div>
@@ -251,19 +256,24 @@ watch(
             @submit.prevent
           >
             <div class="config-scroll">
-              <el-form-item label="排座字段">
+              <el-form-item label="排座字段" class="config-section">
                 <el-checkbox-group
                   v-if="dynamicFields.length"
                   v-model="layoutFieldCodes"
                   class="field-checks"
                 >
-                  <el-checkbox v-for="field in dynamicFields" :key="field.code" :label="field.code">
+                  <el-checkbox
+                    v-for="field in dynamicFields"
+                    :key="field.code"
+                    class="check-card"
+                    :label="field.code"
+                  >
                     {{ field.label }}
                   </el-checkbox>
                 </el-checkbox-group>
                 <p v-else class="empty-export-options">暂无扩展字段</p>
               </el-form-item>
-              <el-form-item label="着色字段">
+              <el-form-item label="着色字段" class="config-section">
                 <el-checkbox-group
                   v-if="availableLayoutColorFields.length"
                   v-model="layoutColorFieldCodes"
@@ -272,6 +282,7 @@ watch(
                   <el-checkbox
                     v-for="field in availableLayoutColorFields"
                     :key="field.code"
+                    class="check-card"
                     :label="field.code"
                   >
                     {{ field.label }}
@@ -289,23 +300,28 @@ watch(
             @submit.prevent
           >
             <div class="config-scroll">
-              <el-form-item label="扩展字段">
+              <el-form-item label="扩展字段" class="config-section">
                 <el-checkbox-group
                   v-if="dynamicFields.length"
                   v-model="form.seatDetails.fieldCodes"
                   class="field-checks"
                 >
-                  <el-checkbox v-for="field in dynamicFields" :key="field.code" :label="field.code">
+                  <el-checkbox
+                    v-for="field in dynamicFields"
+                    :key="field.code"
+                    class="check-card"
+                    :label="field.code"
+                  >
                     {{ field.label }}
                   </el-checkbox>
                 </el-checkbox-group>
                 <p v-else class="empty-export-options">暂无扩展字段</p>
               </el-form-item>
-              <el-form-item label="其他列">
+              <el-form-item label="其他列" class="config-section">
                 <div class="extra-checks">
-                  <el-checkbox v-model="form.seatDetails.includeOccupancyType">占用类型</el-checkbox>
-                  <el-checkbox v-model="form.seatDetails.includeRegionName">区域名称</el-checkbox>
-                  <el-checkbox v-model="form.seatDetails.includeParticipant">人员信息</el-checkbox>
+                  <el-checkbox v-model="form.seatDetails.includeOccupancyType" class="check-card">占用类型</el-checkbox>
+                  <el-checkbox v-model="form.seatDetails.includeRegionName" class="check-card">区域名称</el-checkbox>
+                  <el-checkbox v-model="form.seatDetails.includeParticipant" class="check-card">人员信息</el-checkbox>
                 </div>
               </el-form-item>
             </div>
@@ -313,7 +329,7 @@ watch(
 
           <el-form v-else class="tab-panel" label-position="top" @submit.prevent>
             <div class="confirm-scroll">
-              <el-form-item label="导出子表">
+              <el-form-item label="导出子表" class="config-section">
                 <div class="summary-tags">
                   <el-tag v-if="form.participants.enabled">人员名单</el-tag>
                   <el-tag v-if="form.layout.enabled">排座图</el-tag>
@@ -383,16 +399,38 @@ watch(
 }
 
 .export-tabs :deep(.el-tabs__header.is-left) {
-  width: 178px;
-  margin-right: 20px;
+  width: 170px;
+  flex: 0 0 170px;
+  margin-right: 22px;
+}
+
+.export-tabs :deep(.el-tabs__nav-wrap.is-left) {
+  padding: 8px 10px;
+  border-right: 1px solid var(--line);
+}
+
+.export-tabs :deep(.el-tabs__nav-wrap.is-left::after),
+.export-tabs :deep(.el-tabs__active-bar.is-left) {
+  display: none;
 }
 
 .export-tabs :deep(.el-tabs__item) {
+  width: 136px;
   justify-content: flex-start;
-  height: 42px;
-  line-height: 42px;
-  padding: 0 18px;
+  height: 40px;
+  line-height: 40px;
+  margin-bottom: 6px;
+  padding: 0 12px;
+  color: var(--secondary);
+  border-radius: 8px;
+  text-align: left;
   white-space: nowrap;
+}
+
+.export-tabs :deep(.el-tabs__item.is-active) {
+  color: var(--brand);
+  background: var(--brand-soft);
+  font-weight: 700;
 }
 
 .export-tabs :deep(.el-tabs__content),
@@ -410,9 +448,32 @@ watch(
 .confirm-scroll {
   height: 100%;
   min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 14px;
   overflow-x: hidden;
   overflow-y: auto;
   padding-right: 6px;
+}
+
+.config-section {
+  margin-bottom: 0;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.config-section :deep(.el-form-item__label) {
+  margin-bottom: 12px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.config-section :deep(.el-form-item__content) {
+  width: 100%;
 }
 
 .sheet-card-grid {
@@ -462,6 +523,23 @@ watch(
 .sheet-option :deep(.el-checkbox) {
   min-width: 0;
   margin-right: 0;
+}
+
+.field-checks :deep(.check-card),
+.extra-checks :deep(.check-card) {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.field-checks :deep(.check-card.is-checked),
+.extra-checks :deep(.check-card.is-checked) {
+  background: var(--brand-soft);
+  border-color: #bfd8ff;
 }
 
 .empty-export-options {

@@ -1544,8 +1544,8 @@ class MeetingHelperIntegrationTests {
 
             Cell genericElement = findCell(sheet, "主席台");
             CellRangeAddress genericRegion = mergedRegion(sheet, genericElement);
-            assertThat(genericRegion.getFirstRow()).isEqualTo(12);
-            assertThat(genericRegion.getLastRow()).isEqualTo(18);
+            assertThat(genericRegion.getFirstRow()).isEqualTo(10);
+            assertThat(genericRegion.getLastRow()).isEqualTo(15);
             assertThat(genericRegion.getFirstColumn()).isEqualTo(4);
             assertThat(genericRegion.getLastColumn()).isEqualTo(5);
             assertThat(genericElement.getCellStyle().getBorderTop()).isEqualTo(BorderStyle.THIN);
@@ -1634,7 +1634,7 @@ class MeetingHelperIntegrationTests {
             Cell seatNumber = findCell(sheet, "1排01");
             Cell participantName = findCell(sheet, "跨行人员");
 
-            assertThat(participantName.getRowIndex() - seatNumber.getRowIndex()).isEqualTo(4);
+            assertThat(participantName.getRowIndex() - seatNumber.getRowIndex()).isEqualTo(3);
             assertThat(sheet.getRow(seatNumber.getRowIndex() + 2).getCell(seatNumber.getColumnIndex())
                     .getCellStyle().getBorderLeft()).isEqualTo(BorderStyle.THIN);
         }
@@ -1685,14 +1685,14 @@ class MeetingHelperIntegrationTests {
             CellRangeAddress fieldLabelRegion = mergedRegion(sheet, fieldLabel);
             CellRangeAddress rowLabelRegion = mergedRegion(sheet, rowLabel);
 
-            assertThat(participantName.getRowIndex() - seatNumber.getRowIndex()).isEqualTo(6);
+            assertThat(participantName.getRowIndex() - seatNumber.getRowIndex()).isEqualTo(5);
             assertThat(fieldLabelRegion.getFirstRow()).isEqualTo(seatNumber.getRowIndex() + 1);
             assertThat(fieldLabelRegion.getLastRow()).isEqualTo(participantName.getRowIndex() - 1);
-            assertThat(fieldLabelRegion.getNumberOfCells()).isEqualTo(5);
+            assertThat(fieldLabelRegion.getNumberOfCells()).isEqualTo(4);
             assertThat(nameLabel.getRowIndex()).isEqualTo(participantName.getRowIndex());
             assertThat(rowLabelRegion.getFirstRow()).isEqualTo(seatNumber.getRowIndex());
             assertThat(rowLabelRegion.getLastRow()).isEqualTo(participantName.getRowIndex());
-            assertThat(rowLabelRegion.getNumberOfCells()).isEqualTo(7);
+            assertThat(rowLabelRegion.getNumberOfCells()).isEqualTo(6);
         }
     }
 
@@ -1812,6 +1812,146 @@ class MeetingHelperIntegrationTests {
 
             assertThat(cellFill(reservedLabel)).isEqualTo("#dbeafe");
             assertThat(cellFill(fieldValue)).isNotEqualTo("#dbeafe");
+        }
+    }
+
+    @Test
+    void layoutSheetDoesNotInsertBlankRowsBetweenSeatRows() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "无行间隔排座图场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(
+                        seat("第一排座位", 1, 1, 1, 1),
+                        seat("第二排座位", 2, 1, 1, 1)
+                )
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "无行间隔排座图-" + UUID.randomUUID(),
+                venue.id()
+        ));
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {"enabled": true, "fieldCodes": [], "colorFieldCodes": []},
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            Cell firstSeat = findCell(sheet, "1排01");
+            Cell secondSeat = findCell(sheet, "2排01");
+
+            assertThat(secondSeat.getRowIndex() - firstSeat.getRowIndex()).isEqualTo(2);
+        }
+    }
+
+    @Test
+    void layoutSheetRendersReservedAreaAsMergedColoredSeatBlock() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "区域合并排座图场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(
+                        seat("区域座位-1", 1, 1, 1, 1),
+                        seat("区域座位-2", 1, 2, 1, 1),
+                        seat("区域座位-3", 2, 1, 1, 1),
+                        seat("区域座位-4", 2, 2, 1, 1)
+                )
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "区域合并排座图-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        List<String> seatIds = workspace.layout().elements().stream()
+                .filter(value -> "SEAT".equals(value.kind()))
+                .map(ElementView::id)
+                .toList();
+        String targetIds = seatIds.stream()
+                .map(id -> "\"" + id + "\"")
+                .collect(Collectors.joining(","));
+        mockMvc.perform(post("/plans/{planId}/reserved-areas/save", workspace.plan().id())
+                        .header(USER_HEADER, DEFAULT_USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reservedAreas":[{"label":"嘉宾","backgroundColor":"#FDE68A","textColor":"#172033","bold":true,"targetElementIds":[%s]}]}
+                                """.formatted(targetIds)))
+                .andExpect(status().isOk());
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {
+                      "enabled": true,
+                      "fieldCodes": [],
+                      "colorFieldCodes": []
+                    },
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            Cell reservedLabel = findCell(sheet, "嘉宾");
+            CellRangeAddress region = mergedRegion(sheet, reservedLabel);
+
+            assertThat(region.getNumberOfCells()).isGreaterThan(4);
+            assertThat(cellFill(reservedLabel)).isEqualTo("#fde68a");
+            for (int rowIndex = region.getFirstRow(); rowIndex <= region.getLastRow(); rowIndex++) {
+                for (int columnIndex = region.getFirstColumn(); columnIndex <= region.getLastColumn(); columnIndex++) {
+                    assertThat(cellFill(sheet.getRow(rowIndex).getCell(columnIndex))).isEqualTo("#fde68a");
+                }
+            }
+            assertThat(sheetText(sheet)).doesNotContain("1排01", "1排02", "2排01", "2排02");
+        }
+    }
+
+    @Test
+    void layoutSheetColorsOnlyAssignedParticipantsInPaletteOrder() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "已排颜色排座图场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(seat("已排座位", 1, 1, 1, 1))
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "已排颜色排座图-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        previewAndCommit(meeting.id(), "工号,姓名,部门", "a10000001,未排人员,未排部门");
+        previewAndCommit(meeting.id(), "工号,姓名,部门", "a10000002,已排人员,已排部门");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        ElementView seat = workspace.layout().elements().stream()
+                .filter(value -> "SEAT".equals(value.kind()))
+                .findFirst()
+                .orElseThrow();
+        ParticipantView assigned = workspace.participants().stream()
+                .filter(value -> "已排人员".equals(value.name()))
+                .findFirst()
+                .orElseThrow();
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(assigned.id(), seat.id())
+        );
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {
+                      "enabled": true,
+                      "fieldCodes": ["部门"],
+                      "colorFieldCodes": ["部门"]
+                    },
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            Cell assignedDepartment = findCell(sheet, "已排部门");
+
+            assertThat(cellFill(assignedDepartment)).isEqualTo("#fee2e2");
+            assertThat(sheetText(sheet)).doesNotContain("未排部门");
         }
     }
 

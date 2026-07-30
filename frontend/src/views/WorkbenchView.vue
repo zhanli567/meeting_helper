@@ -206,13 +206,23 @@ const layoutReservedColors = computed(() =>
     .map((element) => normalizeHexColor(element.fillColor))
     .filter(Boolean),
 )
+const activeLayoutElementIds = computed(() =>
+  new Set(activeLayoutElements.value.map((element) => element.id)),
+)
+const assignedParticipantsForColor = computed(() =>
+  (workspace.value?.participants || []).filter(
+    (participant) =>
+      participant.assignedElementId &&
+      activeLayoutElementIds.value.has(participant.assignedElementId),
+  ),
+)
 const groupColorFieldOverrides = computed(
   () => groupColorOverrides.value?.[groupColorFieldCode.value] || {},
 )
 const participantColorById = computed(() =>
   Object.fromEntries(
     buildParticipantColorMap(
-      workspace.value?.participants || [],
+      assignedParticipantsForColor.value,
       groupColorFieldCode.value,
       GROUP_COLOR_PALETTE,
       groupColorFieldOverrides.value,
@@ -222,7 +232,7 @@ const participantColorById = computed(() =>
 )
 const groupColorEntries = computed(() =>
   buildFieldColorEntries(
-    workspace.value?.participants || [],
+    assignedParticipantsForColor.value,
     groupColorFieldCode.value,
     GROUP_COLOR_PALETTE,
     groupColorFieldOverrides.value,
@@ -1122,20 +1132,26 @@ function selectedLayoutColorFieldCodes(options) {
 function buildExportColorRules(options) {
   const colorFieldCodes = selectedLayoutColorFieldCodes(options)
   if (!colorFieldCodes.length) return []
-  return colorFieldCodes.flatMap((fieldCode) =>
-    buildFieldColorEntries(
-      workspace.value?.participants || [],
+  let reservedColors = [...layoutReservedColors.value]
+  return colorFieldCodes.flatMap((fieldCode) => {
+    const entries = buildFieldColorEntries(
+      assignedParticipantsForColor.value,
       fieldCode,
       GROUP_COLOR_PALETTE,
       groupColorOverrides.value?.[fieldCode] || {},
-      layoutReservedColors.value,
-    ).map((entry) => ({
+      reservedColors,
+    )
+    reservedColors = [
+      ...reservedColors,
+      ...entries.map((entry) => normalizeHexColor(entry.backgroundColor)).filter(Boolean),
+    ]
+    return entries.map((entry) => ({
       fieldCode,
       value: entry.value,
       backgroundColor: entry.backgroundColor,
       textColor: entry.textColor || '#172033',
-    })),
-  )
+    }))
+  })
 }
 function exportOptionsWithColorRules(options) {
   const sheets = options?.sheets || options || {}
@@ -1308,9 +1324,6 @@ watch(
 <template>
   <div class="app-page workbench-page" v-loading="store.loading || loadingVersion">
     <header class="app-header">
-      <button class="home-brand" title="返回首页" @click="goHome">
-        <span class="brand-slot" aria-hidden="true" />
-      </button>
       <el-button class="header-home header-home-left" text :icon="House" @click="goHome">
         首页
       </el-button>
@@ -1676,27 +1689,6 @@ watch(
   overflow: hidden;
 }
 
-.home-brand {
-  width: 148px;
-  min-width: 148px;
-  min-height: 34px;
-  display: flex;
-  align-items: center;
-  padding: 0;
-  color: var(--ink);
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  text-align: left;
-}
-
-.brand-slot {
-  width: 100%;
-  height: 34px;
-  display: block;
-  border-radius: 8px;
-}
-
 .meeting-selector {
   width: 300px;
 }
@@ -1980,11 +1972,6 @@ watch(
     gap: 10px;
     padding-inline: 16px;
   }
-
-    .home-brand {
-      width: 132px;
-      min-width: 132px;
-    }
 
   .save-state {
     display: none;

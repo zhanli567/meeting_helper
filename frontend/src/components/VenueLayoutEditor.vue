@@ -262,7 +262,7 @@ watch(
     zoom.value = DEFAULT_EDITOR_ZOOM
     undoStack.value = []
     redoStack.value = []
-    nextTick(centerCanvas)
+    scheduleCenterCanvas()
   },
   { immediate: true, deep: true },
 )
@@ -877,6 +877,17 @@ function centerCanvas() {
   viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 2)
 }
 
+function scheduleCenterCanvas() {
+  nextTick(centerCanvas)
+  const defer =
+    typeof window !== 'undefined' && typeof window.setTimeout === 'function'
+      ? window.setTimeout.bind(window)
+      : globalThis.setTimeout
+  if (typeof defer === 'function') {
+    defer(centerCanvas, 0)
+  }
+}
+
 function centerLayout() {
   if (!elements.value.length) return
   const centered = centerLayoutElements(elements.value, {
@@ -961,7 +972,7 @@ function closeOnOutsidePointer(event) {
 
 onMounted(() => {
   window.addEventListener('pointerdown', closeOnOutsidePointer)
-  nextTick(centerCanvas)
+  scheduleCenterCanvas()
 })
 
 onBeforeUnmount(() => {
@@ -1464,6 +1475,9 @@ onBeforeUnmount(() => {
 }
 
 .venue-layout-editor.external-panel-mode .canvas-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 26px 68px 38px;
 }
 

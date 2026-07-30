@@ -268,7 +268,8 @@ test('confirmation summarizes enabled sheets, color fields, and static choices',
   const Dialog = await loadDialog(t)
   const root = await mountDialog(t, Dialog)
 
-  buttonsByText(root, '座位明细')[0].props.onClick()
+  buttonsByText(root, '人员名单')[0].props.onClick()
+  buttonsByText(root, '排座图')[0].props.onClick()
   buttonsByText(root, '下一步')[0].props.onClick()
   await nextTick()
 
@@ -303,8 +304,7 @@ test('only selected sheets appear as configuration tabs', async (t) => {
   const Dialog = await loadDialog(t)
   const root = await mountDialog(t, Dialog)
 
-  buttonsByText(root, '人员名单')[0].props.onClick()
-  buttonsByText(root, '座位明细')[0].props.onClick()
+  buttonsByText(root, '排座图')[0].props.onClick()
   await nextTick()
 
   assert.equal(buttonsByText(root, '人员名单配置').length, 0)
@@ -327,4 +327,19 @@ test('only selected sheets appear as configuration tabs', async (t) => {
   assert.ok(summaryLabels.includes('排座图配置'))
   assert.ok(!summaryLabels.includes('人员名单配置'))
   assert.ok(!summaryLabels.includes('座位明细配置'))
+})
+
+test('sheet choices start empty and configuration tabs do not appear before selection', async (t) => {
+  const Dialog = await loadDialog(t)
+  const root = await mountDialog(t, Dialog)
+  const checked = allNodes(root).filter((node) => node.props?.['aria-checked'] === true)
+
+  assert.equal(checked.length, 0)
+  assert.equal(buttonsByText(root, '人员名单配置').length, 0)
+  assert.equal(buttonsByText(root, '排座图配置').length, 0)
+  assert.equal(buttonsByText(root, '座位明细配置').length, 0)
+  assert.match(nodeText(root), /人员名单/)
+  assert.match(nodeText(root), /排座图/)
+  assert.match(nodeText(root), /座位明细/)
+  assert.match(nodeText(root), /确认导出/)
 })

@@ -14,7 +14,7 @@ test('排座工作台提供三段模式且发布版本只读', async () => {
   assert.match(source, /:disabled="readonlyMode"/)
 })
 
-test('工作台按模式拆分页面级保存入口并清空品牌占位', async () => {
+test('工作台按模式拆分页面级保存入口并把首页放在左上角', async () => {
   const source = await readFile(new URL('../src/views/WorkbenchView.vue', import.meta.url), 'utf8')
 
   assert.match(source, /showModeSave/)
@@ -32,7 +32,12 @@ test('工作台按模式拆分页面级保存入口并清空品牌占位', async
   assert.match(source, />\s*座位数\s*</)
   assert.doesNotMatch(source, /<span class="brand-mark">席<\/span>/)
   assert.doesNotMatch(source, /会议排座助手<\/strong>/)
-  assert.match(source, /class="brand-slot"/)
+  assert.doesNotMatch(source, /class="home-brand"/)
+  assert.doesNotMatch(source, /class="brand-slot"/)
+  assert.match(
+    source,
+    /<el-button\s+class="header-home header-home-left"[\s\S]*首页[\s\S]*<\/el-button>[\s\S]*class="header-divider"[\s\S]*class="meeting-selector header-selector workbench-select"/,
+  )
 })
 
 test('工作台和画布支持取消已选人员与区域', async () => {
@@ -108,6 +113,8 @@ test('三种工作台模式初始缩放和画布背景保持一致', async () =>
   assert.match(editor, /const zoom = ref\(DEFAULT_EDITOR_ZOOM\)/)
   assert.match(editor, /nextTick\(centerCanvas\)/)
   assert.doesNotMatch(editor, /nextTick\(fitCanvas\)/)
+  assert.match(editor, /function scheduleCenterCanvas/)
+  assert.match(editor, /\.venue-layout-editor\.external-panel-mode \.canvas-content\s*\{[\s\S]*display:\s*flex;/)
   assert.match(canvas, /linear-gradient\(rgba\(0,\s*0,\s*0,\s*0\.045\) 1px,\s*transparent 1px\),/)
   assert.match(editor, /linear-gradient\(rgba\(0,\s*0,\s*0,\s*0\.045\) 1px,\s*transparent 1px\),/)
   assert.match(editor, /#f7f8fa;/)

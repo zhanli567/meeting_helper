@@ -9,8 +9,10 @@ test('workbench header places home on the left and uses shared select/button siz
 
   assert.match(
     workbench,
-    /class="home-brand"[\s\S]*class="header-home header-home-left"[\s\S]*class="header-divider"[\s\S]*class="meeting-selector header-selector workbench-select"/,
+    /<el-button\s+class="header-home header-home-left"[\s\S]*首页[\s\S]*<\/el-button>[\s\S]*class="header-divider"[\s\S]*class="meeting-selector header-selector workbench-select"/,
   )
+  assert.doesNotMatch(workbench, /class="home-brand"/)
+  assert.doesNotMatch(workbench, /class="brand-slot"/)
   assert.match(workbench, /class="version-selector header-selector workbench-select"/)
   assert.match(workbench, /class="color-field-select workbench-select"/)
   assert.match(workbench, /class="header-auto-save workbench-select"/)
@@ -36,7 +38,7 @@ test('layout mode canvas and right panel use the same rounded white shell as sea
   assert.doesNotMatch(editor, /\.venue-layout-editor\.external-panel-mode \.canvas-pane\s*\{[\s\S]*border-radius:\s*0;/)
   assert.match(editor, /\.venue-layout-editor\.external-panel-mode \.canvas-pane\s*\{[\s\S]*border-radius:\s*var\(--radius-md\);/)
   assert.match(editor, /\.venue-layout-editor\.external-panel-mode \.designer-canvas\s*\{[\s\S]*border-radius:\s*12px;/)
-  assert.match(editor, /\.venue-layout-editor\.external-panel-mode \.canvas-content\s*\{[\s\S]*padding:\s*26px 68px 38px;/)
+  assert.match(editor, /\.venue-layout-editor\.external-panel-mode \.canvas-content\s*\{[\s\S]*display:\s*flex;[\s\S]*padding:\s*26px 68px 38px;/)
   assert.match(elementPanel, /\.element-editor\s*\{[\s\S]*background:\s*#fff;/)
   assert.match(markerPanel, /\.marker-detail-section\s*\{[\s\S]*background:\s*#fff;/)
   assert.doesNotMatch(elementPanel, /\.panel-title\s*\{[\s\S]*font-size:\s*18px;/)

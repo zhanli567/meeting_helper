@@ -36,7 +36,7 @@ test('首页保留模板管理入口并在会议列表标题处提供添加会�
   assert.doesNotMatch(source, /currentUser/)
   assert.doesNotMatch(source, /User/)
   assert.doesNotMatch(source, /class="user-context"/)
-  assert.match(source, /class="brand-slot"/)
+  assert.doesNotMatch(source, /class="brand-slot"/)
   assert.doesNotMatch(source, /brand-mark/)
   assert.doesNotMatch(source, /会议排座助手/)
   assert.doesNotMatch(source, />\s*开始排座\s*</)

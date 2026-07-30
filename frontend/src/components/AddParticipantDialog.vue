@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { Download, UploadFilled } from '@element-plus/icons-vue'
+import { Close, Download, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import ParticipantRecordTable from '@/components/ParticipantRecordTable.vue'
 import { meetingApi } from '@/api/meeting'
@@ -17,6 +17,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['done'])
 const tableRef = ref()
+const uploadRef = ref()
 const file = ref()
 const preview = ref()
 const templateDownloading = ref(false)
@@ -62,12 +63,24 @@ function addTargetElementId(index) {
   return props.targetElementId && index === 0 ? props.targetElementId : undefined
 }
 
-function onFileChange(uploadFile) {
-  file.value = uploadFile.raw
+function setSelectedFile(nextFile) {
+  file.value = nextFile
   preview.value = undefined
 }
 
+function onFileChange(uploadFile) {
+  setSelectedFile(uploadFile.raw || uploadFile)
+}
+
+function onFileExceed(files) {
+  const nextFile = files?.[0]
+  if (!nextFile) return
+  uploadRef.value?.clearFiles()
+  setSelectedFile(nextFile)
+}
+
 function clearFile() {
+  uploadRef.value?.clearFiles()
   file.value = undefined
   preview.value = undefined
 }
@@ -228,18 +241,28 @@ async function submit() {
             下载模板
           </el-button>
           <el-upload
+            ref="uploadRef"
             class="upload-surface"
             :auto-upload="false"
             :show-file-list="false"
             :limit="1"
             accept=".xlsx"
             :on-change="onFileChange"
+            :on-exceed="onFileExceed"
             :on-remove="clearFile"
           >
             <el-button :icon="UploadFilled" :disabled="previewing">选择Excel</el-button>
           </el-upload>
           <span v-if="selectedFileName" class="selected-file-name" :title="selectedFileName">
-            {{ selectedFileName }}
+            <span class="selected-file-text">{{ selectedFileName }}</span>
+            <button
+              type="button"
+              class="selected-file-remove"
+              aria-label="移除已选Excel"
+              @click="clearFile"
+            >
+              <Close />
+            </button>
           </span>
           <el-button
             type="primary"
@@ -363,15 +386,46 @@ async function submit() {
 .selected-file-name {
   max-width: 170px;
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 5px 9px;
-  overflow: hidden;
   color: var(--muted);
   background: #f3f6fb;
   border: 1px solid var(--line);
   border-radius: 8px;
   font-size: 12px;
+}
+
+.selected-file-text {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.selected-file-remove {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #94a3b8;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.selected-file-remove:hover {
+  color: var(--brand);
+  background: #e8f1ff;
+}
+
+.selected-file-remove svg {
+  width: 12px;
+  height: 12px;
 }
 
 .import-preview-section {
