@@ -38,6 +38,18 @@ test('layout color fields are selected from layout fields only', async () => {
   assert.match(source, /form\.layout\.colorFieldCodes = form\.layout\.colorFieldCodes\.filter/)
 })
 
+test('export dialog submits selected dynamic fields in original definition order', async () => {
+  const source = await readFile(new URL('../src/components/ExportOptionsDialog.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /function orderedFieldCodes/)
+  assert.match(source, /dynamicFields\.value\.map\(\(field\) => field\.code\)\.filter/)
+  assert.match(source, /fieldSummary\(codes\)[\s\S]*orderedFieldCodes\(codes\)/)
+  assert.match(source, /fieldCodes:\s*orderedFieldCodes\(form\.participants\.fieldCodes\)/)
+  assert.match(source, /fieldCodes:\s*orderedFieldCodes\(form\.layout\.fieldCodes\)/)
+  assert.match(source, /colorFieldCodes:\s*orderedFieldCodes\(form\.layout\.colorFieldCodes\)/)
+  assert.match(source, /fieldCodes:\s*orderedFieldCodes\(form\.seatDetails\.fieldCodes\)/)
+})
+
 test('workbench passes resolved layout color rules to Excel export', async () => {
   const workbench = await readFile(new URL('../src/views/WorkbenchView.vue', import.meta.url), 'utf8')
   const request = await readFile(

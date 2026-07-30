@@ -2029,7 +2029,8 @@ class MeetingHelperIntegrationTests {
                 "主校区",
                 List.of(
                         seat("座位-2-3", 2, 3, 1, 1),
-                        seat("座位-2-4", 2, 4, 1, 1)
+                        seat("座位-2-4", 2, 4, 1, 1),
+                        seat("座位-2-5", 2, 5, 1, 1)
                 )
         );
         MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
@@ -2062,8 +2063,8 @@ class MeetingHelperIntegrationTests {
                     "participants": {"enabled": false},
                     "layout": {
                       "enabled": true,
-                      "fieldCodes": ["部门", "获奖批次"],
-                      "colorFieldCodes": ["部门", "获奖批次"]
+                      "fieldCodes": ["获奖批次", "部门"],
+                      "colorFieldCodes": ["获奖批次", "部门"]
                     },
                     "seatDetails": {"enabled": false}
                   }
@@ -2076,6 +2077,11 @@ class MeetingHelperIntegrationTests {
             Cell leftOnlyBatch = findCell(sheet, "第二");
             Cell leftDepartment = findCell(sheet, "dafwf");
             Cell rightDepartment = findCell(sheet, "制造部");
+            Cell departmentLabel = findCell(sheet, "部门");
+            Cell batchLabel = findCell(sheet, "获奖批次");
+            Cell emptySeat = findCell(sheet, "1排03");
+
+            assertThat(departmentLabel.getRowIndex()).isLessThan(batchLabel.getRowIndex());
 
             CellRangeAddress sharedBatchRegion = mergedRegion(sheet, sharedBatch);
             assertThat(sharedBatchRegion.getFirstColumn()).isEqualTo(firstSeat.getColumnIndex());
@@ -2092,6 +2098,18 @@ class MeetingHelperIntegrationTests {
             assertThat(leftDepartmentRegion.getFirstColumn()).isEqualTo(firstSeat.getColumnIndex());
             assertThat(leftDepartmentRegion.getLastColumn()).isEqualTo(firstSeat.getColumnIndex());
             assertThat(leftDepartmentRegion.getNumberOfCells()).isEqualTo(2);
+
+            int emptyColumn = emptySeat.getColumnIndex();
+            CellRangeAddress emptyDepartmentRegion =
+                    mergedRegion(sheet, sheet.getRow(departmentLabel.getRowIndex()).getCell(emptyColumn));
+            CellRangeAddress emptyBatchRegion =
+                    mergedRegion(sheet, sheet.getRow(batchLabel.getRowIndex()).getCell(emptyColumn));
+            assertThat(emptyDepartmentRegion.getFirstColumn()).isEqualTo(emptyColumn);
+            assertThat(emptyDepartmentRegion.getLastColumn()).isEqualTo(emptyColumn);
+            assertThat(emptyDepartmentRegion.getNumberOfCells()).isEqualTo(2);
+            assertThat(emptyBatchRegion.getFirstColumn()).isEqualTo(emptyColumn);
+            assertThat(emptyBatchRegion.getLastColumn()).isEqualTo(emptyColumn);
+            assertThat(emptyBatchRegion.getNumberOfCells()).isEqualTo(3);
         }
     }
 

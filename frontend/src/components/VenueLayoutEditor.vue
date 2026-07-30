@@ -18,6 +18,7 @@ import {
   RefreshRight,
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import CanvasBoard from '@/components/CanvasBoard.vue'
 import CanvasViewport from '@/components/CanvasViewport.vue'
 import VenueElementPanel from '@/components/VenueElementPanel.vue'
 import VenueElementPicker from '@/components/VenueElementPicker.vue'
@@ -1136,9 +1137,10 @@ onBeforeUnmount(() => {
             @wheel="onWheel"
           >
               <div class="canvas-stage" :style="stageStyle">
-                <div
+                <CanvasBoard
                   ref="canvasRef"
                   class="designer-canvas"
+                  grid
                   :class="{ selecting: Boolean(drawing) }"
                   :style="canvasStyle"
                   @pointerdown="startSelection"
@@ -1221,7 +1223,7 @@ onBeforeUnmount(() => {
                     aria-label="同时调整画布长宽"
                     @pointerdown.stop="startCanvasResize($event, corner)"
                   />
-                </div>
+                </CanvasBoard>
               </div>
           </CanvasViewport>
         </div>
@@ -1469,19 +1471,7 @@ onBeforeUnmount(() => {
   left: 0;
   transform-origin: 0 0;
   touch-action: none;
-  background:
-    linear-gradient(rgba(34, 73, 122, 0.09) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(34, 73, 122, 0.09) 1px, transparent 1px),
-    #fff;
-  background-size: var(--editor-cell) var(--editor-cell);
-  border: 1px solid #b9cbe2;
-  box-shadow: 0 14px 34px rgba(40, 75, 118, 0.13);
   cursor: default;
-}
-
-.venue-layout-editor.external-panel-mode .designer-canvas {
-  border-radius: 12px;
-  box-shadow: var(--shadow);
 }
 
 .designer-canvas.selecting {

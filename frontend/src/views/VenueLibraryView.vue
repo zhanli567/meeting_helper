@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowLeft,
+  House,
   Plus,
   Search,
 } from '@element-plus/icons-vue'
@@ -229,8 +229,8 @@ function displayText(value) {
 <template>
   <div class="app-page venue-page">
     <header class="app-header">
-      <el-button text class="back-button" :icon="ArrowLeft" @click="router.push('/')">
-        返回首页
+      <el-button text class="header-home header-home-left" :icon="House" @click="router.push('/')">
+        首页
       </el-button>
       <span class="header-divider" />
       <div class="brand-copy">
@@ -419,8 +419,18 @@ function displayText(value) {
   overflow: hidden;
 }
 
-.back-button {
-  color: var(--muted);
+.header-home {
+  color: #4b5563;
+  font-weight: 650;
+}
+
+.header-home:hover {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.header-home-left {
+  flex: none;
 }
 
 .venue-content {

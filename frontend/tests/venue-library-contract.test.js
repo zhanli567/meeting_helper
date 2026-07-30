@@ -218,6 +218,19 @@ test('场馆列表只接收最后一次查询响应', async () => {
   assert.match(source, /if \(loadId === latestLoadId\) loading\.value = false/)
 })
 
+test('场馆模板页首页入口样式和会议编辑页保持一致', async () => {
+  const source = await readSource('src/views/VenueLibraryView.vue')
+
+  assert.match(source, /import \{[\s\S]*House[\s\S]*\} from '@element-plus\/icons-vue'/)
+  assert.match(
+    source,
+    /<el-button\s+text\s+class="header-home header-home-left"[\s\S]*:icon="House"[\s\S]*>\s*首页\s*<\/el-button>/,
+  )
+  assert.match(source, /\.header-home\s*\{[\s\S]*font-weight:\s*650;/)
+  assert.doesNotMatch(source, /class="back-button" :icon="ArrowLeft"/)
+  assert.doesNotMatch(source, />\s*返回首页\s*</)
+})
+
 test('布局编辑页不提供无法随布局保存的场馆信息输入', async () => {
   const source = await readSource('src/views/VenueLayoutEditorView.vue')
 

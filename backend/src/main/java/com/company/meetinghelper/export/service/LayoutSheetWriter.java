@@ -116,17 +116,10 @@ public class LayoutSheetWriter {
         if (workspace.fieldDefinitions() == null || options.fieldCodes().isEmpty()) {
             return List.of();
         }
-        Map<String, WorkspaceResponse.FieldDefinitionView> fieldsByCode = workspace.fieldDefinitions().stream()
+        Set<String> selectedCodes = new LinkedHashSet<>(options.fieldCodes());
+        return workspace.fieldDefinitions().stream()
                 .filter(field -> !"name".equals(field.code()) && !"employeeNo".equals(field.code()))
-                .collect(Collectors.toMap(
-                        WorkspaceResponse.FieldDefinitionView::code,
-                        Function.identity(),
-                        (left, right) -> left
-                ));
-        return options.fieldCodes().stream()
-                .distinct()
-                .map(fieldsByCode::get)
-                .filter(java.util.Objects::nonNull)
+                .filter(field -> selectedCodes.contains(field.code()))
                 .toList();
     }
 
@@ -769,8 +762,14 @@ public class LayoutSheetWriter {
                 }
             }
             if (remainingValues.isEmpty()) {
-                for (Integer offset : availableOffsets) {
-                    spans.add(new FieldCellSpan(field.code(), field.label(), "", offset, 1));
+                if (!availableOffsets.isEmpty()) {
+                    spans.add(new FieldCellSpan(
+                            field.code(),
+                            field.label(),
+                            "",
+                            availableOffsets.get(0),
+                            availableOffsets.size()
+                    ));
                 }
             } else {
                 for (int index = 0; index < remainingValues.size() && index < availableOffsets.size(); index++) {

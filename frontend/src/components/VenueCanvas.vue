@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
+import CanvasBoard from '@/components/CanvasBoard.vue'
 import CanvasViewport from '@/components/CanvasViewport.vue'
 import { startParticipantDrag as performParticipantDrag } from '@/utils/participantActions'
 import { regionLabelAnchors, reservedItems } from '@/utils/seatRegions'
@@ -429,7 +430,7 @@ onBeforeUnmount(() => {
     @contextmenu.prevent
     @wheel="onWheel"
   >
-      <div
+      <CanvasBoard
         ref="canvasRef"
         class="venue-canvas"
         :class="{ 'marker-rect-enabled': markerMode && markerRectEnabled }"
@@ -514,22 +515,13 @@ onBeforeUnmount(() => {
             第{{ rowLabel.displayRow }}排
           </span>
         </template>
-      </div>
+      </CanvasBoard>
   </CanvasViewport>
 </template>
 
 <style scoped>
 .canvas-scroll {
   display: block;
-}
-
-.venue-canvas {
-  flex: none;
-  position: relative;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
 }
 
 .venue-canvas.marker-rect-enabled {

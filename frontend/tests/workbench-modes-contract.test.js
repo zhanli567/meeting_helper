@@ -124,6 +124,7 @@ test('三种工作台模式初始缩放和画布背景保持一致', async () =>
 
 test('场馆和会议画布复用统一画布视口组件', async () => {
   const shared = await readFile(new URL('../src/components/CanvasViewport.vue', import.meta.url), 'utf8')
+  const board = await readFile(new URL('../src/components/CanvasBoard.vue', import.meta.url), 'utf8')
   const editor = await readFile(new URL('../src/components/VenueLayoutEditor.vue', import.meta.url), 'utf8')
   const canvas = await readFile(new URL('../src/components/VenueCanvas.vue', import.meta.url), 'utf8')
 
@@ -131,12 +132,22 @@ test('场馆和会议画布复用统一画布视口组件', async () => {
   assert.match(shared, /function getViewportElement/)
   assert.match(shared, /\.app-canvas-viewport\s*\{[\s\S]*#f7f8fa/)
   assert.match(shared, /\.app-canvas-content\s*\{[\s\S]*padding:\s*26px 68px 38px/)
+  assert.match(board, /class="app-canvas-board"/)
+  assert.match(board, /function getBoundingClientRect/)
+  assert.match(board, /\.app-canvas-board\s*\{[\s\S]*border:\s*1px solid var\(--line\);[\s\S]*border-radius:\s*12px;[\s\S]*box-shadow:\s*var\(--shadow\);/)
+  assert.match(board, /\.app-canvas-board\.grid-board\s*\{[\s\S]*background:/)
   assert.match(editor, /import CanvasViewport from '@\/components\/CanvasViewport\.vue'/)
   assert.match(canvas, /import CanvasViewport from '@\/components\/CanvasViewport\.vue'/)
+  assert.match(editor, /import CanvasBoard from '@\/components\/CanvasBoard\.vue'/)
+  assert.match(canvas, /import CanvasBoard from '@\/components\/CanvasBoard\.vue'/)
   assert.match(editor, /<CanvasViewport[\s\S]*ref="viewportRef"/)
   assert.match(canvas, /<CanvasViewport[\s\S]*ref="viewportRef"/)
+  assert.match(editor, /<CanvasBoard[\s\S]*class="designer-canvas"/)
+  assert.match(canvas, /<CanvasBoard[\s\S]*class="venue-canvas"/)
   assert.doesNotMatch(editor, /\.canvas-viewport\s*\{/)
   assert.doesNotMatch(canvas, /\.canvas-scroll\s*\{[^}]*background:/)
+  assert.doesNotMatch(editor, /border:\s*1px solid #b9cbe2/)
+  assert.doesNotMatch(canvas, /\.venue-canvas\s*\{[\s\S]*box-shadow:\s*var\(--shadow\);/)
 })
 
 test('三种模式离开前统一处理未保存状态', async () => {

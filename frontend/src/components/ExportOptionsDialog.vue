@@ -103,8 +103,13 @@ function retainAvailableFields(codes, availableCodes) {
 
 function fieldSummary(codes) {
   const labelsByCode = new Map(dynamicFields.value.map((field) => [field.code, field.label]))
-  const labels = codes.map((code) => labelsByCode.get(code) || code)
+  const labels = orderedFieldCodes(codes).map((code) => labelsByCode.get(code) || code)
   return labels.length ? labels.join('、') : '未选择'
+}
+
+function orderedFieldCodes(codes) {
+  const selected = new Set(codes || [])
+  return dynamicFields.value.map((field) => field.code).filter((code) => selected.has(code))
 }
 
 function includeSummary(included) {
@@ -143,9 +148,19 @@ function submit() {
   if (!canExport()) return
   emit('export', {
     sheets: {
-      participants: { ...form.participants },
-      layout: { ...form.layout },
-      seatDetails: { ...form.seatDetails },
+      participants: {
+        ...form.participants,
+        fieldCodes: orderedFieldCodes(form.participants.fieldCodes),
+      },
+      layout: {
+        ...form.layout,
+        fieldCodes: orderedFieldCodes(form.layout.fieldCodes),
+        colorFieldCodes: orderedFieldCodes(form.layout.colorFieldCodes),
+      },
+      seatDetails: {
+        ...form.seatDetails,
+        fieldCodes: orderedFieldCodes(form.seatDetails.fieldCodes),
+      },
     },
   })
 }
