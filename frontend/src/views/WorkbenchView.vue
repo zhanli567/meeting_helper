@@ -47,7 +47,8 @@ import { placeFabInRegion, placeFloatingMenu } from '@/utils/workbenchLayout'
 const router = useRouter()
 const route = useRoute()
 const store = useWorkspaceStore()
-const zoom = ref(0.92)
+const DEFAULT_CANVAS_ZOOM = 0.8
+const zoom = ref(DEFAULT_CANVAS_ZOOM)
 const importVisible = ref(false)
 const exportOptionsVisible = ref(false)
 const addVisible = ref(false)

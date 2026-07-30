@@ -102,11 +102,12 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'change', 'save', 'back'])
 const CELL_SIZE = 44
+const DEFAULT_EDITOR_ZOOM = 0.8
 const resizeHandles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 const gridRows = ref(DEFAULT_CANVAS.rows)
 const gridColumns = ref(DEFAULT_CANVAS.columns)
 const elements = ref([])
-const zoom = ref(1)
+const zoom = ref(DEFAULT_EDITOR_ZOOM)
 const undoStack = ref([])
 const redoStack = ref([])
 const selectedId = ref()
@@ -258,9 +259,10 @@ watch(
       gridColumns: layout.gridColumns || DEFAULT_CANVAS.columns,
       elements: layout.elements || [],
     })
+    zoom.value = DEFAULT_EDITOR_ZOOM
     undoStack.value = []
     redoStack.value = []
-    nextTick(fitCanvas)
+    nextTick(centerCanvas)
   },
   { immediate: true, deep: true },
 )
@@ -959,7 +961,7 @@ function closeOnOutsidePointer(event) {
 
 onMounted(() => {
   window.addEventListener('pointerdown', closeOnOutsidePointer)
-  nextTick(fitCanvas)
+  nextTick(centerCanvas)
 })
 
 onBeforeUnmount(() => {
@@ -1439,9 +1441,9 @@ onBeforeUnmount(() => {
   height: 100%;
   overflow: auto;
   background:
-    linear-gradient(rgba(55, 87, 126, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(55, 87, 126, 0.06) 1px, transparent 1px),
-    #f4f7fb;
+    linear-gradient(rgba(0, 0, 0, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.045) 1px, transparent 1px),
+    #f7f8fa;
   background-size: 24px 24px;
   scrollbar-gutter: stable;
 }

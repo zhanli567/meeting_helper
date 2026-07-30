@@ -513,7 +513,7 @@ test('取消重叠元素选择后清除该选择器来源的红显和错误缩�
   const mounted = await mountEditor(t, VenueLayoutEditor)
   const canvas = byClass(mounted.root, 'designer-canvas')[0]
   const overlapPoint = pointerEvent(canvas, {
-    clientX: 158,
+    clientX: 140,
     clientY: 102,
     currentTarget: canvas,
     target: canvas,
@@ -781,7 +781,7 @@ test('画布缩小遇到边界冲突时保持候选尺寸预览直到松手', as
   await settle()
 
   assert.equal(byClass(mounted.root, 'conflict-banner').length, 1)
-  assert.equal(byClass(mounted.root, 'designer-canvas')[0].props.style.width, '308px')
+  assert.equal(byClass(mounted.root, 'designer-canvas')[0].props.style.width, '220px')
   assert.equal(mounted.updates.length, 0)
 
   mounted.window.dispatch('pointerup', pointerEvent(eastHandle, {

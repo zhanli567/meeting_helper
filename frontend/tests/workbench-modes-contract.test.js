@@ -97,6 +97,22 @@ test('工作台工具栏和侧栏按当前模式统一派发', async () => {
   assert.match(canvas, /emit\('zoomChange', nextZoom - props\.zoom/)
 })
 
+test('三种工作台模式初始缩放和画布背景保持一致', async () => {
+  const source = await readFile(new URL('../src/views/WorkbenchView.vue', import.meta.url), 'utf8')
+  const editor = await readFile(new URL('../src/components/VenueLayoutEditor.vue', import.meta.url), 'utf8')
+  const canvas = await readFile(new URL('../src/components/VenueCanvas.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /const DEFAULT_CANVAS_ZOOM = 0\.8/)
+  assert.match(source, /const zoom = ref\(DEFAULT_CANVAS_ZOOM\)/)
+  assert.match(editor, /const DEFAULT_EDITOR_ZOOM = 0\.8/)
+  assert.match(editor, /const zoom = ref\(DEFAULT_EDITOR_ZOOM\)/)
+  assert.match(editor, /nextTick\(centerCanvas\)/)
+  assert.doesNotMatch(editor, /nextTick\(fitCanvas\)/)
+  assert.match(canvas, /linear-gradient\(rgba\(0,\s*0,\s*0,\s*0\.045\) 1px,\s*transparent 1px\),/)
+  assert.match(editor, /linear-gradient\(rgba\(0,\s*0,\s*0,\s*0\.045\) 1px,\s*transparent 1px\),/)
+  assert.match(editor, /#f7f8fa;/)
+})
+
 test('三种模式离开前统一处理未保存状态', async () => {
   const source = await readFile(new URL('../src/views/WorkbenchView.vue', import.meta.url), 'utf8')
 
