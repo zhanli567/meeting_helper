@@ -23,7 +23,7 @@ test('工作台页面使用 Nexus 风格的静态工具栏和分层内容区', a
   assert.match(source, /class="workspace-shell"/)
   assert.match(source, /class="canvas-shell"/)
   assert.match(source, /class="toolbar-card"/)
-  assert.match(source, /\.app-header\s*:deep\(\.el-button--primary\)/)
+  assert.match(source, /\.header-action-button\s*\{[\s\S]*height:\s*34px;[\s\S]*font-size:\s*13px;/)
   assert.match(source, /\.workbench-page\s*\{[^}]*height:\s*100vh;[^}]*overflow:\s*hidden;/s)
   assert.match(source, /\.canvas-body\s*\{[^}]*overflow:\s*hidden;/s)
 })

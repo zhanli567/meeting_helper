@@ -146,12 +146,6 @@ function patchColor(color) {
   gap: 12px;
 }
 
-.panel-heading h2 {
-  margin: 0;
-  color: var(--ink);
-  font-size: 18px;
-}
-
 .panel-heading p {
   margin: 6px 0 0;
   color: var(--muted);
@@ -163,7 +157,7 @@ function patchColor(color) {
   display: grid;
   gap: 8px;
   padding: 10px;
-  background: #fbfcfd;
+  background: #fff;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
 }
@@ -249,7 +243,7 @@ function patchColor(color) {
   overflow-x: hidden;
   overflow-y: auto;
   padding: 10px;
-  background: #fbfcfd;
+  background: #fff;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
 }

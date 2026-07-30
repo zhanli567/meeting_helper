@@ -83,6 +83,63 @@ export function createParticipantPayload(form, targetElementId) {
   }
 }
 
+export function mergePreviewRowsIntoParticipantDraft({
+  records = [],
+  customFields = [],
+  fieldDefinitions = [],
+  preview,
+} = {}) {
+  const fieldKeys = knownFieldKeys(fieldDefinitions, customFields)
+  const nextCustomFields = [...(customFields || [])]
+  const currentRows = (records || [])
+    .filter((row) => !isBlankParticipantDraftRow(row))
+    .map((row) => cloneParticipantDraftRow(row))
+  const seen = new Set(currentRows.map(participantDraftRowSignature))
+  let appendedCount = 0
+  let skippedDuplicateCount = 0
+
+  for (const row of preview?.rows || []) {
+    Object.keys(row?.attributes || {}).forEach((fieldName) => {
+      const label = nonEmptyValue(fieldName)
+      const key = normalizeFieldName(label)
+      if (!label || fieldKeys.has(key)) return
+      nextCustomFields.push({
+        id: label,
+        code: label,
+        label,
+        custom: true,
+      })
+      fieldKeys.add(key)
+    })
+
+    const nextRow = cloneParticipantDraftRow({
+      employeeNo: row?.employeeNo,
+      name: row?.name,
+      attributes: row?.attributes,
+      sourceRow: row?.sourceRow,
+      expectedAction: row?.expectedAction,
+      createdInDialog: true,
+    })
+    const signature = participantDraftRowSignature(nextRow)
+    if (seen.has(signature)) {
+      skippedDuplicateCount += 1
+      continue
+    }
+    seen.add(signature)
+    currentRows.push(nextRow)
+    appendedCount += 1
+  }
+
+  return {
+    records: currentRows.length
+      ? currentRows
+      : [{ employeeNo: '', name: '', attributes: {}, createdInDialog: true }],
+    customFields: nextCustomFields,
+    appendedCount,
+    skippedDuplicateCount,
+  }
+}
+
 export function normalizeExtraFields(extraFields = [], existingFields = []) {
   const existing = new Set(
     (existingFields || []).map((field) => normalizeFieldName(field.code || field.label)),
@@ -143,6 +200,45 @@ function normalizeCustomFieldNames(fields = []) {
     }
   }
   return names
+}
+
+function knownFieldKeys(fieldDefinitions = [], customFields = []) {
+  return new Set(
+    [...(fieldDefinitions || []), ...(customFields || [])]
+      .flatMap((field) => [field?.code, field?.label, field?.id])
+      .map(normalizeFieldName)
+      .filter(Boolean),
+  )
+}
+
+function cloneParticipantDraftRow(row = {}) {
+  return {
+    ...row,
+    employeeNo: nonEmptyValue(row.employeeNo),
+    name: nonEmptyValue(row.name),
+    attributes: { ...(row.attributes || {}) },
+    createdInDialog: row.createdInDialog !== false,
+  }
+}
+
+function isBlankParticipantDraftRow(row = {}) {
+  return (
+    !nonEmptyValue(row.employeeNo) &&
+    !nonEmptyValue(row.name) &&
+    !Object.values(row.attributes || {}).some(nonEmptyValue)
+  )
+}
+
+function participantDraftRowSignature(row = {}) {
+  const attributes = Object.entries(row.attributes || {})
+    .map(([key, value]) => [nonEmptyValue(key), nonEmptyValue(value)])
+    .filter(([key, value]) => key && value)
+    .sort(([left], [right]) => left.localeCompare(right))
+  return JSON.stringify([
+    normalizeFieldName(row.employeeNo),
+    nonEmptyValue(row.name),
+    attributes,
+  ])
 }
 
 function customFieldNameMap(fields = []) {

@@ -6,7 +6,7 @@ async function readSource(path) {
   return readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 }
 
-test('editor provides a layout centering action next to canvas fit controls', async () => {
+test('editor keeps template centering while workbench uses only the shared fit control', async () => {
   const source = await readSource('src/components/VenueLayoutEditor.vue')
   const workbench = await readSource('src/views/WorkbenchView.vue')
 
@@ -14,8 +14,10 @@ test('editor provides a layout centering action next to canvas fit controls', as
   assert.match(source, /function centerLayout/)
   assert.match(source, /居中布局/)
   assert.match(source, /centerLayout,/)
-  assert.match(workbench, /performToolbarCenterLayout/)
-  assert.match(workbench, /layoutEditorRef\.value\?\.centerLayout/)
+  assert.match(workbench, /function performToolbarFit/)
+  assert.match(workbench, /layoutEditorRef\.value\?\.fitCanvas/)
+  assert.doesNotMatch(workbench, /performToolbarCenterLayout/)
+  assert.doesNotMatch(workbench, /layoutEditorRef\.value\?\.centerLayout/)
 })
 
 test('编辑器支持画布拉伸、属性侧栏和无旋转交互', async () => {

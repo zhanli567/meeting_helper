@@ -14,7 +14,7 @@ test('新增弹窗将完整上下文和提交事件接入可注入动作', () =>
   assert.match(rawDialog, /ParticipantRecordTable/)
   assert.match(rawDialog, /meetingApi\.previewImport/)
   assert.match(rawDialog, /applyPreviewRows\(preview\.value\)/)
-  assert.match(rawDialog, /nextPreview\?\.rows/)
+  assert.match(rawDialog, /mergePreviewRowsIntoParticipantDraft/)
   assert.match(rawDialog, /addRow/)
   assert.match(rawDialog, /allowMultipleRows/)
   assert.match(

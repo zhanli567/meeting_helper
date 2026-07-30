@@ -6,6 +6,7 @@ import ParticipantRecordTable from '@/components/ParticipantRecordTable.vue'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage, downloadBlob } from '@/api/http'
 import { submitParticipant } from '@/utils/participantActions'
+import { mergePreviewRowsIntoParticipantDraft } from '@/utils/participantFields'
 
 const visible = defineModel({ required: true })
 const props = defineProps({
@@ -18,9 +19,11 @@ const emit = defineEmits(['done'])
 const tableRef = ref()
 const file = ref()
 const preview = ref()
-const importing = ref(false)
+const templateDownloading = ref(false)
+const previewing = ref(false)
 const submitting = ref(false)
 const allowMultipleRows = computed(() => !props.targetElementId)
+const selectedFileName = computed(() => file.value?.name || '')
 const form = reactive({
   records: [],
   customFields: [],
@@ -64,8 +67,13 @@ function onFileChange(uploadFile) {
   preview.value = undefined
 }
 
+function clearFile() {
+  file.value = undefined
+  preview.value = undefined
+}
+
 async function downloadTemplate() {
-  importing.value = true
+  templateDownloading.value = true
   try {
     const template = await meetingApi.importTemplate()
     downloadBlob(
@@ -76,7 +84,7 @@ async function downloadTemplate() {
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
   } finally {
-    importing.value = false
+    templateDownloading.value = false
   }
 }
 
@@ -85,54 +93,32 @@ async function parseFile() {
     ElMessage.warning('请先选择 Excel 文件')
     return
   }
-  importing.value = true
+  previewing.value = true
   try {
     preview.value = await meetingApi.previewImport(props.meetingId, file.value)
     applyPreviewRows(preview.value)
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
   } finally {
-    importing.value = false
+    previewing.value = false
   }
 }
 
-function knownFieldKeys() {
-  return new Set(
-    (props.fieldDefinitions || [])
-      .flatMap((field) => [field.code, field.label])
-      .map((value) => String(value || '').trim().toLocaleLowerCase())
-      .filter(Boolean),
-  )
-}
-
-function addImportedField(fieldName, knownKeys) {
-  const label = String(fieldName || '').trim()
-  if (!label || knownKeys.has(label.toLocaleLowerCase())) return
-  if (form.customFields.some((field) => field.label === label || field.code === label)) return
-  form.customFields.push({
-    id: label,
-    code: label,
-    label,
-    custom: true,
-  })
-}
-
 function applyPreviewRows(nextPreview) {
-  const rows = nextPreview?.rows || []
-  const knownKeys = knownFieldKeys()
-  rows.forEach((row) => {
-    Object.keys(row.attributes || {}).forEach((fieldName) => addImportedField(fieldName, knownKeys))
+  const result = mergePreviewRowsIntoParticipantDraft({
+    records: form.records,
+    customFields: form.customFields,
+    fieldDefinitions: props.fieldDefinitions,
+    preview: nextPreview,
   })
-  form.records = rows.length
-    ? rows.map((row) => ({
-        employeeNo: row.employeeNo || '',
-        name: row.name || '',
-        attributes: { ...(row.attributes || {}) },
-        sourceRow: row.sourceRow,
-        expectedAction: row.expectedAction,
-        createdInDialog: true,
-      }))
-    : [blankRow()]
+  form.records = result.records
+  form.customFields = result.customFields
+  if (result.appendedCount) {
+    ElMessage.success(`已追加 ${result.appendedCount} 条解析记录`)
+  }
+  if (result.skippedDuplicateCount) {
+    ElMessage.warning(`已跳过 ${result.skippedDuplicateCount} 条完全相同记录`)
+  }
 }
 
 function normalizedKey(value) {
@@ -233,20 +219,35 @@ async function submit() {
           <p>导入后会先填入下方表格，确认无误后再增加到待排人员。</p>
         </div>
         <div class="import-actions">
-          <el-button :icon="Download" :loading="importing" @click="downloadTemplate">
+          <el-button
+            :icon="Download"
+            :loading="templateDownloading"
+            :disabled="previewing"
+            @click="downloadTemplate"
+          >
             下载模板
           </el-button>
           <el-upload
             class="upload-surface"
             :auto-upload="false"
+            :show-file-list="false"
             :limit="1"
             accept=".xlsx"
             :on-change="onFileChange"
-            :on-remove="() => (file = undefined)"
+            :on-remove="clearFile"
           >
-            <el-button :icon="UploadFilled" :loading="importing">选择Excel</el-button>
+            <el-button :icon="UploadFilled" :disabled="previewing">选择Excel</el-button>
           </el-upload>
-          <el-button type="primary" plain :loading="importing" @click="parseFile">
+          <span v-if="selectedFileName" class="selected-file-name" :title="selectedFileName">
+            {{ selectedFileName }}
+          </span>
+          <el-button
+            type="primary"
+            plain
+            :loading="previewing"
+            :disabled="previewing || !file"
+            @click="parseFile"
+          >
             解析
           </el-button>
         </div>
@@ -359,8 +360,18 @@ async function submit() {
   display: inline-flex;
 }
 
-.upload-surface :deep(.el-upload-list) {
-  display: none;
+.selected-file-name {
+  max-width: 170px;
+  min-width: 0;
+  padding: 5px 9px;
+  overflow: hidden;
+  color: var(--muted);
+  background: #f3f6fb;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .import-preview-section {

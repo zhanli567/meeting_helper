@@ -304,13 +304,6 @@ header > div {
   gap: 8px;
 }
 
-.panel-title {
-  margin: 0;
-  color: var(--ink);
-  font-size: 18px;
-  font-weight: 700;
-}
-
 .collapsed header {
   justify-content: center;
   padding: 0;
@@ -321,7 +314,7 @@ header > div {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 5px 10px;
   padding: 10px;
-  background: #fbfcfd;
+  background: #fff;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
 }
@@ -353,7 +346,7 @@ header > div {
   overflow-x: hidden;
   overflow-y: auto;
   padding: 10px;
-  background: #fbfcfd;
+  background: #fff;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
 }

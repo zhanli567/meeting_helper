@@ -7,7 +7,6 @@ import {
   Download,
   House,
   Plus,
-  Rank,
   RefreshLeft,
   RefreshRight,
   ZoomIn,
@@ -1013,10 +1012,6 @@ function performToolbarFit() {
   }
   venueCanvasRef.value?.fitCanvas()
 }
-function performToolbarCenterLayout() {
-  if (readonlyMode.value || workbenchMode.value !== 'layout') return
-  layoutEditorRef.value?.centerLayout()
-}
 async function onSeatClick(element) {
   if (readonlyMode.value || workbenchMode.value !== 'seating' || !element?.id) return
   const occupied = workspace.value?.participants.find(
@@ -1316,11 +1311,14 @@ watch(
       <button class="home-brand" title="返回首页" @click="goHome">
         <span class="brand-slot" aria-hidden="true" />
       </button>
+      <el-button class="header-home header-home-left" text :icon="House" @click="goHome">
+        首页
+      </el-button>
       <span class="header-divider" />
 
       <el-select
         :model-value="store.activeMeetingId"
-        class="meeting-selector header-selector"
+        class="meeting-selector header-selector workbench-select"
         popper-class="meeting-select-popper"
         aria-label="选择会议"
         @change="switchMeeting"
@@ -1336,7 +1334,7 @@ watch(
       <el-select
         v-if="store.workspace"
         :model-value="activeVersionKey"
-        class="version-selector header-selector"
+        class="version-selector header-selector workbench-select"
         popper-class="version-select-popper"
         aria-label="选择会议版本"
         @change="switchVersion"
@@ -1351,20 +1349,22 @@ watch(
       </el-select>
 
       <span class="header-spacer" />
-      <el-button class="header-home" text :icon="House" @click="goHome">
-        首页
-      </el-button>
       <span class="save-state">
         <i :class="{ active: activeModeSaving, dirty: activeModeDirty }" />
         {{ saveStatusText }}
       </span>
       <div v-if="showModeSave" class="header-save-control">
-        <el-button type="primary" :loading="currentSaveLoading" @click="saveCurrentMode(false)">
+        <el-button
+          class="header-action-button header-save-button"
+          type="primary"
+          :loading="currentSaveLoading"
+          @click="saveCurrentMode(false)"
+        >
           {{ currentSaveLabel }}
         </el-button>
         <el-select
           v-model="autoSaveSeconds"
-          class="header-auto-save"
+          class="header-auto-save workbench-select"
           aria-label="自动保存周期"
         >
           <el-option label="自动保存：关闭" :value="0" />
@@ -1376,6 +1376,7 @@ watch(
       </div>
       <el-button
         v-if="readonlyMode"
+        class="header-action-button header-publish-button"
         type="primary"
         plain
         :icon="RefreshRight"
@@ -1385,6 +1386,7 @@ watch(
       </el-button>
       <el-button
         v-if="!readonlyMode"
+        class="header-action-button header-publish-button"
         type="primary"
         plain
         :icon="Check"
@@ -1486,7 +1488,7 @@ watch(
           <el-select
             v-if="colorFieldOptions.length"
             v-model="groupColorFieldCode"
-            class="color-field-select"
+            class="color-field-select workbench-select"
             clearable
             size="small"
             aria-label="按字段着色"
@@ -1519,15 +1521,6 @@ watch(
             @click="performToolbarFit"
           >
             适应
-          </el-button>
-          <el-button
-            v-if="workbenchMode === 'layout'"
-            :icon="Rank"
-            :disabled="readonlyMode"
-            title="居中布局"
-            @click="performToolbarCenterLayout"
-          >
-            居中布局
           </el-button>
           <el-button-group class="canvas-zoom-controls">
             <el-button
@@ -1712,18 +1705,6 @@ watch(
   width: 190px;
 }
 
-.header-selector :deep(.el-select__wrapper) {
-  color: var(--ink);
-  background: #f8f9fb;
-  box-shadow: 0 0 0 1px var(--line) inset;
-}
-
-.header-selector :deep(.el-select__selected-item),
-.header-selector :deep(.el-select__placeholder),
-.header-selector :deep(.el-select__caret) {
-  color: var(--ink) !important;
-}
-
 .save-state {
   display: flex;
   align-items: center;
@@ -1742,6 +1723,10 @@ watch(
   background: var(--brand-soft) !important;
 }
 
+.header-home-left {
+  flex: none;
+}
+
 .header-save-control {
   flex: none;
   display: inline-flex;
@@ -1749,23 +1734,27 @@ watch(
   gap: 6px;
 }
 
-.app-header :deep(.el-button--primary) {
+.header-action-button {
+  height: 34px;
   min-height: 34px;
+  padding: 0 16px;
+  font-size: 13px;
 }
 
 .header-auto-save {
-  width: 142px;
+  width: 150px;
 }
 
-.header-auto-save :deep(.el-select__wrapper) {
-  min-height: 32px;
+.workbench-select :deep(.el-select__wrapper) {
+  min-height: 34px;
   color: var(--ink);
-  background: #f8f9fb;
+  background: #fff;
   box-shadow: 0 0 0 1px var(--line) inset;
 }
 
-.header-auto-save :deep(.el-select__selected-item),
-.header-auto-save :deep(.el-select__caret) {
+.workbench-select :deep(.el-select__selected-item),
+.workbench-select :deep(.el-select__placeholder),
+.workbench-select :deep(.el-select__caret) {
   color: var(--ink) !important;
 }
 
@@ -1873,9 +1862,11 @@ watch(
   min-height: 68px;
   flex: none;
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
+  overflow: hidden;
   background: #fff;
   border-bottom: 1px solid var(--line);
 }
@@ -1931,13 +1922,6 @@ watch(
 
 .color-field-select {
   width: 132px;
-}
-
-.color-field-select :deep(.el-select__wrapper) {
-  min-height: 28px;
-  color: var(--ink);
-  background: #f8f9fb;
-  box-shadow: 0 0 0 1px var(--line) inset;
 }
 
 .toolbar-card > .el-button-group {

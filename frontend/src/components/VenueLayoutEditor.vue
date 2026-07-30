@@ -1423,7 +1423,7 @@ onBeforeUnmount(() => {
 
 .venue-layout-editor.external-panel-mode .canvas-pane {
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   box-shadow: none;
 }
 
@@ -1463,6 +1463,10 @@ onBeforeUnmount(() => {
   padding: 84px;
 }
 
+.venue-layout-editor.external-panel-mode .canvas-content {
+  padding: 26px 68px 38px;
+}
+
 .canvas-stage {
   position: relative;
   flex: none;
@@ -1482,6 +1486,11 @@ onBeforeUnmount(() => {
   border: 1px solid #b9cbe2;
   box-shadow: 0 14px 34px rgba(40, 75, 118, 0.13);
   cursor: default;
+}
+
+.venue-layout-editor.external-panel-mode .designer-canvas {
+  border-radius: 12px;
+  box-shadow: var(--shadow);
 }
 
 .designer-canvas.selecting {
