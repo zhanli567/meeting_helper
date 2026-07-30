@@ -4,7 +4,7 @@ import { Delete, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
-import { groupableFields } from '@/utils/participantFields'
+import { canAddParticipantRecord, groupableFields } from '@/utils/participantFields'
 import { updateParticipantDetails } from '@/utils/participantActions'
 
 const visible = defineModel({ required: true })
@@ -78,11 +78,17 @@ function normalizeFieldName(value) {
 }
 
 function addRecord() {
+  if (!canAddParticipantRecord(form.records)) {
+    ElMessage.warning('请先填写已新增记录的数据')
+    return
+  }
   form.records.push({
     id: undefined,
     recordOrder: form.records.length + 1,
     attributes: {},
+    createdInDialog: true,
   })
+  scrollToNewestRecord()
 }
 
 function removeRecord(index) {
@@ -122,6 +128,18 @@ function scrollToNewestColumn() {
     }
     const scrollWrap = table?.$el?.querySelector?.('.el-scrollbar__wrap')
     if (scrollWrap) scrollWrap.scrollLeft = scrollWrap.scrollWidth
+  })
+}
+
+function scrollToNewestRecord() {
+  nextTick(() => {
+    const table = recordTableRef.value
+    if (typeof table?.setScrollTop === 'function') {
+      table.setScrollTop(Number.MAX_SAFE_INTEGER)
+      return
+    }
+    const scrollWrap = table?.$el?.querySelector?.('.el-scrollbar__wrap')
+    if (scrollWrap) scrollWrap.scrollTop = scrollWrap.scrollHeight
   })
 }
 
@@ -175,7 +193,12 @@ async function submit() {
 </script>
 
 <template>
-  <el-dialog v-model="visible" title="编辑人员" width="900px">
+  <el-dialog
+    v-model="visible"
+    title="编辑人员"
+    width="900px"
+    class="edit-participant-dialog"
+  >
     <el-form
       ref="formRef"
       :model="form"
@@ -276,10 +299,28 @@ async function submit() {
 
 <style scoped>
 .participant-form-scroll {
-  max-height: min(62vh, 620px);
+  height: 100%;
+  max-height: none;
   overflow-x: hidden;
   overflow-y: auto;
   padding-right: 4px;
+}
+
+:global(.edit-participant-dialog) {
+  height: min(78vh, 720px);
+  margin-top: min(8vh, 48px);
+  display: flex;
+  flex-direction: column;
+}
+
+:global(.edit-participant-dialog .el-dialog__body) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+:global(.edit-participant-dialog .el-dialog__footer) {
+  flex: 0 0 auto;
 }
 
 .form-grid {

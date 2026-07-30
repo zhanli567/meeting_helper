@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  canAddParticipantRecord,
   createParticipantPayload,
   createParticipantUpdatePayload,
   filteredParticipants,
@@ -179,6 +180,26 @@ test('人员更新载荷忽略全空新增记录并修剪单元格值', () => {
         { id: undefined, attributes: { 部门: '终端' } },
       ],
     },
+  )
+})
+
+test('编辑人员新增记录要求已新增行先填写数据', () => {
+  assert.equal(canAddParticipantRecord([{ id: 'record-1', attributes: {} }]), true)
+  assert.equal(canAddParticipantRecord([{ createdInDialog: true, attributes: {} }]), false)
+  assert.equal(
+    canAddParticipantRecord([{ createdInDialog: true, attributes: { 部门: ' ' } }]),
+    false,
+  )
+  assert.equal(
+    canAddParticipantRecord([{ createdInDialog: true, attributes: { 部门: '研发' } }]),
+    true,
+  )
+  assert.equal(
+    canAddParticipantRecord([
+      { createdInDialog: true, attributes: { 部门: '研发' } },
+      { createdInDialog: true, attributes: { 部门: '' } },
+    ]),
+    false,
   )
 })
 

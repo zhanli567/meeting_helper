@@ -120,6 +120,16 @@ export function createParticipantUpdatePayload(form) {
   return payload
 }
 
+export function participantRecordHasValue(record) {
+  return Object.values(record?.attributes || {}).some((value) => nonEmptyValue(value))
+}
+
+export function canAddParticipantRecord(records = []) {
+  return !(records || []).some(
+    (record) => record?.createdInDialog && !participantRecordHasValue(record),
+  )
+}
+
 function normalizeCustomFieldNames(fields = []) {
   const seen = new Set()
   const names = []
