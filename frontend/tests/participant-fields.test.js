@@ -103,17 +103,43 @@ test('新增人员列名和值必须非空且不能重名', () => {
   )
 })
 
-test('人员更新载荷保留姓名和动态记录并携带新增列', () => {
+test('人员更新载荷按记录保留新增列值且不复制到其他记录', () => {
   assert.deepEqual(
     createParticipantUpdatePayload({
       name: '王创新',
-      records: [{ id: 'record-1', attributes: { 部门: '研发' } }],
+      records: [
+        { id: 'record-1', attributes: { 部门: '研发', 获奖批次: '第一批' } },
+        { id: 'record-2', attributes: { 部门: '制造', 获奖批次: ' ' } },
+      ],
       extraFields: [{ name: '获奖批次', value: '第一批' }],
       fieldDefinitions: [{ code: '部门' }],
     }),
     {
       name: '王创新',
-      records: [{ id: 'record-1', attributes: { 部门: '研发', 获奖批次: '第一批' } }],
+      records: [
+        { id: 'record-1', attributes: { 部门: '研发', 获奖批次: '第一批' } },
+        { id: 'record-2', attributes: { 部门: '制造' } },
+      ],
+    },
+  )
+})
+
+test('人员更新载荷忽略全空新增记录并修剪单元格值', () => {
+  assert.deepEqual(
+    createParticipantUpdatePayload({
+      name: ' 王创新 ',
+      records: [
+        { id: 'record-1', attributes: { 部门: ' 研发 ', 奖项: '' } },
+        { id: undefined, attributes: { 部门: ' ', 奖项: undefined } },
+        { id: undefined, attributes: { 部门: ' 终端 ' } },
+      ],
+    }),
+    {
+      name: '王创新',
+      records: [
+        { id: 'record-1', attributes: { 部门: '研发' } },
+        { id: undefined, attributes: { 部门: '终端' } },
+      ],
     },
   )
 })

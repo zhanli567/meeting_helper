@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
+import { Delete, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { meetingApi } from '@/api/meeting'
 import { apiErrorMessage } from '@/api/http'
@@ -19,13 +20,24 @@ const form = reactive({
   employeeNo: '',
   name: '',
   records: [],
-  extraFields: [],
+  customFields: [],
   fieldDefinitions: [],
 })
 const dynamicFields = computed(() => groupableFields(props.fieldDefinitions))
+const recordFields = computed(() => [
+  ...dynamicFields.value.map((field) => ({
+    id: field.code,
+    code: field.code,
+    label: field.label,
+    custom: false,
+  })),
+  ...form.customFields,
+])
+const newColumnName = ref('')
 const rules = {
   name: [{ required: true, message: '请输入姓名' }],
 }
+let customFieldSerial = 0
 
 function normalizeRecords(participant) {
   if (participant?.records?.length) {
@@ -48,8 +60,9 @@ function resetForm() {
   form.employeeNo = props.participant?.employeeNo || ''
   form.name = props.participant?.name || ''
   form.records = normalizeRecords(props.participant)
-  form.extraFields = []
+  form.customFields = []
   form.fieldDefinitions = props.fieldDefinitions
+  newColumnName.value = ''
 }
 
 watch(
@@ -60,12 +73,54 @@ watch(
   { immediate: true },
 )
 
-function addExtraField() {
-  form.extraFields.push({ name: '', value: '' })
+function normalizeFieldName(value) {
+  return String(value || '').trim().toLocaleLowerCase()
 }
 
-function removeExtraField(index) {
-  form.extraFields.splice(index, 1)
+function addRecord() {
+  form.records.push({
+    id: undefined,
+    recordOrder: form.records.length + 1,
+    attributes: {},
+  })
+}
+
+function removeRecord(index) {
+  if (form.records.length <= 1) return
+  form.records.splice(index, 1)
+}
+
+function addColumn() {
+  const label = newColumnName.value.trim()
+  if (!label) {
+    ElMessage.warning('请输入列名')
+    return
+  }
+  const key = normalizeFieldName(label)
+  const exists = recordFields.value.some((field) => normalizeFieldName(field.code) === key)
+  if (exists) {
+    ElMessage.warning('该字段已存在，请使用其他列名')
+    return
+  }
+  form.customFields.push({
+    id: `custom-field-${++customFieldSerial}`,
+    code: label,
+    label,
+    custom: true,
+  })
+  form.records.forEach((record) => {
+    if (!Object.prototype.hasOwnProperty.call(record.attributes, label)) {
+      record.attributes[label] = ''
+    }
+  })
+  newColumnName.value = ''
+}
+
+function removeCustomColumn(field) {
+  form.customFields = form.customFields.filter((item) => item.id !== field.id)
+  form.records.forEach((record) => {
+    delete record.attributes[field.code]
+  })
 }
 
 async function submit() {
@@ -93,7 +148,7 @@ async function submit() {
 </script>
 
 <template>
-  <el-dialog v-model="visible" title="编辑人员" width="720px">
+  <el-dialog v-model="visible" title="编辑人员" width="900px">
     <el-form
       ref="formRef"
       :model="form"
@@ -111,46 +166,74 @@ async function submit() {
         </el-form-item>
       </div>
 
-      <div class="record-list">
-        <section
-          v-for="(record, index) in form.records"
-          :key="record.id || index"
-          class="record-card"
-        >
-          <header class="record-card-header">
-            <strong>记录 {{ index + 1 }}</strong>
-            <span v-if="form.records.length > 1">第 {{ record.recordOrder || index + 1 }} 条记录</span>
-          </header>
-          <div v-if="dynamicFields.length" class="record-field-grid">
-            <el-form-item
-              v-for="field in dynamicFields"
-              :key="field.code"
-              :label="field.label"
-            >
-              <el-input v-model="record.attributes[field.code]" :validate-event="false" />
-            </el-form-item>
+      <section class="record-table-section">
+        <header class="record-tools">
+          <span>记录数据</span>
+          <div class="record-actions">
+            <el-button size="small" :icon="Plus" @click="addRecord">添加记录</el-button>
+            <el-input
+              v-model="newColumnName"
+              class="new-column-input"
+              aria-label="新增列名"
+              maxlength="32"
+              :validate-event="false"
+            />
+            <el-button size="small" :icon="Plus" @click="addColumn">添加列</el-button>
           </div>
-          <p v-else class="record-empty">暂无扩展字段</p>
-        </section>
-      </div>
-
-      <div class="extra-field-section">
-        <div class="extra-field-heading">
-          <span>新增列</span>
-          <el-button size="small" @click="addExtraField">添加列</el-button>
-        </div>
-        <div class="extra-field-list">
-          <div
-            v-for="(field, index) in form.extraFields"
-            :key="index"
-            class="extra-field-row"
+        </header>
+        <div class="record-table-wrap">
+          <el-table
+            :data="form.records"
+            border
+            size="small"
+            :empty-text="recordFields.length ? '暂无记录' : '暂无扩展字段'"
           >
-            <el-input v-model="field.name" aria-label="列名" maxlength="32" :validate-event="false" />
-            <el-input v-model="field.value" aria-label="列值" maxlength="80" :validate-event="false" />
-            <el-button text type="danger" @click="removeExtraField(index)">移除</el-button>
-          </div>
+            <el-table-column fixed label="记录" width="96">
+              <template #default="{ $index }">
+                <span class="record-row-index">记录 {{ $index + 1 }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              v-for="field in recordFields"
+              :key="field.id"
+              :min-width="170"
+            >
+              <template #header>
+                <div class="field-header">
+                  <span>{{ field.label }}</span>
+                  <el-button
+                    v-if="field.custom"
+                    text
+                    type="danger"
+                    :icon="Delete"
+                    :aria-label="`删除新增列 ${field.label}`"
+                    @click.stop="removeCustomColumn(field)"
+                  />
+                </div>
+              </template>
+              <template #default="{ row }">
+                <el-input
+                  v-model="row.attributes[field.code]"
+                  maxlength="80"
+                  :validate-event="false"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column fixed="right" label="操作" width="86">
+              <template #default="{ $index }">
+                <el-button
+                  text
+                  type="danger"
+                  :disabled="form.records.length <= 1"
+                  @click="removeRecord($index)"
+                >
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
         </div>
-      </div>
+      </section>
     </el-form>
 
     <template #footer>
@@ -174,88 +257,70 @@ async function submit() {
   gap: 0 18px;
 }
 
-.record-list {
-  max-height: min(32vh, 300px);
-  display: grid;
-  align-content: start;
-  gap: 10px;
-  margin-bottom: 12px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding-right: 2px;
-}
-
-.record-card {
+.record-table-section {
   display: grid;
   gap: 10px;
-  padding: 12px;
-  background: #f8fbff;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }
 
-.record-card-header {
+.record-tools {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.record-card-header strong {
-  color: var(--ink);
-  font-size: 13px;
-}
-
-.record-card-header span,
-.record-empty {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.record-field-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 14px;
-}
-
-.record-empty {
-  margin: 0;
-}
-
-.extra-field-section {
-  display: grid;
-  gap: 8px;
-  margin-top: 4px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
-.extra-field-heading,
-.extra-field-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 10px;
-}
-
-.extra-field-heading span {
+.record-tools > span {
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
 }
 
-.extra-field-list {
-  min-height: 104px;
-  max-height: 184px;
-  display: grid;
-  align-content: start;
+.record-actions {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding-right: 2px;
 }
 
-.extra-field-row {
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) auto;
+.new-column-input {
+  width: 150px;
+}
+
+.record-table-wrap {
+  max-height: min(36vh, 360px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.record-table-wrap :deep(.el-table) {
+  min-width: 100%;
+}
+
+.record-table-wrap :deep(.el-input__wrapper) {
+  box-shadow: none;
+}
+
+.record-row-index {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.field-header {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.field-header span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

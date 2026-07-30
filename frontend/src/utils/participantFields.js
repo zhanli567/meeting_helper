@@ -104,18 +104,26 @@ export function normalizeExtraFields(extraFields = [], existingFields = []) {
 }
 
 export function createParticipantUpdatePayload(form) {
-  const extraAttributes = normalizeExtraFields(form.extraFields, form.fieldDefinitions)
-  const records = (form.records?.length ? form.records : [{ attributes: {} }]).map((record) => ({
-    id: record.id,
-    attributes: {
-      ...(record.attributes || {}),
-      ...extraAttributes,
-    },
-  }))
+  const records = (form.records?.length ? form.records : [{ attributes: {} }])
+    .map((record) => ({
+      id: record.id,
+      attributes: normalizeRecordAttributes(record.attributes),
+    }))
+    .filter((record) => Object.keys(record.attributes).length)
   return {
     name: nonEmptyValue(form.name),
     records,
   }
+}
+
+function normalizeRecordAttributes(attributes = {}) {
+  const normalized = {}
+  Object.entries(attributes || {}).forEach(([key, value]) => {
+    const fieldName = nonEmptyValue(key)
+    const fieldValue = nonEmptyValue(value)
+    if (fieldName && fieldValue) normalized[fieldName] = fieldValue
+  })
+  return normalized
 }
 
 export function participantDragData(participant) {
