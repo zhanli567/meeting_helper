@@ -124,6 +124,44 @@ test('人员更新载荷按记录保留新增列值且不复制到其他记录',
   )
 })
 
+test('人员更新载荷保留无单元格值的新增列字段名', () => {
+  assert.deepEqual(
+    createParticipantUpdatePayload({
+      name: '王创新',
+      records: [{ id: 'record-1', attributes: {} }],
+      customFields: [
+        { id: 'custom-field-1', code: 'custom-field-1', label: ' 获奖批次 ', custom: true },
+      ],
+    }),
+    {
+      name: '王创新',
+      records: [],
+      fieldNames: ['获奖批次'],
+    },
+  )
+})
+
+test('人员更新载荷用表头列名保存新增列单元格值', () => {
+  assert.deepEqual(
+    createParticipantUpdatePayload({
+      name: '王创新',
+      records: [
+        { id: 'record-1', attributes: { 'custom-field-1': ' 第一批 ' } },
+      ],
+      customFields: [
+        { id: 'custom-field-1', code: 'custom-field-1', label: '获奖批次', custom: true },
+      ],
+    }),
+    {
+      name: '王创新',
+      records: [
+        { id: 'record-1', attributes: { 获奖批次: '第一批' } },
+      ],
+      fieldNames: ['获奖批次'],
+    },
+  )
+})
+
 test('人员更新载荷忽略全空新增记录并修剪单元格值', () => {
   assert.deepEqual(
     createParticipantUpdatePayload({

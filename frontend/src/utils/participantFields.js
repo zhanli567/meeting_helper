@@ -104,22 +104,51 @@ export function normalizeExtraFields(extraFields = [], existingFields = []) {
 }
 
 export function createParticipantUpdatePayload(form) {
+  const fieldNameByCode = customFieldNameMap(form.customFields)
+  const fieldNames = normalizeCustomFieldNames(form.customFields)
   const records = (form.records?.length ? form.records : [{ attributes: {} }])
     .map((record) => ({
       id: record.id,
-      attributes: normalizeRecordAttributes(record.attributes),
+      attributes: normalizeRecordAttributes(record.attributes, fieldNameByCode),
     }))
     .filter((record) => Object.keys(record.attributes).length)
-  return {
+  const payload = {
     name: nonEmptyValue(form.name),
     records,
   }
+  if (fieldNames.length) payload.fieldNames = fieldNames
+  return payload
 }
 
-function normalizeRecordAttributes(attributes = {}) {
+function normalizeCustomFieldNames(fields = []) {
+  const seen = new Set()
+  const names = []
+  for (const field of fields || []) {
+    const name = nonEmptyValue(field?.label || field?.code)
+    const key = normalizeFieldName(name)
+    if (name && !seen.has(key)) {
+      seen.add(key)
+      names.push(name)
+    }
+  }
+  return names
+}
+
+function customFieldNameMap(fields = []) {
+  const names = new Map()
+  for (const field of fields || []) {
+    const name = nonEmptyValue(field?.label)
+    if (!field?.custom || !name) continue
+    if (field.code) names.set(field.code, name)
+    if (field.id) names.set(field.id, name)
+  }
+  return names
+}
+
+function normalizeRecordAttributes(attributes = {}, fieldNameByCode = new Map()) {
   const normalized = {}
   Object.entries(attributes || {}).forEach(([key, value]) => {
-    const fieldName = nonEmptyValue(key)
+    const fieldName = nonEmptyValue(fieldNameByCode.get(key) || key)
     const fieldValue = nonEmptyValue(value)
     if (fieldName && fieldValue) normalized[fieldName] = fieldValue
   })

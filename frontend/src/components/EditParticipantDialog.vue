@@ -33,7 +33,6 @@ const recordFields = computed(() => [
   })),
   ...form.customFields,
 ])
-const newColumnName = ref('')
 const rules = {
   name: [{ required: true, message: '请输入姓名' }],
 }
@@ -62,7 +61,6 @@ function resetForm() {
   form.records = normalizeRecords(props.participant)
   form.customFields = []
   form.fieldDefinitions = props.fieldDefinitions
-  newColumnName.value = ''
 }
 
 watch(
@@ -91,29 +89,18 @@ function removeRecord(index) {
 }
 
 function addColumn() {
-  const label = newColumnName.value.trim()
-  if (!label) {
-    ElMessage.warning('请输入列名')
-    return
-  }
-  const key = normalizeFieldName(label)
-  const exists = recordFields.value.some((field) => normalizeFieldName(field.code) === key)
-  if (exists) {
-    ElMessage.warning('该字段已存在，请使用其他列名')
-    return
-  }
+  const id = `custom-field-${++customFieldSerial}`
   form.customFields.push({
-    id: `custom-field-${++customFieldSerial}`,
-    code: label,
-    label,
+    id,
+    code: id,
+    label: '',
     custom: true,
   })
   form.records.forEach((record) => {
-    if (!Object.prototype.hasOwnProperty.call(record.attributes, label)) {
-      record.attributes[label] = ''
+    if (!Object.prototype.hasOwnProperty.call(record.attributes, id)) {
+      record.attributes[id] = ''
     }
   })
-  newColumnName.value = ''
 }
 
 function removeCustomColumn(field) {
@@ -123,10 +110,35 @@ function removeCustomColumn(field) {
   })
 }
 
+function fieldNameCandidates(field) {
+  return [field?.code, field?.label]
+    .map((value) => normalizeFieldName(value))
+    .filter(Boolean)
+}
+
+function validateCustomFields() {
+  const existing = new Set(dynamicFields.value.flatMap(fieldNameCandidates))
+  const seen = new Set()
+  for (const field of form.customFields) {
+    const key = normalizeFieldName(field.label)
+    if (!key) {
+      ElMessage.warning('请输入列名')
+      return false
+    }
+    if (existing.has(key) || seen.has(key)) {
+      ElMessage.warning('该字段已存在，请使用其他列名')
+      return false
+    }
+    seen.add(key)
+  }
+  return true
+}
+
 async function submit() {
   if (!props.participant?.id) return
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
+  if (!validateCustomFields()) return
   form.fieldDefinitions = props.fieldDefinitions
   submitting.value = true
   try {
@@ -171,13 +183,6 @@ async function submit() {
           <span>记录数据</span>
           <div class="record-actions">
             <el-button size="small" :icon="Plus" @click="addRecord">添加记录</el-button>
-            <el-input
-              v-model="newColumnName"
-              class="new-column-input"
-              aria-label="新增列名"
-              maxlength="32"
-              :validate-event="false"
-            />
             <el-button size="small" :icon="Plus" @click="addColumn">添加列</el-button>
           </div>
         </header>
@@ -200,7 +205,15 @@ async function submit() {
             >
               <template #header>
                 <div class="field-header">
-                  <span>{{ field.label }}</span>
+                  <el-input
+                    v-if="field.custom"
+                    v-model="field.label"
+                    class="custom-field-name-input"
+                    aria-label="新增列名"
+                    maxlength="32"
+                    :validate-event="false"
+                  />
+                  <span v-else>{{ field.label }}</span>
                   <el-button
                     v-if="field.custom"
                     text
@@ -284,10 +297,6 @@ async function submit() {
   gap: 8px;
 }
 
-.new-column-input {
-  width: 150px;
-}
-
 .record-table-wrap {
   max-height: min(36vh, 360px);
   overflow: auto;
@@ -315,6 +324,10 @@ async function submit() {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
+}
+
+.custom-field-name-input {
+  min-width: 118px;
 }
 
 .field-header span {

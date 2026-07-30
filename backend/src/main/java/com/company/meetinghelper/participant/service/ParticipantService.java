@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Stream;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -145,8 +146,13 @@ public class ParticipantService {
         List<ParticipantRecordInput> records = request.records() == null
                 ? List.of()
                 : request.records();
-        List<String> fieldNames = records.stream()
-                .flatMap(record -> recordAttributes(record).keySet().stream())
+        List<String> explicitFieldNames = request.fieldNames() == null
+                ? List.of()
+                : request.fieldNames();
+        List<String> fieldNames = Stream.concat(
+                        explicitFieldNames.stream(),
+                        records.stream().flatMap(record -> recordAttributes(record).keySet().stream())
+                )
                 .map(value -> value == null ? "" : value.trim())
                 .filter(value -> !value.isBlank())
                 .distinct()

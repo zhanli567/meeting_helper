@@ -5,6 +5,7 @@ import java.util.List;
 
 public record UpdateParticipantRequest(
         @NotBlank String name,
-        List<ParticipantRecordInput> records
+        List<ParticipantRecordInput> records,
+        List<String> fieldNames
 ) {
 }

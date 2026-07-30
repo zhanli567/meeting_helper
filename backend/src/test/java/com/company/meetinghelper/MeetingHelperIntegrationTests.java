@@ -633,6 +633,35 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
+    void participantUpdateRegistersEmptyDynamicFieldColumn() throws Exception {
+        String meetingId = createImportMeeting();
+        ParticipantResult participant = participantService.create(
+                meetingId,
+                new CreateParticipantRequest("a90000003", "待更新", Map.of(), null)
+        );
+
+        mockMvc.perform(post(
+                        "/meetings/{meetingId}/participants/{participantId}/update",
+                        meetingId,
+                        participant.id()
+                ).header(USER_HEADER, DEFAULT_USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "待更新",
+                                  "fieldNames": ["获奖批次"],
+                                  "records": []
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meetingId);
+        assertThat(workspace.fieldDefinitions())
+                .extracting(value -> value.label())
+                .contains("获奖批次");
+    }
+
+    @Test
     void participantCreateMergesExistingEmployeeRecordsAndAssignsTargetSeat() {
         String meetingId = createImportMeeting();
         ParticipantResult first = participantService.create(

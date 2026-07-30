@@ -37,6 +37,8 @@ test('编辑人员弹窗工号只读并使用横向表格编辑记录和字段',
   assert.match(source, /添加列/)
   assert.match(source, /removeCustomColumn/)
   assert.match(source, /record-row-index/)
+  assert.match(source, /class="custom-field-name-input"/)
+  assert.doesNotMatch(source, /class="new-column-input"/)
   assert.doesNotMatch(source, /获奖信息/)
   assert.doesNotMatch(source, /class="record-card"/)
   assert.doesNotMatch(source, /multiRecord/)
