@@ -18,6 +18,7 @@ import { createServer } from 'vite'
 
 const frontendRoot = fileURLToPath(new URL('..', import.meta.url))
 const checkboxGroupKey = Symbol('checkbox-group')
+const tabsKey = Symbol('tabs')
 
 async function loadDialog(t) {
   const server = await createServer({
@@ -112,6 +113,41 @@ const DialogStub = defineComponent({
   inheritAttrs: false,
   setup(_props, { attrs, slots }) {
     return () => h('div', attrs, Object.values(slots).flatMap((slot) => slot()))
+  },
+})
+
+const TabsStub = defineComponent({
+  props: { modelValue: { type: String, default: '' } },
+  emits: ['update:modelValue'],
+  setup(props, { emit, slots }) {
+    provide(tabsKey, {
+      active: () => props.modelValue,
+      activate: (name) => emit('update:modelValue', name),
+    })
+    return () => h('div', slots.default?.())
+  },
+})
+
+const TabPaneStub = defineComponent({
+  props: {
+    label: { type: String, default: '' },
+    name: { type: String, default: '' },
+  },
+  setup(props, { slots }) {
+    const tabs = inject(tabsKey, null)
+    return () => {
+      if (tabs?.active() === props.name) {
+        return h('section', { 'data-tab': props.name, 'data-label': props.label }, slots.default?.())
+      }
+      return h('button', { onClick: () => tabs?.activate(props.name) }, props.label)
+    }
+  },
+})
+
+const CollapseItemStub = defineComponent({
+  props: { title: { type: String, default: '' } },
+  setup(props, { slots }) {
+    return () => h('section', { 'data-label': props.title }, slots.default?.())
   },
 })
 
@@ -211,8 +247,10 @@ async function mountDialog(t, Dialog) {
   app.config.warnHandler = () => {}
   app.provide(Vue.ssrContextKey, { modules: new Set() })
   app.component('ElDialog', DialogStub)
-  app.component('ElSteps', Passthrough)
-  app.component('ElStep', Passthrough)
+  app.component('ElTabs', TabsStub)
+  app.component('ElTabPane', TabPaneStub)
+  app.component('ElCollapse', Passthrough)
+  app.component('ElCollapseItem', CollapseItemStub)
   app.component('ElForm', Passthrough)
   app.component('ElFormItem', FormItemStub)
   app.component('ElCheckbox', CheckboxStub)
@@ -244,9 +282,6 @@ test('confirmation summarizes enabled sheets, color fields, and static choices',
   buttonsByText(root, '下一步')[0].props.onClick()
   await nextTick()
 
-  buttonsByText(root, '下一步')[0].props.onClick()
-  await nextTick()
-
   const sheetSummary = nodeText(summarySection(root, '导出子表'))
   const participantSummary = nodeText(summarySection(root, '人员名单配置'))
   const layoutSummary = nodeText(summarySection(root, '排座图配置'))
@@ -257,9 +292,39 @@ test('confirmation summarizes enabled sheets, color fields, and static choices',
   assert.match(sheetSummary, /人员名单/)
   assert.match(sheetSummary, /排座图/)
   assert.doesNotMatch(sheetSummary, /座位明细/)
-  assert.match(participantSummary, /出席情况：不包含/)
-  assert.match(participantSummary, /座位编号：包含/)
-  assert.match(layoutSummary, /排座字段：部门/)
-  assert.match(layoutSummary, /着色字段：部门/)
+  assert.match(participantSummary, /出席情况\s*不包含/)
+  assert.match(participantSummary, /座位编号\s*包含/)
+  assert.match(layoutSummary, /排座字段\s*部门/)
+  assert.match(layoutSummary, /着色字段\s*部门/)
+  assert.ok(!summaryLabels.includes('座位明细配置'))
+})
+
+test('only selected sheets appear as configuration tabs', async (t) => {
+  const Dialog = await loadDialog(t)
+  const root = await mountDialog(t, Dialog)
+
+  buttonsByText(root, '人员名单')[0].props.onClick()
+  buttonsByText(root, '座位明细')[0].props.onClick()
+  await nextTick()
+
+  assert.equal(buttonsByText(root, '人员名单配置').length, 0)
+  assert.equal(buttonsByText(root, '座位明细配置').length, 0)
+  assert.equal(buttonsByText(root, '排座图配置').length, 1)
+
+  buttonsByText(root, '下一步')[0].props.onClick()
+  await nextTick()
+
+  assert.equal(summarySection(root, '排座图配置').props['data-tab'], 'layout')
+  assert.doesNotMatch(nodeText(root), /固定字段/)
+
+  buttonsByText(root, '下一步')[0].props.onClick()
+  await nextTick()
+
+  const summaryLabels = allNodes(root)
+    .map((node) => node.props?.['data-label'])
+    .filter(Boolean)
+
+  assert.ok(summaryLabels.includes('排座图配置'))
+  assert.ok(!summaryLabels.includes('人员名单配置'))
   assert.ok(!summaryLabels.includes('座位明细配置'))
 })

@@ -9,7 +9,8 @@ const props = defineProps({
 })
 const emit = defineEmits(['export'])
 
-const activeStep = ref(0)
+const activeTab = ref('sheets')
+const confirmCollapse = ref(['sheets', 'participants', 'layout', 'seatDetails'])
 const dynamicFields = computed(() =>
   (props.fieldDefinitions || []).filter((field) => !['name', 'employeeNo'].includes(field.code)),
 )
@@ -34,6 +35,27 @@ const form = reactive({
   },
 })
 
+const sheetDefinitions = [
+  { key: 'participants', label: '人员名单', tabLabel: '人员名单配置' },
+  { key: 'layout', label: '排座图', tabLabel: '排座图配置' },
+  { key: 'seatDetails', label: '座位明细', tabLabel: '座位明细配置' },
+]
+const selectedSheetDefinitions = computed(() =>
+  sheetDefinitions.filter((sheet) => form[sheet.key].enabled),
+)
+const exportTabs = computed(() => [
+  { name: 'sheets', label: '选择子表' },
+  ...selectedSheetDefinitions.value.map((sheet) => ({
+    name: sheet.key,
+    label: sheet.tabLabel,
+  })),
+  { name: 'confirm', label: '确认导出' },
+])
+const currentTabIndex = computed(() =>
+  exportTabs.value.findIndex((tab) => tab.name === activeTab.value),
+)
+const isFirstTab = computed(() => currentTabIndex.value <= 0)
+const isConfirmTab = computed(() => activeTab.value === 'confirm')
 const availableLayoutColorFields = computed(() =>
   dynamicFields.value.filter((field) => form.layout.fieldCodes.includes(field.code)),
 )
@@ -49,14 +71,12 @@ const layoutColorFieldCodes = computed({
     form.layout.colorFieldCodes = codes
   },
 })
-const selectedSheetCount = computed(() =>
-  [form.participants.enabled, form.layout.enabled, form.seatDetails.enabled]
-    .filter(Boolean).length,
-)
+const selectedSheetCount = computed(() => selectedSheetDefinitions.value.length)
 
 function resetOptions() {
   const codes = dynamicFields.value.map((field) => field.code)
-  activeStep.value = 0
+  activeTab.value = 'sheets'
+  confirmCollapse.value = ['sheets', 'participants', 'layout', 'seatDetails']
   form.participants = {
     enabled: true,
     fieldCodes: [...codes],
@@ -99,9 +119,24 @@ function canExport() {
   return true
 }
 
-function nextStep() {
+function normalizeActiveTab() {
+  const tabs = exportTabs.value
+  if (!tabs.some((tab) => tab.name === activeTab.value)) {
+    activeTab.value = tabs.at(-1)?.name || 'sheets'
+  }
+}
+
+function goPrevious() {
+  const index = currentTabIndex.value
+  if (index <= 0) return
+  activeTab.value = exportTabs.value[index - 1].name
+}
+
+function goNext() {
   if (!canExport()) return
-  activeStep.value += 1
+  const index = currentTabIndex.value
+  const tabs = exportTabs.value
+  activeTab.value = tabs[Math.min(index + 1, tabs.length - 1)].name
 }
 
 function submit() {
@@ -127,6 +162,8 @@ watch(dynamicFields, (fields) => {
   form.seatDetails.fieldCodes = retainAvailableFields(form.seatDetails.fieldCodes, availableCodes)
 })
 
+watch(selectedSheetDefinitions, normalizeActiveTab)
+
 watch(
   () => form.layout.fieldCodes,
   () => {
@@ -142,139 +179,192 @@ watch(
   <el-dialog
     v-model="visible"
     title="导出Excel"
-    width="640px"
+    width="880px"
+    class="export-options-dialog"
     append-to-body
     destroy-on-close
   >
-    <el-steps :active="activeStep" finish-status="success" simple>
-      <el-step title="选择子表" />
-      <el-step title="人员名单配置" />
-      <el-step title="排座图配置" />
-      <el-step title="座位明细配置" />
-      <el-step title="确认导出" />
-    </el-steps>
-
-    <el-form class="wizard-form" label-position="top" @submit.prevent>
-      <template v-if="activeStep === 0">
-        <el-form-item label="导出子表">
-          <el-checkbox v-model="form.participants.enabled">人员名单</el-checkbox>
-          <el-checkbox v-model="form.layout.enabled">排座图</el-checkbox>
-          <el-checkbox v-model="form.seatDetails.enabled">座位明细</el-checkbox>
-        </el-form-item>
-      </template>
-
-      <template v-else-if="activeStep === 1">
-        <el-form-item label="扩展字段">
-          <el-checkbox-group
-            v-if="dynamicFields.length"
-            v-model="form.participants.fieldCodes"
-            class="field-checks"
+    <div class="export-dialog-body">
+      <el-tabs v-model="activeTab" tab-position="left" class="export-tabs">
+        <el-tab-pane
+          v-for="tab in exportTabs"
+          :key="tab.name"
+          :label="tab.label"
+          :name="tab.name"
+        >
+          <el-form
+            v-if="tab.name === 'sheets'"
+            class="tab-panel"
+            label-position="top"
+            @submit.prevent
           >
-            <el-checkbox v-for="field in dynamicFields" :key="field.code" :label="field.code">
-              {{ field.label }}
-            </el-checkbox>
-          </el-checkbox-group>
-          <p v-else class="empty-export-options">暂无扩展字段</p>
-        </el-form-item>
-        <el-form-item label="其他列">
-          <div class="extra-checks">
-            <el-checkbox v-model="form.participants.includeAttendance">出席情况</el-checkbox>
-            <el-checkbox v-model="form.participants.includeSeatLabel">座位编号</el-checkbox>
-          </div>
-        </el-form-item>
-      </template>
+            <div class="config-scroll">
+              <el-form-item label="导出子表">
+                <div class="sheet-card-grid">
+                  <label
+                    v-for="sheet in sheetDefinitions"
+                    :key="sheet.key"
+                    class="sheet-option"
+                    :class="{ 'sheet-option--active': form[sheet.key].enabled }"
+                  >
+                    <el-checkbox v-model="form[sheet.key].enabled">
+                      {{ sheet.label }}
+                    </el-checkbox>
+                  </label>
+                </div>
+              </el-form-item>
+            </div>
+          </el-form>
 
-      <template v-else-if="activeStep === 2">
-        <el-form-item label="排座字段">
-          <el-checkbox-group
-            v-if="dynamicFields.length"
-            v-model="layoutFieldCodes"
-            class="field-checks"
+          <el-form
+            v-else-if="tab.name === 'participants'"
+            class="tab-panel"
+            label-position="top"
+            @submit.prevent
           >
-            <el-checkbox v-for="field in dynamicFields" :key="field.code" :label="field.code">
-              {{ field.label }}
-            </el-checkbox>
-          </el-checkbox-group>
-          <p v-else class="empty-export-options">暂无扩展字段</p>
-        </el-form-item>
-        <el-form-item label="着色字段">
-          <el-checkbox-group
-            v-if="availableLayoutColorFields.length"
-            v-model="layoutColorFieldCodes"
-            class="field-checks"
-          >
-            <el-checkbox
-              v-for="field in availableLayoutColorFields"
-              :key="field.code"
-              :label="field.code"
-            >
-              {{ field.label }}
-            </el-checkbox>
-          </el-checkbox-group>
-          <p v-else class="empty-export-options">暂无可着色字段</p>
-        </el-form-item>
-        <el-form-item label="固定字段">
-          <span>座位编号、姓名、左右排号始终导出</span>
-        </el-form-item>
-      </template>
+            <div class="config-scroll">
+              <el-form-item label="扩展字段">
+                <el-checkbox-group
+                  v-if="dynamicFields.length"
+                  v-model="form.participants.fieldCodes"
+                  class="field-checks"
+                >
+                  <el-checkbox v-for="field in dynamicFields" :key="field.code" :label="field.code">
+                    {{ field.label }}
+                  </el-checkbox>
+                </el-checkbox-group>
+                <p v-else class="empty-export-options">暂无扩展字段</p>
+              </el-form-item>
+              <el-form-item label="其他列">
+                <div class="extra-checks">
+                  <el-checkbox v-model="form.participants.includeAttendance">出席情况</el-checkbox>
+                  <el-checkbox v-model="form.participants.includeSeatLabel">座位编号</el-checkbox>
+                </div>
+              </el-form-item>
+            </div>
+          </el-form>
 
-      <template v-else-if="activeStep === 3">
-        <el-form-item label="扩展字段">
-          <el-checkbox-group
-            v-if="dynamicFields.length"
-            v-model="form.seatDetails.fieldCodes"
-            class="field-checks"
+          <el-form
+            v-else-if="tab.name === 'layout'"
+            class="tab-panel"
+            label-position="top"
+            @submit.prevent
           >
-            <el-checkbox v-for="field in dynamicFields" :key="field.code" :label="field.code">
-              {{ field.label }}
-            </el-checkbox>
-          </el-checkbox-group>
-          <p v-else class="empty-export-options">暂无扩展字段</p>
-        </el-form-item>
-        <el-form-item label="其他列">
-          <div class="extra-checks">
-            <el-checkbox v-model="form.seatDetails.includeOccupancyType">占用类型</el-checkbox>
-            <el-checkbox v-model="form.seatDetails.includeRegionName">区域名称</el-checkbox>
-            <el-checkbox v-model="form.seatDetails.includeParticipant">人员信息</el-checkbox>
-          </div>
-        </el-form-item>
-      </template>
+            <div class="config-scroll">
+              <el-form-item label="排座字段">
+                <el-checkbox-group
+                  v-if="dynamicFields.length"
+                  v-model="layoutFieldCodes"
+                  class="field-checks"
+                >
+                  <el-checkbox v-for="field in dynamicFields" :key="field.code" :label="field.code">
+                    {{ field.label }}
+                  </el-checkbox>
+                </el-checkbox-group>
+                <p v-else class="empty-export-options">暂无扩展字段</p>
+              </el-form-item>
+              <el-form-item label="着色字段">
+                <el-checkbox-group
+                  v-if="availableLayoutColorFields.length"
+                  v-model="layoutColorFieldCodes"
+                  class="field-checks"
+                >
+                  <el-checkbox
+                    v-for="field in availableLayoutColorFields"
+                    :key="field.code"
+                    :label="field.code"
+                  >
+                    {{ field.label }}
+                  </el-checkbox>
+                </el-checkbox-group>
+                <p v-else class="empty-export-options">暂无可着色字段</p>
+              </el-form-item>
+            </div>
+          </el-form>
 
-      <template v-else>
-        <el-form-item label="导出子表">
-          <el-tag v-if="form.participants.enabled">人员名单</el-tag>
-          <el-tag v-if="form.layout.enabled">排座图</el-tag>
-          <el-tag v-if="form.seatDetails.enabled">座位明细</el-tag>
-        </el-form-item>
-        <el-form-item v-if="form.participants.enabled" label="人员名单配置">
-          <div class="summary-lines">
-            <p>扩展字段：{{ fieldSummary(form.participants.fieldCodes) }}</p>
-            <p>出席情况：{{ includeSummary(form.participants.includeAttendance) }}</p>
-            <p>座位编号：{{ includeSummary(form.participants.includeSeatLabel) }}</p>
-          </div>
-        </el-form-item>
-        <el-form-item v-if="form.layout.enabled" label="排座图配置">
-          <div class="summary-lines">
-            <p>排座字段：{{ fieldSummary(form.layout.fieldCodes) }}</p>
-            <p>着色字段：{{ fieldSummary(form.layout.colorFieldCodes) }}</p>
-            <p>固定字段：座位编号、姓名、左右排号</p>
-          </div>
-        </el-form-item>
-        <el-form-item v-if="form.seatDetails.enabled" label="座位明细配置">
-          <div class="summary-lines">
-            <p>扩展字段：{{ fieldSummary(form.seatDetails.fieldCodes) }}</p>
-            <p>占用类型：{{ includeSummary(form.seatDetails.includeOccupancyType) }}</p>
-            <p>区域名称：{{ includeSummary(form.seatDetails.includeRegionName) }}</p>
-            <p>人员信息：{{ includeSummary(form.seatDetails.includeParticipant) }}</p>
-          </div>
-        </el-form-item>
-      </template>
-    </el-form>
+          <el-form
+            v-else-if="tab.name === 'seatDetails'"
+            class="tab-panel"
+            label-position="top"
+            @submit.prevent
+          >
+            <div class="config-scroll">
+              <el-form-item label="扩展字段">
+                <el-checkbox-group
+                  v-if="dynamicFields.length"
+                  v-model="form.seatDetails.fieldCodes"
+                  class="field-checks"
+                >
+                  <el-checkbox v-for="field in dynamicFields" :key="field.code" :label="field.code">
+                    {{ field.label }}
+                  </el-checkbox>
+                </el-checkbox-group>
+                <p v-else class="empty-export-options">暂无扩展字段</p>
+              </el-form-item>
+              <el-form-item label="其他列">
+                <div class="extra-checks">
+                  <el-checkbox v-model="form.seatDetails.includeOccupancyType">占用类型</el-checkbox>
+                  <el-checkbox v-model="form.seatDetails.includeRegionName">区域名称</el-checkbox>
+                  <el-checkbox v-model="form.seatDetails.includeParticipant">人员信息</el-checkbox>
+                </div>
+              </el-form-item>
+            </div>
+          </el-form>
+
+          <el-form v-else class="tab-panel" label-position="top" @submit.prevent>
+            <div class="confirm-scroll">
+              <el-form-item label="导出子表">
+                <div class="summary-tags">
+                  <el-tag v-if="form.participants.enabled">人员名单</el-tag>
+                  <el-tag v-if="form.layout.enabled">排座图</el-tag>
+                  <el-tag v-if="form.seatDetails.enabled">座位明细</el-tag>
+                </div>
+              </el-form-item>
+              <el-collapse v-model="confirmCollapse" class="summary-collapse">
+                <el-collapse-item
+                  v-if="form.participants.enabled"
+                  title="人员名单配置"
+                  name="participants"
+                >
+                  <div class="summary-lines">
+                    <p><strong>扩展字段</strong><span>{{ fieldSummary(form.participants.fieldCodes) }}</span></p>
+                    <p><strong>出席情况</strong><span>{{ includeSummary(form.participants.includeAttendance) }}</span></p>
+                    <p><strong>座位编号</strong><span>{{ includeSummary(form.participants.includeSeatLabel) }}</span></p>
+                  </div>
+                </el-collapse-item>
+                <el-collapse-item
+                  v-if="form.layout.enabled"
+                  title="排座图配置"
+                  name="layout"
+                >
+                  <div class="summary-lines">
+                    <p><strong>排座字段</strong><span>{{ fieldSummary(form.layout.fieldCodes) }}</span></p>
+                    <p><strong>着色字段</strong><span>{{ fieldSummary(form.layout.colorFieldCodes) }}</span></p>
+                  </div>
+                </el-collapse-item>
+                <el-collapse-item
+                  v-if="form.seatDetails.enabled"
+                  title="座位明细配置"
+                  name="seatDetails"
+                >
+                  <div class="summary-lines">
+                    <p><strong>扩展字段</strong><span>{{ fieldSummary(form.seatDetails.fieldCodes) }}</span></p>
+                    <p><strong>占用类型</strong><span>{{ includeSummary(form.seatDetails.includeOccupancyType) }}</span></p>
+                    <p><strong>区域名称</strong><span>{{ includeSummary(form.seatDetails.includeRegionName) }}</span></p>
+                    <p><strong>人员信息</strong><span>{{ includeSummary(form.seatDetails.includeParticipant) }}</span></p>
+                  </div>
+                </el-collapse-item>
+              </el-collapse>
+            </div>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
 
     <template #footer>
       <el-button :disabled="submitting" @click="visible = false">取消</el-button>
-      <el-button :disabled="submitting || activeStep === 0" @click="activeStep--">上一步</el-button>
-      <el-button v-if="activeStep < 4" type="primary" :disabled="submitting" @click="nextStep">
+      <el-button :disabled="submitting || isFirstTab" @click="goPrevious">上一步</el-button>
+      <el-button v-if="!isConfirmTab" type="primary" :disabled="submitting" @click="goNext">
         下一步
       </el-button>
       <el-button v-else type="primary" :loading="submitting" @click="submit">导出Excel</el-button>
@@ -283,8 +373,71 @@ watch(
 </template>
 
 <style scoped>
-.wizard-form {
-  padding-top: 20px;
+.export-dialog-body {
+  height: 100%;
+  min-height: 0;
+}
+
+.export-tabs {
+  height: 100%;
+}
+
+.export-tabs :deep(.el-tabs__header.is-left) {
+  width: 178px;
+  margin-right: 20px;
+}
+
+.export-tabs :deep(.el-tabs__item) {
+  justify-content: flex-start;
+  height: 42px;
+  line-height: 42px;
+  padding: 0 18px;
+  white-space: nowrap;
+}
+
+.export-tabs :deep(.el-tabs__content),
+.export-tabs :deep(.el-tab-pane) {
+  height: 100%;
+  min-height: 0;
+}
+
+.tab-panel {
+  height: 100%;
+  min-height: 0;
+}
+
+.config-scroll,
+.confirm-scroll {
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.sheet-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.sheet-option {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.sheet-option--active {
+  border-color: var(--brand);
+  box-shadow: 0 8px 20px rgba(10, 89, 247, 0.08);
 }
 
 .field-checks,
@@ -297,7 +450,7 @@ watch(
 
 .field-checks {
   min-height: 96px;
-  max-height: 184px;
+  max-height: 220px;
   align-content: start;
   overflow-x: hidden;
   overflow-y: auto;
@@ -305,7 +458,8 @@ watch(
 }
 
 .field-checks :deep(.el-checkbox),
-.extra-checks :deep(.el-checkbox) {
+.extra-checks :deep(.el-checkbox),
+.sheet-option :deep(.el-checkbox) {
   min-width: 0;
   margin-right: 0;
 }
@@ -316,15 +470,58 @@ watch(
   font-size: 13px;
 }
 
+.summary-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.summary-collapse {
+  border-top: 1px solid var(--line);
+}
+
+.summary-collapse :deep(.el-collapse-item__header) {
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .summary-lines {
-  width: 100%;
+  display: grid;
+  gap: 8px;
 }
 
 .summary-lines p {
-  margin: 0 0 6px;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  margin: 0;
+  color: var(--secondary);
 }
 
-.el-tag {
-  margin: 0 8px 8px 0;
+.summary-lines strong {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.summary-lines span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+:global(.export-options-dialog) {
+  height: min(82vh, 760px);
+  margin-top: min(6vh, 44px);
+  display: flex;
+  flex-direction: column;
+}
+
+:global(.export-options-dialog .el-dialog__body) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+:global(.export-options-dialog .el-dialog__footer) {
+  flex: 0 0 auto;
 }
 </style>
