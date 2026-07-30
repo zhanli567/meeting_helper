@@ -48,9 +48,13 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  reservedGenericColors: {
+    type: Array,
+    default: () => [],
+  },
 })
 
-const emit = defineEmits(['preview', 'confirm', 'cancel', 'toggle', 'dock'])
+const emit = defineEmits(['preview', 'confirm', 'apply-color', 'cancel', 'toggle', 'dock'])
 const draft = reactive({
   kind: ELEMENT_KINDS.GENERIC,
   name: '',
@@ -64,6 +68,13 @@ const elementSuggestions = ref(availableElementSuggestions())
 const basicColorSwatches = SEMANTIC_COLOR_SWATCHES
 const draftValid = computed(() => validElementProperties(draft))
 const usedGenericColors = computed(() => usedGenericElementColors(props.elements, draft.name))
+const unavailableFillColors = computed(() => {
+  if (draft.kind !== ELEMENT_KINDS.GENERIC) return []
+  return [
+    ...usedGenericColors.value,
+    ...props.reservedGenericColors,
+  ]
+})
 
 watch(
   () => props.element,
@@ -115,9 +126,9 @@ function confirm() {
   if (!draftValid.value) return
   if (
     draft.kind === ELEMENT_KINDS.GENERIC
-    && usedGenericElementColors(props.elements, draft.name).includes(normalizeHexColor(draft.fillColor))
+    && unavailableFillColors.value.includes(normalizeHexColor(draft.fillColor))
   ) {
-    ElMessage.warning('不同非座位元素不能使用相同填充色')
+    ElMessage.warning('该颜色已被其他布局元素或分组使用')
     return
   }
   if (draft.kind === ELEMENT_KINDS.GENERIC) {
@@ -130,6 +141,22 @@ function confirm() {
     name: draft.name.trim(),
     fillColor: draft.fillColor,
   })
+}
+
+function commitColor(color) {
+  const normalized = normalizeHexColor(color)
+  if (!props.element || !normalized) return
+  draft.fillColor = normalized
+  if (
+    draft.kind === ELEMENT_KINDS.GENERIC
+    && unavailableFillColors.value.includes(normalized)
+  ) {
+    ElMessage.warning('该颜色已被其他布局元素或分组使用')
+    return
+  }
+  saveCustomColor(normalized)
+  refreshPreferences()
+  emit('apply-color', { fillColor: normalized })
 }
 </script>
 
@@ -179,7 +206,8 @@ function confirm() {
               <ColorPickerPopover
                 v-model="draft.fillColor"
                 label="填充色"
-                :unavailable-colors="draft.kind === ELEMENT_KINDS.GENERIC ? usedGenericColors : []"
+                :unavailable-colors="unavailableFillColors"
+                @change="commitColor"
               />
               <input
                 class="sr-only-color-value"

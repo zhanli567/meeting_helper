@@ -13,6 +13,7 @@ import {
   Check,
   Minus,
   Plus,
+  Rank,
   RefreshLeft,
   RefreshRight,
 } from '@element-plus/icons-vue'
@@ -26,6 +27,7 @@ import {
   canvasResizeConflict,
   canvasSizeFromPointer,
   canPlaceRect,
+  centerLayoutElements,
   createSeatElements,
   moveRect,
   normalizeGridRect,
@@ -91,6 +93,10 @@ const props = defineProps({
   sidePanelTarget: {
     type: String,
     default: '',
+  },
+  reservedGenericColors: {
+    type: Array,
+    default: () => [],
   },
 })
 
@@ -635,15 +641,33 @@ function previewElement(changes) {
   }
 }
 
-function confirmElement(changes) {
+function applyElementChanges(changes, { closePanel = true } = {}) {
   if (!selectedElement.value) return
-  recordHistory()
   const index = elements.value.findIndex(
     (element) => element.editorId === selectedId.value,
   )
-  if (index >= 0) elements.value[index] = { ...elements.value[index], ...changes }
-  closeElementPanel()
+  if (index < 0) return
+  const changed = Object.entries(changes || {}).some(
+    ([key, value]) => elements.value[index][key] !== value,
+  )
+  if (!changed) {
+    editorPreview.value = undefined
+    if (closePanel) closeElementPanel()
+    return
+  }
+  recordHistory()
+  elements.value[index] = { ...elements.value[index], ...changes }
+  editorPreview.value = undefined
+  if (closePanel) closeElementPanel()
   publishLayout()
+}
+
+function confirmElement(changes) {
+  applyElementChanges(changes, { closePanel: true })
+}
+
+function applyElementColor(changes) {
+  applyElementChanges(changes, { closePanel: false })
 }
 
 function startCanvasResize(event, direction) {
@@ -851,6 +875,26 @@ function centerCanvas() {
   viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 2)
 }
 
+function centerLayout() {
+  if (!elements.value.length) return
+  const centered = centerLayoutElements(elements.value, {
+    rows: gridRows.value,
+    columns: gridColumns.value,
+  })
+  const changed = centered.some(
+    (element, index) =>
+      Number(element.row) !== Number(elements.value[index].row) ||
+      Number(element.column) !== Number(elements.value[index].column),
+  )
+  if (!changed) return
+  recordHistory()
+  elements.value = centered
+  editorPreview.value = undefined
+  closePicker()
+  publishLayout()
+  nextTick(centerCanvas)
+}
+
 function fitCanvas() {
   const viewport = viewportRef.value
   if (!viewport) return
@@ -869,6 +913,7 @@ defineExpose({
   undo,
   redo,
   fitCanvas,
+  centerLayout,
   setZoom,
   zoom,
   canUndo,
@@ -966,6 +1011,9 @@ onBeforeUnmount(() => {
         </el-button>
       </el-button-group>
       <el-button :icon="Aim" @click="fitCanvas">适应画布</el-button>
+      <el-button :icon="Rank" :disabled="!elements.length" @click="centerLayout">
+        居中布局
+      </el-button>
       <el-button-group>
         <el-button :icon="Minus" aria-label="缩小画布" @click="setZoom(zoom - 0.1)" />
         <el-button class="zoom-value" @click="setZoom(1)">
@@ -1006,6 +1054,9 @@ onBeforeUnmount(() => {
               <el-button :icon="RefreshRight" :disabled="!redoStack.length" @click="redo" />
             </el-button-group>
             <el-button :icon="Aim" @click="fitCanvas">适应</el-button>
+            <el-button :icon="Rank" :disabled="!elements.length" @click="centerLayout">
+              居中布局
+            </el-button>
           </div>
           <div class="side-toolbar-actions">
             <el-button-group>
@@ -1029,10 +1080,12 @@ onBeforeUnmount(() => {
           :grid-rows="displayRows"
           :grid-columns="displayColumns"
           :elements="elements"
+          :reserved-generic-colors="reservedGenericColors"
           :collapsed="panelCollapsed"
           :dock="panelDock"
           @preview="previewElement"
           @confirm="confirmElement"
+          @apply-color="applyElementColor"
           @cancel="closeElementPanel"
           @toggle="panelCollapsed = !panelCollapsed"
           @dock="panelDock = $event"

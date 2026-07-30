@@ -8,6 +8,27 @@ const { createSeatElements, moveRect, resizeRect } = designerGeometry
 const bounds = { rows: 10, columns: 12 }
 const origin = { row: 3, column: 4, rowSpan: 2, columnSpan: 3 }
 
+test('centerLayoutElements moves the whole layout to the canvas center', () => {
+  assert.equal(typeof designerGeometry.centerLayoutElements, 'function')
+
+  const centered = designerGeometry.centerLayoutElements([
+    { id: 'door', row: 2, column: 3, rowSpan: 1, columnSpan: 2, name: 'Door' },
+    { id: 'seat', row: 4, column: 5, rowSpan: 2, columnSpan: 1, name: 'Seat' },
+  ], { rows: 10, columns: 12 })
+
+  assert.deepEqual(centered.map((element) => ({
+    id: element.id,
+    row: element.row,
+    column: element.column,
+    rowSpan: element.rowSpan,
+    columnSpan: element.columnSpan,
+    name: element.name,
+  })), [
+    { id: 'door', row: 4, column: 5, rowSpan: 1, columnSpan: 2, name: 'Door' },
+    { id: 'seat', row: 6, column: 7, rowSpan: 2, columnSpan: 1, name: 'Seat' },
+  ])
+})
+
 test('拖动元素时按网格移动并限制在画布范围内', () => {
   assert.deepEqual(moveRect(origin, 2, -1, bounds), {
     row: 5,

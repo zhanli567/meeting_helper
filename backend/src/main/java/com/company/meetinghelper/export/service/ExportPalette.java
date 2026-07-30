@@ -9,10 +9,10 @@ import java.util.Set;
 public final class ExportPalette {
     public static final String SYSTEM_LAYOUT_COLOR = "#e5edf8";
     public static final List<String> SEMANTIC_COLORS = List.of(
-            "#dbeafe", "#dcfce7", "#fef3c7", "#fce7f3", "#ede9fe", "#ccfbf1",
-            "#ffedd5", "#e0f2fe", "#fef9c3", "#ecfccb", "#ffe4e6", "#e0e7ff",
-            "#cffafe", "#f1f5f9", "#d1fae5", "#fed7aa", "#fee2e2", "#f3e8ff",
-            "#bbf7d0", "#bfdbfe", "#a7f3d0", "#fde68a", "#fbcfe8", "#c7d2fe"
+            "#fee2e2", "#ffe4e6", "#ffedd5", "#fef3c7", "#fef9c3", "#ecfccb",
+            "#dcfce7", "#d1fae5", "#ccfbf1", "#cffafe", "#e0f2fe", "#dbeafe",
+            "#e0e7ff", "#ede9fe", "#f3e8ff", "#fce7f3", "#fed7aa", "#fde68a",
+            "#bbf7d0", "#a7f3d0", "#bfdbfe", "#c7d2fe", "#fbcfe8", "#f1f5f9"
     );
 
     private ExportPalette() {

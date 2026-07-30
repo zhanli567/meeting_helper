@@ -79,10 +79,27 @@ test('field color entries support user overrides for legend and participants', (
       custom: Boolean(entry.custom),
     })),
     [
-      { value: 'Batch 1', backgroundColor: '#dbeafe', custom: false },
+      { value: 'Batch 1', backgroundColor: '#fee2e2', custom: false },
       { value: 'Batch 2', backgroundColor: '#12abc0', custom: true },
     ],
   )
+})
+
+test('field color entries skip reserved layout colors and stay aligned with participants', () => {
+  const participants = [
+    { id: 'p1', primaryAttributes: { department: 'A' } },
+    { id: 'p2', primaryAttributes: { department: 'B' } },
+  ]
+  const reservedColors = ['#fee2e2', '#ffedd5']
+
+  const entries = buildFieldColorEntries(participants, 'department', undefined, {}, reservedColors)
+  const colors = buildParticipantColorMap(participants, 'department', undefined, {}, reservedColors)
+
+  assert.equal(entries.length, 2)
+  assert.equal(colors.get('p1').backgroundColor, entries[0].backgroundColor)
+  assert.equal(colors.get('p2').backgroundColor, entries[1].backgroundColor)
+  assert.notEqual(entries[0].backgroundColor, reservedColors[0])
+  assert.notEqual(entries[1].backgroundColor, reservedColors[1])
 })
 
 test('group color legend collapses into a compact tab without leaving a blank card', async () => {

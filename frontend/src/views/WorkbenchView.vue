@@ -7,6 +7,7 @@ import {
   Download,
   House,
   Plus,
+  Rank,
   RefreshLeft,
   RefreshRight,
   Upload,
@@ -200,6 +201,17 @@ const colorFieldOptions = computed(() =>
 const activeColorField = computed(() =>
   colorFieldOptions.value.find((field) => field.code === groupColorFieldCode.value),
 )
+const activeLayoutElements = computed(() =>
+  workbenchMode.value === 'layout'
+    ? layoutDraft.value.elements || []
+    : workspace.value?.layout?.elements || [],
+)
+const layoutReservedColors = computed(() =>
+  activeLayoutElements.value
+    .filter((element) => element.kind !== 'SEAT')
+    .map((element) => normalizeHexColor(element.fillColor))
+    .filter(Boolean),
+)
 const groupColorFieldOverrides = computed(
   () => groupColorOverrides.value?.[groupColorFieldCode.value] || {},
 )
@@ -210,6 +222,7 @@ const participantColorById = computed(() =>
       groupColorFieldCode.value,
       GROUP_COLOR_PALETTE,
       groupColorFieldOverrides.value,
+      layoutReservedColors.value,
     ),
   ),
 )
@@ -219,7 +232,13 @@ const groupColorEntries = computed(() =>
     groupColorFieldCode.value,
     GROUP_COLOR_PALETTE,
     groupColorFieldOverrides.value,
+    layoutReservedColors.value,
   ),
+)
+const activeGroupColors = computed(() =>
+  groupColorEntries.value
+    .map((entry) => normalizeHexColor(entry.backgroundColor))
+    .filter(Boolean),
 )
 function layoutPublicValue(key, fallback) {
   const value = layoutEditorRef.value?.[key]
@@ -1014,6 +1033,10 @@ function performToolbarFit() {
   }
   venueCanvasRef.value?.fitCanvas()
 }
+function performToolbarCenterLayout() {
+  if (readonlyMode.value || workbenchMode.value !== 'layout') return
+  layoutEditorRef.value?.centerLayout()
+}
 async function onSeatClick(element) {
   if (readonlyMode.value || workbenchMode.value !== 'seating' || !element?.id) return
   const occupied = workspace.value?.participants.find(
@@ -1028,6 +1051,13 @@ async function onSeatClick(element) {
 function setGroupColorOverride(payload) {
   if (!groupColorFieldCode.value || !payload?.value || !payload?.color) return
   const color = normalizeHexColor(payload.color)
+  if (
+    color &&
+    layoutReservedColors.value.includes(color)
+  ) {
+    ElMessage.warning('该颜色已被布局元素使用，请选择其他颜色')
+    return
+  }
   if (
     color &&
     groupColorEntries.value.some(
@@ -1112,10 +1142,44 @@ function zoomCurrentCanvas(delta) {
 function openExportOptions() {
   exportOptionsVisible.value = true
 }
+function selectedLayoutColorFieldCodes(options) {
+  return options?.sheets?.layout?.colorFieldCodes || options?.layout?.colorFieldCodes || []
+}
+function buildExportColorRules(options) {
+  const colorFieldCodes = selectedLayoutColorFieldCodes(options)
+  if (!colorFieldCodes.length) return []
+  return colorFieldCodes.flatMap((fieldCode) =>
+    buildFieldColorEntries(
+      workspace.value?.participants || [],
+      fieldCode,
+      GROUP_COLOR_PALETTE,
+      groupColorOverrides.value?.[fieldCode] || {},
+      layoutReservedColors.value,
+    ).map((entry) => ({
+      fieldCode,
+      value: entry.value,
+      backgroundColor: entry.backgroundColor,
+      textColor: entry.textColor || '#172033',
+    })),
+  )
+}
+function exportOptionsWithColorRules(options) {
+  const sheets = options?.sheets || options || {}
+  return {
+    ...options,
+    sheets: {
+      ...sheets,
+      layout: {
+        ...(sheets.layout || {}),
+        styleRules: buildExportColorRules(options),
+      },
+    },
+  }
+}
 async function exportPlan(options) {
   if (!readonlyMode.value && !(await confirmAllUnsavedChanges())) return
   exportOptionsVisible.value = false
-  await store.exportPlan(activeVersionId.value, options)
+  await store.exportPlan(activeVersionId.value, exportOptionsWithColorRules(options))
 }
 async function confirmDeleteProtectedElement(element) {
   try {
@@ -1498,6 +1562,15 @@ watch(
           >
             适应
           </el-button>
+          <el-button
+            v-if="workbenchMode === 'layout'"
+            :icon="Rank"
+            :disabled="readonlyMode"
+            title="居中布局"
+            @click="performToolbarCenterLayout"
+          >
+            居中布局
+          </el-button>
           <el-button-group class="canvas-zoom-controls">
             <el-button
               :icon="ZoomOut"
@@ -1534,6 +1607,7 @@ watch(
             side-panel-target="#workbench-layout-side"
             :manual-capacity="workspace.participants.length"
             :venue-name="workspace.meeting.layoutName"
+            :reserved-generic-colors="activeGroupColors"
             :protected-element-ids="protectedElementIds"
             :delete-confirm-message="confirmDeleteProtectedElement"
             @save="saveMeetingLayout"
@@ -1567,6 +1641,7 @@ watch(
             v-model:collapsed="groupColorLegendCollapsed"
             :field-label="activeColorField?.label || groupColorFieldCode"
             :entries="groupColorEntries"
+            :reserved-colors="layoutReservedColors"
             @set-color="setGroupColorOverride"
           />
           <SelectedParticipantInfo

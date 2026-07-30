@@ -109,12 +109,14 @@ export function buildFieldColorEntries(
   fieldCode,
   palette = GROUP_COLOR_PALETTE,
   overrides = {},
+  reservedColors = [],
 ) {
   const colorsByValue = new Map()
+  const usedColors = normalizedColorSet(reservedColors)
   if (!fieldCode || !palette?.length) return []
   ;(participants || []).forEach((participant) => {
     participantFieldValues(participant, fieldCode).forEach((value) => {
-      styleForValue(colorsByValue, value, palette, overrides)
+      styleForValue(colorsByValue, value, palette, overrides, usedColors)
     })
   })
   return [...colorsByValue.values()]
@@ -125,15 +127,17 @@ export function buildParticipantColorMap(
   fieldCode,
   palette = GROUP_COLOR_PALETTE,
   overrides = {},
+  reservedColors = [],
 ) {
   const colorsByValue = new Map()
   const colorsByParticipantId = new Map()
+  const usedColors = normalizedColorSet(reservedColors)
   if (!fieldCode || !palette?.length) return colorsByParticipantId
 
   ;(participants || []).forEach((participant) => {
     const values = participantFieldValues(participant, fieldCode)
     if (!values.length) return
-    const styles = values.map((value) => styleForValue(colorsByValue, value, palette, overrides))
+    const styles = values.map((value) => styleForValue(colorsByValue, value, palette, overrides, usedColors))
     if (styles.length === 1) {
       colorsByParticipantId.set(participant.id, { ...styles[0], multiValue: false })
       return
@@ -160,17 +164,52 @@ function cleanUniqueValues(values) {
     })
 }
 
-function styleForValue(colorsByValue, value, palette, overrides) {
+function normalizedColorSet(values) {
+  return new Set((values || []).map((value) => normalizeHexColor(value)).filter(Boolean))
+}
+
+function nextPaletteColor(palette, usedColors) {
+  const color = (palette || [])
+    .map((style) => normalizeHexColor(style.backgroundColor))
+    .find((value) => value && !usedColors.has(value))
+  if (color) return color
+
+  for (let index = 0; index <= 0xffffff; index += 1) {
+    const slot = (index * 40503) & 0x3ffff
+    const red = 192 + ((slot >>> 12) & 0x3f)
+    const green = 192 + ((slot >>> 6) & 0x3f)
+    const blue = 192 + (slot & 0x3f)
+    const generated = `#${red.toString(16).padStart(2, '0')}${green
+      .toString(16)
+      .padStart(2, '0')}${blue.toString(16).padStart(2, '0')}`
+    if (!usedColors.has(generated)) return generated
+  }
+  return '#ffffff'
+}
+
+function paletteStyleForColor(color, palette) {
+  const normalized = normalizeHexColor(color)
+  const paletteStyle = (palette || []).find(
+    (style) => normalizeHexColor(style.backgroundColor) === normalized,
+  )
+  return paletteStyle
+    ? { ...paletteStyle, backgroundColor: normalized }
+    : {
+        backgroundColor: normalized,
+        textColor: textColorForBackground(normalized),
+      }
+}
+
+function styleForValue(colorsByValue, value, palette, overrides, usedColors) {
   if (!colorsByValue.has(value)) {
     const overrideColor = normalizeHexColor(overrides?.[value])
+    const color = overrideColor && !usedColors.has(overrideColor)
+      ? overrideColor
+      : nextPaletteColor(palette, usedColors)
+    usedColors.add(color)
     colorsByValue.set(value, {
-      ...(overrideColor
-        ? {
-            backgroundColor: overrideColor,
-            textColor: textColorForBackground(overrideColor),
-            custom: true,
-          }
-        : palette[colorsByValue.size % palette.length]),
+      ...paletteStyleForColor(color, palette),
+      custom: Boolean(overrideColor && overrideColor === color),
       value,
     })
   }

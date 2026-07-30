@@ -1787,6 +1787,61 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
+    void layoutSheetUsesProvidedStyleRulesForFieldColors() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "前端颜色规则排座图场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(
+                        seat("人员座位", 1, 1, 1, 1),
+                        generic("舞台", 2, 1, 1, 2)
+                )
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "前端颜色规则排座图-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        previewAndCommit(meeting.id(), "工号,姓名,部门", "a12345678,姓名1,研发部");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        ElementView seat = workspace.layout().elements().stream()
+                .filter(value -> "SEAT".equals(value.kind()))
+                .findFirst()
+                .orElseThrow();
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(workspace.participants().getFirst().id(), seat.id())
+        );
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {
+                      "enabled": true,
+                      "fieldCodes": ["部门"],
+                      "colorFieldCodes": ["部门"],
+                      "styleRules": [
+                        {
+                          "fieldCode": "部门",
+                          "value": "研发部",
+                          "backgroundColor": "#FCE7F3",
+                          "textColor": "#172033"
+                        }
+                      ]
+                    },
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            Cell fieldValue = findCell(sheet, "研发部");
+            Cell genericElement = findCell(sheet, "舞台");
+
+            assertThat(cellFill(fieldValue)).isEqualTo("#fce7f3");
+            assertThat(cellFill(genericElement)).isEqualTo("#dbeafe");
+        }
+    }
+
+    @Test
     void layoutSheetMergesOneFieldLabelAcrossAllRecordRows() throws Exception {
         VenueDetail venue = createVenueWithElements(
                 "字段标签排座图场馆-" + UUID.randomUUID(),

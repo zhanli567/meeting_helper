@@ -327,6 +327,7 @@ public class LayoutSheetWriter {
         }
         reservedColors.add(ExportPalette.SYSTEM_LAYOUT_COLOR);
         Set<String> colorFieldCodes = new LinkedHashSet<String>(options.colorFieldCodes());
+        Map<String, Map<String, String>> providedStyleRules = styleRulesByFieldValue(options);
         LinkedHashMap<String, Map<String, String>> result =
                 new LinkedHashMap<String, Map<String, String>>();
         for (WorkspaceResponse.FieldDefinitionView field : selectedFields) {
@@ -354,9 +355,37 @@ public class LayoutSheetWriter {
                         .filter(value -> !value.isBlank())
                         .forEach(values::add);
             }
-            Map<String, String> colors = ExportPalette.colorsByValue(values, reservedColors);
+            LinkedHashMap<String, String> colors = new LinkedHashMap<String, String>();
+            Map<String, String> providedColors = providedStyleRules.getOrDefault(field.code(), Map.of());
+            LinkedHashSet<String> missingValues = new LinkedHashSet<String>();
+            for (String value : values) {
+                String providedColor = normalizeColor(providedColors.get(value));
+                if (providedColor.isBlank()) {
+                    missingValues.add(value);
+                    continue;
+                }
+                colors.put(value, providedColor);
+                reservedColors.add(providedColor);
+            }
+            colors.putAll(ExportPalette.colorsByValue(missingValues, reservedColors));
             result.put(field.code(), colors);
             reservedColors.addAll(colors.values());
+        }
+        return result;
+    }
+
+    private Map<String, Map<String, String>> styleRulesByFieldValue(ExportExcelRequest.LayoutSheet options) {
+        LinkedHashMap<String, Map<String, String>> result =
+                new LinkedHashMap<String, Map<String, String>>();
+        for (ExportExcelRequest.StyleRule rule : options.styleRules()) {
+            String fieldCode = nullToEmpty(rule.fieldCode()).trim();
+            String value = nullToEmpty(rule.value()).trim();
+            String color = normalizeColor(rule.backgroundColor());
+            if (fieldCode.isBlank() || value.isBlank() || color.isBlank()) {
+                continue;
+            }
+            result.computeIfAbsent(fieldCode, ignored -> new LinkedHashMap<String, String>())
+                    .putIfAbsent(value, color);
         }
         return result;
     }

@@ -7,15 +7,19 @@ const props = defineProps({
   fieldLabel: { type: String, default: '' },
   entries: { type: Array, default: () => [] },
   collapsed: { type: Boolean, default: false },
+  reservedColors: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['update:collapsed', 'set-color'])
 const legendRef = ref()
 
 function entryUnavailableColors(entry) {
-  return (props.entries || [])
-    .filter((value) => value.value !== entry.value)
-    .map((value) => value.backgroundColor)
+  return [
+    ...props.reservedColors,
+    ...(props.entries || [])
+      .filter((value) => value.value !== entry.value)
+      .map((value) => value.backgroundColor),
+  ]
 }
 
 function closeColorPopovers() {

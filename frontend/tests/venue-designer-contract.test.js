@@ -6,6 +6,18 @@ async function readSource(path) {
   return readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 }
 
+test('editor provides a layout centering action next to canvas fit controls', async () => {
+  const source = await readSource('src/components/VenueLayoutEditor.vue')
+  const workbench = await readSource('src/views/WorkbenchView.vue')
+
+  assert.match(source, /centerLayoutElements/)
+  assert.match(source, /function centerLayout/)
+  assert.match(source, /居中布局/)
+  assert.match(source, /centerLayout,/)
+  assert.match(workbench, /performToolbarCenterLayout/)
+  assert.match(workbench, /layoutEditorRef\.value\?\.centerLayout/)
+})
+
 test('编辑器支持画布拉伸、属性侧栏和无旋转交互', async () => {
   const source = await readSource('src/components/VenueLayoutEditor.vue')
   assert.match(source, /canvas-resize-east/)
@@ -78,13 +90,12 @@ test('元素选择与属性编辑只使用通用模型字段并支持取消实�
   assert.match(panelSource, /kind/)
   assert.match(panelSource, /name/)
   assert.match(panelSource, /fillColor/)
-  assert.match(
-    panelSource,
-    /:unavailable-colors="draft\.kind === ELEMENT_KINDS\.GENERIC \? usedGenericColors : \[\]"/,
-  )
+  assert.match(panelSource, /unavailableFillColors/)
   assert.doesNotMatch(panelSource, /borderColor/)
   assert.match(panelSource, /ColorPickerPopover/)
   assert.match(panelSource, /v-model="draft\.fillColor"/)
+  assert.match(panelSource, /@change="commitColor"/)
+  assert.match(panelSource, /emit\('apply-color'/)
   assert.doesNotMatch(panelSource, /v-model="draft\.borderColor"/)
   assert.match(panelSource, /emit\('preview'/)
   assert.match(panelSource, /emit\('cancel'/)

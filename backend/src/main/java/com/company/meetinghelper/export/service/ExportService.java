@@ -99,6 +99,12 @@ public class ExportService {
         validateFieldCodes(workspace, sheets.participants().fieldCodes());
         validateFieldCodes(workspace, sheets.layout().fieldCodes());
         validateFieldCodes(workspace, sheets.layout().colorFieldCodes());
+        validateFieldCodes(
+                workspace,
+                sheets.layout().styleRules().stream()
+                        .map(ExportExcelRequest.StyleRule::fieldCode)
+                        .toList()
+        );
         validateFieldCodes(workspace, sheets.seatDetails().fieldCodes());
         if (!new HashSet<String>(sheets.layout().fieldCodes()).containsAll(sheets.layout().colorFieldCodes())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "排座图着色字段必须先加入座位块字段");

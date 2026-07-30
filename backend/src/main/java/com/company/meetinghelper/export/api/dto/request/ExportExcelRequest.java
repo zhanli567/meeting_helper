@@ -55,19 +55,28 @@ public record ExportExcelRequest(
     public record LayoutSheet(
             Boolean enabled,
             List<String> fieldCodes,
-            List<String> colorFieldCodes
+            List<String> colorFieldCodes,
+            List<StyleRule> styleRules
     ) {
         static LayoutSheet defaults() {
-            return new LayoutSheet(true, List.of(), List.of());
+            return new LayoutSheet(true, List.of(), List.of(), List.of());
+        }
+
+        public LayoutSheet(Boolean enabled, List<String> fieldCodes, List<String> colorFieldCodes) {
+            this(enabled, fieldCodes, colorFieldCodes, List.of());
         }
 
         LayoutSheet withDefaults() {
             return new LayoutSheet(
                     enabled == null ? true : enabled,
                     fieldCodes == null ? List.of() : fieldCodes,
-                    colorFieldCodes == null ? List.of() : colorFieldCodes
+                    colorFieldCodes == null ? List.of() : colorFieldCodes,
+                    styleRules == null ? List.of() : styleRules
             );
         }
+    }
+
+    public record StyleRule(String fieldCode, String value, String backgroundColor, String textColor) {
     }
 
     public record SeatDetailSheet(

@@ -52,6 +52,40 @@ export function canPlaceRect(elements, candidate, ignoredId) {
     .every((element) => !rectsOverlap(element, candidate))
 }
 
+export function centerLayoutElements(elements = [], bounds) {
+  if (!elements.length) return []
+  const rows = Number(bounds?.rows || 0)
+  const columns = Number(bounds?.columns || 0)
+  if (!rows || !columns) return elements.map((element) => ({ ...element }))
+
+  const layoutBounds = elements.reduce(
+    (current, element) => ({
+      top: Math.min(current.top, Number(element.row)),
+      left: Math.min(current.left, Number(element.column)),
+      bottom: Math.max(current.bottom, Number(element.row) + Number(element.rowSpan) - 1),
+      right: Math.max(current.right, Number(element.column) + Number(element.columnSpan) - 1),
+    }),
+    {
+      top: Number.POSITIVE_INFINITY,
+      left: Number.POSITIVE_INFINITY,
+      bottom: 0,
+      right: 0,
+    },
+  )
+  const layoutRows = layoutBounds.bottom - layoutBounds.top + 1
+  const layoutColumns = layoutBounds.right - layoutBounds.left + 1
+  const targetTop = Math.max(1, Math.floor((rows - layoutRows) / 2) + 1)
+  const targetLeft = Math.max(1, Math.floor((columns - layoutColumns) / 2) + 1)
+  const rowOffset = targetTop - layoutBounds.top
+  const columnOffset = targetLeft - layoutBounds.left
+
+  return elements.map((element) => ({
+    ...element,
+    row: Number(element.row) + rowOffset,
+    column: Number(element.column) + columnOffset,
+  }))
+}
+
 export function canvasResizeConflict(elements, rows, columns) {
   return elements.filter(
     (element) =>
