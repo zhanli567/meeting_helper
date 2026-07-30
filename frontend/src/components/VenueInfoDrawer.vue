@@ -71,11 +71,12 @@ function updateForm(value) {
         ref="formRef"
         :model-value="form"
         :exclude-venue-id="venue?.id || ''"
+        :disabled="submitting"
         @update:model-value="updateForm"
       />
     </div>
     <template #footer>
-      <el-button @click="visible = false">取消</el-button>
+      <el-button :disabled="submitting" @click="visible = false">取消</el-button>
       <el-button type="primary" :loading="submitting" @click="submit">保存信息</el-button>
     </template>
   </el-drawer>

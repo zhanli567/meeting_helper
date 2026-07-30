@@ -16,6 +16,7 @@ const layout = reactive({ gridRows: 20, gridColumns: 30, elements: [] })
 const formRef = ref()
 const dirty = ref(false)
 const saving = ref(false)
+const validatingInfo = ref(false)
 
 watch(info, () => (dirty.value = true), { deep: true })
 watch(layout, () => (dirty.value = true), { deep: true })
@@ -29,10 +30,14 @@ function updateLayout(value) {
 }
 
 async function continueToLayout() {
+  if (validatingInfo.value) return
+  validatingInfo.value = true
   try {
     await formRef.value?.validate()
   } catch {
     return
+  } finally {
+    validatingInfo.value = false
   }
   step.value = 'layout'
 }
@@ -91,7 +96,13 @@ onBeforeRouteLeave(() => {
         <span :class="{ active: step === 'layout' }"><i>2</i>场馆布局</span>
       </div>
       <span class="header-spacer" />
-      <el-button type="primary" :icon="ArrowRight" @click="continueToLayout">
+      <el-button
+        type="primary"
+        :icon="ArrowRight"
+        :loading="validatingInfo"
+        :disabled="saving"
+        @click="continueToLayout"
+      >
         继续编辑布局
       </el-button>
     </header>
@@ -105,6 +116,7 @@ onBeforeRouteLeave(() => {
           <VenueInfoForm
             ref="formRef"
             :model-value="info"
+            :disabled="validatingInfo"
             @update:model-value="updateInfo"
           />
         </div>

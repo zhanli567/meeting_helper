@@ -60,6 +60,12 @@ const groupColorOverrides = ref(readGroupColorOverrides())
 const publishedWorkspace = ref()
 const loadingVersion = ref(false)
 const publishing = ref(false)
+const exporting = ref(false)
+const restoringDraft = ref(false)
+const refreshingWorkspace = ref(false)
+const switchingMeetingId = ref('')
+const switchingVersionKey = ref('')
+const participantBusyActions = ref({})
 const layoutSaving = ref(false)
 const publishVisible = ref(false)
 const addTargetElementId = ref()
@@ -99,6 +105,8 @@ const markerUndoStack = ref([])
 const markerRedoStack = ref([])
 const markerSubmitting = ref(false)
 const applyingMarkerHistory = ref(false)
+const regionCreateSubmitting = ref(false)
+const markerDeleteSubmitting = ref(false)
 let markerTempId = 0
 let fabOffsetX = 0
 let fabOffsetY = 0
@@ -164,7 +172,17 @@ const currentSaveLoading = computed(() => (
     marker: markerSubmitting.value,
   }[workbenchMode.value] || false
 ))
-const workspaceBusy = computed(() => store.saving || layoutSaving.value || markerSubmitting.value)
+const workspaceBusy = computed(
+  () =>
+    store.saving ||
+    layoutSaving.value ||
+    markerSubmitting.value ||
+    publishing.value ||
+    exporting.value ||
+    restoringDraft.value ||
+    refreshingWorkspace.value ||
+    Boolean(switchingMeetingId.value || switchingVersionKey.value),
+)
 const markerDirty = computed(() => (
   comparableMarkerAreas(markerAreaDrafts.value) !==
   comparableMarkerAreas(reservedItems(workspace.value?.items || []))
@@ -406,8 +424,25 @@ function modeSaving(mode) {
   if (mode === 'marker') return Boolean(markerSubmitting.value)
   return false
 }
+function participantBusyAction(participantId) {
+  return participantBusyActions.value[participantId] || ''
+}
+async function runParticipantBusyAction(participantId, action, task) {
+  if (!participantId || participantBusyAction(participantId)) return undefined
+  participantBusyActions.value = {
+    ...participantBusyActions.value,
+    [participantId]: action,
+  }
+  try {
+    return await task()
+  } finally {
+    const nextActions = { ...participantBusyActions.value }
+    delete nextActions[participantId]
+    participantBusyActions.value = nextActions
+  }
+}
 async function changeWorkbenchMode(nextMode) {
-  if (readonlyMode.value || nextMode === workbenchMode.value) return
+  if (readonlyMode.value || workspaceBusy.value || nextMode === workbenchMode.value) return
   if (!(await confirmUnsavedModeChanges(workbenchMode.value))) return
   workbenchMode.value = nextMode
 }
@@ -510,49 +545,61 @@ function openRegionCreateDialog(elementIds) {
   regionCreateVisible.value = true
 }
 async function createReservedAreaFromDialog(payload) {
-  if (!validateMarkerUniqueness(payload)) return
-  recordMarkerHistory()
-  const id = createMarkerTempId()
-  Object.assign(markerDraft, {
-    id,
-    label: payload.label || '',
-    backgroundColor: payload.backgroundColor || defaultMarkerDraft.backgroundColor,
-    textColor: payload.textColor || '#172033',
-    bold: payload.bold !== false,
-  })
-  markerAreaDrafts.value = [
-    ...markerAreaDrafts.value,
-    cloneMarkerArea({
+  if (regionCreateSubmitting.value) return
+  regionCreateSubmitting.value = true
+  try {
+    if (!validateMarkerUniqueness(payload)) return
+    recordMarkerHistory()
+    const id = createMarkerTempId()
+    Object.assign(markerDraft, {
       id,
-      label: markerDraft.label,
-      backgroundColor: markerDraft.backgroundColor,
-      textColor: markerDraft.textColor,
-      bold: markerDraft.bold,
-      targetElementIds: markerSelectionIds.value,
-    }),
-  ]
-  regionCreateVisible.value = false
+      label: payload.label || '',
+      backgroundColor: payload.backgroundColor || defaultMarkerDraft.backgroundColor,
+      textColor: payload.textColor || '#172033',
+      bold: payload.bold !== false,
+    })
+    markerAreaDrafts.value = [
+      ...markerAreaDrafts.value,
+      cloneMarkerArea({
+        id,
+        label: markerDraft.label,
+        backgroundColor: markerDraft.backgroundColor,
+        textColor: markerDraft.textColor,
+        bold: markerDraft.bold,
+        targetElementIds: markerSelectionIds.value,
+      }),
+    ]
+    regionCreateVisible.value = false
+  } finally {
+    regionCreateSubmitting.value = false
+  }
 }
 async function mergeReservedAreaFromDialog(payload) {
-  const target = markerItems.value.find((item) => item.id === payload?.targetMarkerId)
-  if (!target) {
-    ElMessage.warning('请选择要合并的区域')
-    return
+  if (regionCreateSubmitting.value) return
+  regionCreateSubmitting.value = true
+  try {
+    const target = markerItems.value.find((item) => item.id === payload?.targetMarkerId)
+    if (!target) {
+      ElMessage.warning('请选择要合并的区域')
+      return
+    }
+    recordMarkerHistory()
+    Object.assign(markerDraft, {
+      id: target.id,
+      label: target.label || '',
+      backgroundColor: target.backgroundColor || defaultMarkerDraft.backgroundColor,
+      textColor: target.textColor || '#172033',
+      bold: Boolean(target.bold),
+    })
+    markerSelection.value = new Set([
+      ...(target.targetElementIds || []),
+      ...markerSelectionIds.value,
+    ])
+    syncActiveMarkerDraft()
+    regionCreateVisible.value = false
+  } finally {
+    regionCreateSubmitting.value = false
   }
-  recordMarkerHistory()
-  Object.assign(markerDraft, {
-    id: target.id,
-    label: target.label || '',
-    backgroundColor: target.backgroundColor || defaultMarkerDraft.backgroundColor,
-    textColor: target.textColor || '#172033',
-    bold: Boolean(target.bold),
-  })
-  markerSelection.value = new Set([
-    ...(target.targetElementIds || []),
-    ...markerSelectionIds.value,
-  ])
-  syncActiveMarkerDraft()
-  regionCreateVisible.value = false
 }
 function selectReservedMarker(item) {
   if (readonlyMode.value || workbenchMode.value !== 'marker' || !item || item.type !== 'RESERVED') return
@@ -603,14 +650,14 @@ async function toggleMarkerSeat(element) {
   }
 }
 async function saveReservedAreas(silent = false) {
-  if (!store.workspace || readonlyMode.value) return false
+  if (!store.workspace || readonlyMode.value || markerSubmitting.value) return false
   syncActiveMarkerDraft()
   if (!markerDirty.value) return true
   if (!validateMarkerAreaDrafts(silent)) return false
   const areaPayload = markerAreaDrafts.value.map(toReservedAreaPayload)
-  if (!(await saveDraft(true))) return false
   markerSubmitting.value = true
   try {
+    if (!(await saveDraft(true))) return false
     await meetingApi.saveReservedAreas(store.workspace.plan.id, {
       reservedAreas: areaPayload,
     })
@@ -629,27 +676,32 @@ async function saveReservedAreas(silent = false) {
   }
 }
 async function deleteReservedMarker(skipConfirm = false, recordHistory = true) {
-  if (!store.workspace || readonlyMode.value) return false
+  if (!store.workspace || readonlyMode.value || markerDeleteSubmitting.value) return false
   if (!markerDraft.id) {
     resetMarkerDraft()
     return false
   }
-  if (!skipConfirm) {
-    try {
-      await ElMessageBox.confirm(`确认删除“${markerDraft.label}”区域吗？`, '删除区域', {
-        type: 'warning',
-        confirmButtonText: '确认删除',
-        cancelButtonText: '取消',
-      })
-    } catch {
-      return false
+  markerDeleteSubmitting.value = true
+  try {
+    if (!skipConfirm) {
+      try {
+        await ElMessageBox.confirm(`确认删除“${markerDraft.label}”区域吗？`, '删除区域', {
+          type: 'warning',
+          confirmButtonText: '确认删除',
+          cancelButtonText: '取消',
+        })
+      } catch {
+        return false
+      }
     }
+    if (recordHistory) recordMarkerHistory()
+    markerAreaDrafts.value = markerAreaDrafts.value.filter((item) => item.id !== markerDraft.id)
+    resetMarkerDraft()
+    if (!skipConfirm) ElMessage.success('区域已删除，保存后生效')
+    return true
+  } finally {
+    markerDeleteSubmitting.value = false
   }
-  if (recordHistory) recordMarkerHistory()
-  markerAreaDrafts.value = markerAreaDrafts.value.filter((item) => item.id !== markerDraft.id)
-  resetMarkerDraft()
-  if (!skipConfirm) ElMessage.success('区域已删除，保存后生效')
-  return true
 }
 function routeVersionKey() {
   return typeof route.query.version === 'string' ? route.query.version : ''
@@ -691,53 +743,65 @@ onBeforeUnmount(() => {
   stopFabDrag()
 })
 async function switchMeeting(meetingId) {
-  if (!(await confirmAllUnsavedChanges())) return
-  activeVersionKey.value = 'draft'
-  workbenchMode.value = 'seating'
-  publishedWorkspace.value = undefined
-  resetMarkerDraft()
-  undoStack.value = []
-  redoStack.value = []
-  await store.switchMeeting(meetingId)
-  await router.replace(workbenchRoute(meetingId, 'draft'))
+  if (!meetingId || switchingMeetingId.value || switchingVersionKey.value || workspaceBusy.value) return
+  switchingMeetingId.value = meetingId
+  try {
+    if (!(await confirmAllUnsavedChanges())) return
+    activeVersionKey.value = 'draft'
+    workbenchMode.value = 'seating'
+    publishedWorkspace.value = undefined
+    resetMarkerDraft()
+    undoStack.value = []
+    redoStack.value = []
+    await store.switchMeeting(meetingId)
+    await router.replace(workbenchRoute(meetingId, 'draft'))
+  } finally {
+    switchingMeetingId.value = ''
+  }
 }
 async function switchVersion(versionKey) {
-  if (!(await confirmAllUnsavedChanges())) return
-  const meetingId = store.workspace?.meeting?.id || store.activeMeetingId
-  activeVersionKey.value = versionKey
-  if (versionKey !== 'draft') workbenchMode.value = 'seating'
-  store.selectParticipant(undefined)
-  draggingParticipantId.value = undefined
-  if (versionKey === 'draft') {
-    publishedWorkspace.value = undefined
-    if (meetingId) {
-      store.rememberMeeting(meetingId, 'draft')
-      await router.replace(workbenchRoute(meetingId, 'draft'))
-    }
-    return
-  }
-  if (!store.workspace) return
-  loadingVersion.value = true
+  if (switchingVersionKey.value || switchingMeetingId.value || workspaceBusy.value) return
+  switchingVersionKey.value = versionKey || 'draft'
   try {
-    publishedWorkspace.value = await meetingApi.versionSnapshot(store.workspace.plan.id, versionKey)
-    if (meetingId) {
-      store.rememberMeeting(meetingId, versionKey)
-      await router.replace(workbenchRoute(meetingId, versionKey))
+    if (!(await confirmAllUnsavedChanges())) return
+    const meetingId = store.workspace?.meeting?.id || store.activeMeetingId
+    activeVersionKey.value = versionKey
+    if (versionKey !== 'draft') workbenchMode.value = 'seating'
+    store.selectParticipant(undefined)
+    draggingParticipantId.value = undefined
+    if (versionKey === 'draft') {
+      publishedWorkspace.value = undefined
+      if (meetingId) {
+        store.rememberMeeting(meetingId, 'draft')
+        await router.replace(workbenchRoute(meetingId, 'draft'))
+      }
+      return
     }
-  } catch (error) {
-    activeVersionKey.value = 'draft'
-    publishedWorkspace.value = undefined
-    if (meetingId) {
-      store.rememberMeeting(meetingId, 'draft')
-      await router.replace(workbenchRoute(meetingId, 'draft'))
+    if (!store.workspace) return
+    loadingVersion.value = true
+    try {
+      publishedWorkspace.value = await meetingApi.versionSnapshot(store.workspace.plan.id, versionKey)
+      if (meetingId) {
+        store.rememberMeeting(meetingId, versionKey)
+        await router.replace(workbenchRoute(meetingId, versionKey))
+      }
+    } catch (error) {
+      activeVersionKey.value = 'draft'
+      publishedWorkspace.value = undefined
+      if (meetingId) {
+        store.rememberMeeting(meetingId, 'draft')
+        await router.replace(workbenchRoute(meetingId, 'draft'))
+      }
+      ElMessage.error(apiErrorMessage(error))
+    } finally {
+      loadingVersion.value = false
     }
-    ElMessage.error(apiErrorMessage(error))
   } finally {
-    loadingVersion.value = false
+    switchingVersionKey.value = ''
   }
 }
 async function publishDraft() {
-  if (!store.workspace || readonlyMode.value) return
+  if (!store.workspace || readonlyMode.value || workspaceBusy.value) return
   if (pendingCount.value > 0) {
     await ElMessageBox.alert(
       `当前还有 ${pendingCount.value} 位参会人员尚未排座。请先完成全部人员排座，再发布只读版本。`,
@@ -753,25 +817,27 @@ async function publishDraft() {
 }
 
 async function confirmPublish(payload) {
-  if (!store.workspace || readonlyMode.value) return
+  if (!store.workspace || readonlyMode.value || publishing.value) return
+  publishing.value = true
+  let publishedVersion
   try {
     if (!(await confirmAllUnsavedChanges())) return
-    publishing.value = true
-    const version = await meetingApi.createVersion(store.workspace.plan.id, payload)
+    publishedVersion = await meetingApi.createVersion(store.workspace.plan.id, payload)
     await store.loadWorkspace()
     publishVisible.value = false
-    activeVersionKey.value = version.id
-    await switchVersion(version.id)
-    ElMessage.success(`“${version.versionName}”已发布，当前进入只读查看`)
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
   } finally {
     publishing.value = false
   }
+  if (!publishedVersion) return
+  await switchVersion(publishedVersion.id)
+  ElMessage.success(`“${publishedVersion.versionName}”已发布，当前进入只读查看`)
 }
 async function overwriteDraftFromVersion() {
-  if (!store.workspace || !activePublishedVersion.value) return
+  if (!store.workspace || !activePublishedVersion.value || restoringDraft.value) return
   const versionName = activePublishedVersion.value.versionName
+  restoringDraft.value = true
   try {
     await ElMessageBox.confirm(
       `将用“${versionName}”的排座、设备占位、锁定、样式和出席状态覆盖当前草稿。当前名单保持不变，后来新增的人员会保留在待排列表中。`,
@@ -795,6 +861,8 @@ async function overwriteDraftFromVersion() {
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
     ElMessage.error(apiErrorMessage(error))
+  } finally {
+    restoringDraft.value = false
   }
 }
 async function saveDraft(silent = false) {
@@ -802,6 +870,7 @@ async function saveDraft(silent = false) {
   return store.saveAssignments({ silent })
 }
 async function saveCurrentMode(silent = false) {
+  if (activeModeSaving.value) return false
   return modeSave(workbenchMode.value, silent)
 }
 async function modeSave(mode, silent = false) {
@@ -860,6 +929,7 @@ async function confirmAllUnsavedChanges() {
   return true
 }
 async function goHome() {
+  if (workspaceBusy.value) return
   if (!(await confirmAllUnsavedChanges())) return
   if (store.workspace?.meeting?.id) {
     store.rememberMeeting(store.workspace.meeting.id, activeVersionKey.value)
@@ -1023,7 +1093,7 @@ function performToolbarFit() {
   venueCanvasRef.value?.fitCanvas()
 }
 async function onSeatClick(element) {
-  if (readonlyMode.value || workbenchMode.value !== 'seating' || !element?.id) return
+  if (readonlyMode.value || workspaceBusy.value || workbenchMode.value !== 'seating' || !element?.id) return
   const occupied = workspace.value?.participants.find(
     (person) => person.assignedElementId === element.id,
   )
@@ -1065,52 +1135,58 @@ function clearCanvasSelection() {
 }
 async function openParticipantEdit(person) {
   if (readonlyMode.value || workbenchMode.value !== 'seating' || !person) return
-  if (!(await saveDraft(true))) return
-  editingParticipant.value = person
-  editParticipantVisible.value = true
+  await runParticipantBusyAction(person.id, 'edit', async () => {
+    if (!(await saveDraft(true))) return
+    editingParticipant.value = person
+    editParticipantVisible.value = true
+  })
 }
 async function updateParticipantAttendance(person, attendanceStatus) {
-  if (readonlyMode.value || workbenchMode.value !== 'seating') return
-  if (attendanceStatus === 'TEMPORARILY_ABSENT' && person.assignedElementId) {
+  if (readonlyMode.value || workbenchMode.value !== 'seating' || !person?.id) return
+  await runParticipantBusyAction(person.id, 'attendance', async () => {
+    if (attendanceStatus === 'TEMPORARILY_ABSENT' && person.assignedElementId) {
+      try {
+        await ElMessageBox.confirm(
+          `${person.name} 已安排座位，标记为临时不出席后会释放该座位。`,
+          '确认临时不出席',
+          {
+            type: 'warning',
+            confirmButtonText: '确认',
+            cancelButtonText: '取消',
+          },
+        )
+      } catch {
+        return
+      }
+    }
+    const success = await store.updateAttendance(person.id, attendanceStatus)
+    if (success) {
+      undoStack.value = []
+      redoStack.value = []
+    }
+  })
+}
+async function removeParticipant(person) {
+  if (readonlyMode.value || workbenchMode.value !== 'seating' || !person?.id) return
+  await runParticipantBusyAction(person.id, 'remove', async () => {
     try {
       await ElMessageBox.confirm(
-        `${person.name} 已安排座位，标记为临时不出席后会释放该座位。`,
-        '确认临时不出席',
+        `确认将 ${person.name} 从本次会议名单中移出吗？该人员的座位也会被释放。`,
+        '移出会议',
         {
           type: 'warning',
-          confirmButtonText: '确认',
+          confirmButtonText: '确认移出',
           cancelButtonText: '取消',
         },
       )
     } catch {
       return
     }
-  }
-  const success = await store.updateAttendance(person.id, attendanceStatus)
-  if (success) {
+    if (!(await saveDraft(true))) return
+    await store.removeParticipant(person.id)
     undoStack.value = []
     redoStack.value = []
-  }
-}
-async function removeParticipant(person) {
-  if (readonlyMode.value || workbenchMode.value !== 'seating') return
-  try {
-    await ElMessageBox.confirm(
-      `确认将 ${person.name} 从本次会议名单中移出吗？该人员的座位也会被释放。`,
-      '移出会议',
-      {
-        type: 'warning',
-        confirmButtonText: '确认移出',
-        cancelButtonText: '取消',
-      },
-    )
-  } catch {
-    return
-  }
-  if (!(await saveDraft(true))) return
-  await store.removeParticipant(person.id)
-  undoStack.value = []
-  redoStack.value = []
+  })
 }
 function changeZoom(delta) {
   zoom.value = Math.min(2.5, Math.max(0.4, Number((zoom.value + delta).toFixed(2))))
@@ -1124,6 +1200,7 @@ function zoomCurrentCanvas(delta) {
   changeZoom(delta)
 }
 function openExportOptions() {
+  if (exporting.value || workspaceBusy.value) return
   exportOptionsVisible.value = true
 }
 function selectedLayoutColorFieldCodes(options) {
@@ -1167,9 +1244,15 @@ function exportOptionsWithColorRules(options) {
   }
 }
 async function exportPlan(options) {
-  if (!readonlyMode.value && !(await confirmAllUnsavedChanges())) return
-  exportOptionsVisible.value = false
-  await store.exportPlan(activeVersionId.value, exportOptionsWithColorRules(options))
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    if (!readonlyMode.value && !(await confirmAllUnsavedChanges())) return
+    const exported = await store.exportPlan(activeVersionId.value, exportOptionsWithColorRules(options))
+    if (exported) exportOptionsVisible.value = false
+  } finally {
+    exporting.value = false
+  }
 }
 async function confirmDeleteProtectedElement(element) {
   try {
@@ -1291,24 +1374,35 @@ function stopFabDrag() {
 }
 async function openParticipantEntry() {
   if (suppressFabClick) return
+  if (workspaceBusy.value) return
   if (!(await saveDraft(true))) return
   addTargetElementId.value = undefined
   addVisible.value = true
 }
 async function onParticipantAdded(participantResult) {
   addTargetElementId.value = undefined
-  await store.loadWorkspace()
-  const result = Array.isArray(participantResult) ? participantResult.at(-1) : participantResult
-  if (result) {
-    const added = store.workspace?.participants.find((person) => person.id === result.id)
-    if (added) store.selectParticipant(added)
+  refreshingWorkspace.value = true
+  try {
+    await store.loadWorkspace()
+    const result = Array.isArray(participantResult) ? participantResult.at(-1) : participantResult
+    if (result) {
+      const added = store.workspace?.participants.find((person) => person.id === result.id)
+      if (added) store.selectParticipant(added)
+    }
+  } finally {
+    refreshingWorkspace.value = false
   }
 }
 async function onParticipantUpdated(participant) {
   const participantId = participant?.id || editingParticipant.value?.id
-  await store.loadWorkspace()
-  const updated = store.workspace?.participants.find((person) => person.id === participantId)
-  if (updated) store.selectParticipant(updated)
+  refreshingWorkspace.value = true
+  try {
+    await store.loadWorkspace()
+    const updated = store.workspace?.participants.find((person) => person.id === participantId)
+    if (updated) store.selectParticipant(updated)
+  } finally {
+    refreshingWorkspace.value = false
+  }
 }
 
 watch(
@@ -1334,6 +1428,7 @@ watch(
         class="meeting-selector header-selector workbench-select"
         popper-class="meeting-select-popper"
         aria-label="选择会议"
+        :disabled="workspaceBusy"
         @change="switchMeeting"
       >
         <el-option
@@ -1350,6 +1445,7 @@ watch(
         class="version-selector header-selector workbench-select"
         popper-class="version-select-popper"
         aria-label="选择会议版本"
+        :disabled="workspaceBusy"
         @change="switchVersion"
       >
         <el-option label="草稿" value="draft" />
@@ -1371,6 +1467,7 @@ watch(
           class="header-action-button header-save-button"
           type="primary"
           :loading="currentSaveLoading"
+          :disabled="workspaceBusy && !currentSaveLoading"
           @click="saveCurrentMode(false)"
         >
           {{ currentSaveLabel }}
@@ -1393,6 +1490,8 @@ watch(
         type="primary"
         plain
         :icon="RefreshRight"
+        :loading="restoringDraft"
+        :disabled="workspaceBusy && !restoringDraft"
         @click="overwriteDraftFromVersion"
       >
         覆盖当前草稿
@@ -1404,6 +1503,7 @@ watch(
         plain
         :icon="Check"
         :loading="publishing"
+        :disabled="workspaceBusy && !publishing"
         @click="publishDraft"
       >
         发布版本
@@ -1442,7 +1542,7 @@ watch(
             :markers="markerItems"
             :active-marker-id="markerDraft.id"
             :selected-seat-count="markerSelection.size"
-            :submitting="markerSubmitting"
+            :submitting="markerSubmitting || markerDeleteSubmitting"
             @update:model-value="updateMarkerDraft"
             @select="selectReservedMarker"
             @delete="deleteReservedMarker"
@@ -1453,6 +1553,7 @@ watch(
             :field-definitions="workspace.fieldDefinitions"
             :selected-id="store.selectedParticipantId"
             :saving="store.saving"
+            :busy-actions="participantBusyActions"
             :readonly="readonlyMode"
             @select="selectParticipant"
             @unassign="performUnassign"
@@ -1552,6 +1653,8 @@ watch(
             type="primary"
             plain
             :icon="Download"
+            :loading="exporting"
+            :disabled="workspaceBusy && !exporting"
             @click="openExportOptions"
           >
             导出Excel
@@ -1630,6 +1733,7 @@ watch(
         :style="fabStyle"
         aria-label="添加参会人员"
         title="拖动可调整位置"
+        :disabled="workspaceBusy"
         @pointerdown="startFabDrag"
         @click="openParticipantEntry"
       >
@@ -1665,7 +1769,7 @@ watch(
       v-if="workspace"
       v-model="exportOptionsVisible"
       :field-definitions="workspace.fieldDefinitions"
-      :submitting="store.saving"
+      :submitting="exporting"
       @export="exportPlan"
     />
     <RegionCreateDialog
@@ -1673,7 +1777,7 @@ watch(
       v-model="regionCreateVisible"
       :selected-seat-count="markerSelection.size"
       :markers="markerItems"
-      :submitting="markerSubmitting"
+      :submitting="regionCreateSubmitting || markerSubmitting"
       @submit="createReservedAreaFromDialog"
       @merge="mergeReservedAreaFromDialog"
       @cancel="resetMarkerDraft"

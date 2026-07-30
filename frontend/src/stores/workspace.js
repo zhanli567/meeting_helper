@@ -73,6 +73,7 @@ function createWorkspaceStore() {
   const saving = ref(false)
   const dirty = ref(false)
   const selectedParticipantId = ref()
+  let saveAssignmentsPromise
   const selectedParticipant = computed(() =>
     workspace.value?.participants.find((person) => person.id === selectedParticipantId.value),
   )
@@ -180,25 +181,30 @@ function createWorkspaceStore() {
   }
 
   async function saveAssignments({ silent = false } = {}) {
-    if (!workspace.value || !dirty.value || saving.value) return true
+    if (saveAssignmentsPromise) return saveAssignmentsPromise
+    if (!workspace.value || !dirty.value) return true
     saving.value = true
-    try {
-      const assignments = workspace.value.participants
-        .filter((person) => person.assignedElementId)
-        .map((person) => ({
-          participantId: person.id,
-          targetElementId: person.assignedElementId,
-        }))
-      await meetingApi.saveAssignments(workspace.value.plan.id, assignments)
-      await loadWorkspace()
-      if (!silent) ElMessage.success('排座草稿已保存')
-      return true
-    } catch (error) {
-      ElMessage.error(apiErrorMessage(error))
-      return false
-    } finally {
-      saving.value = false
-    }
+    saveAssignmentsPromise = (async () => {
+      try {
+        const assignments = workspace.value.participants
+          .filter((person) => person.assignedElementId)
+          .map((person) => ({
+            participantId: person.id,
+            targetElementId: person.assignedElementId,
+          }))
+        await meetingApi.saveAssignments(workspace.value.plan.id, assignments)
+        await loadWorkspace()
+        if (!silent) ElMessage.success('排座草稿已保存')
+        return true
+      } catch (error) {
+        ElMessage.error(apiErrorMessage(error))
+        return false
+      } finally {
+        saving.value = false
+        saveAssignmentsPromise = undefined
+      }
+    })()
+    return saveAssignmentsPromise
   }
   async function setLock(participantId, locked) {
     if (!workspace.value) return
@@ -247,7 +253,7 @@ function createWorkspaceStore() {
     }
   }
   async function exportPlan(versionId, options) {
-    if (!workspace.value) return
+    if (!workspace.value) return false
     try {
       const data = await meetingApi.exportExcel(workspace.value.meeting.id, versionId, options)
       downloadBlob(
@@ -256,8 +262,10 @@ function createWorkspaceStore() {
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       )
       ElMessage.success('导出完成')
+      return true
     } catch (error) {
       ElMessage.error(apiErrorMessage(error))
+      return false
     }
   }
   function selectParticipant(participant) {

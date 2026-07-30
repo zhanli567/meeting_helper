@@ -145,6 +145,7 @@ function goNext() {
 }
 
 function submit() {
+  if (props.submitting) return
   if (!canExport()) return
   emit('export', {
     sheets: {

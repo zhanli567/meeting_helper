@@ -40,6 +40,7 @@ const previewVenueId = ref('')
 const meetingVisible = ref(false)
 const submitting = ref(false)
 const meetingForm = reactive({ name: '', venueTemplateId: '' })
+const venueRowActions = ref({})
 let searchTimer
 let latestLoadId = 0
 
@@ -134,19 +135,40 @@ function rowClassName({ row }) {
   return row.__group ? 'campus-group-row' : ''
 }
 
-async function loadDetail(venue, mode) {
-  selectedVenue.value = venue
-  detailLoading.value = true
-  if (mode === 'detail') detailVisible.value = true
-  try {
-    selectedVenue.value = await venueApi.detail(venue.id)
-    if (mode === 'edit') infoVisible.value = true
-  } catch (error) {
-    if (mode === 'detail') detailVisible.value = false
-    ElMessage.error(apiErrorMessage(error))
-  } finally {
-    detailLoading.value = false
+function venueRowAction(venueId) {
+  return venueRowActions.value[venueId] || ''
+}
+
+async function runVenueRowAction(venueId, action, task) {
+  if (!venueId || venueRowAction(venueId)) return undefined
+  venueRowActions.value = {
+    ...venueRowActions.value,
+    [venueId]: action,
   }
+  try {
+    return await task()
+  } finally {
+    const nextActions = { ...venueRowActions.value }
+    delete nextActions[venueId]
+    venueRowActions.value = nextActions
+  }
+}
+
+async function loadDetail(venue, mode) {
+  await runVenueRowAction(venue.id, mode === 'edit' ? 'edit' : 'detail', async () => {
+    selectedVenue.value = venue
+    detailLoading.value = true
+    if (mode === 'detail') detailVisible.value = true
+    try {
+      selectedVenue.value = await venueApi.detail(venue.id)
+      if (mode === 'edit') infoVisible.value = true
+    } catch (error) {
+      if (mode === 'detail') detailVisible.value = false
+      ElMessage.error(apiErrorMessage(error))
+    } finally {
+      detailLoading.value = false
+    }
+  })
 }
 
 function previewVenue(venue) {
@@ -156,6 +178,7 @@ function previewVenue(venue) {
 
 function startMeeting(venue) {
   if (venue.seatCount === 0) return
+  if (venueRowAction(venue.id)) return
   meetingForm.name = ''
   meetingForm.venueTemplateId = venue.id
   meetingVisible.value = true
@@ -170,13 +193,15 @@ async function createMeeting() {
   }
   submitting.value = true
   try {
-    const meeting = await meetingApi.createMeeting(name, meetingForm.venueTemplateId)
-    const meetingId = typeof meeting === 'string' ? meeting : meeting.id
-    store.rememberMeeting(meetingId)
-    await store.initialize()
-    ElMessage.success('会议已创建')
-    meetingVisible.value = false
-    router.push(`/workbench/${meetingId}`)
+    await runVenueRowAction(meetingForm.venueTemplateId, 'meeting', async () => {
+      const meeting = await meetingApi.createMeeting(name, meetingForm.venueTemplateId)
+      const meetingId = typeof meeting === 'string' ? meeting : meeting.id
+      store.rememberMeeting(meetingId)
+      await store.initialize()
+      ElMessage.success('会议已创建')
+      meetingVisible.value = false
+      router.push(`/workbench/${meetingId}`)
+    })
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
   } finally {
@@ -185,24 +210,26 @@ async function createMeeting() {
 }
 
 async function deleteVenue(venue) {
-  try {
-    await ElMessageBox.confirm(
-      `删除“${venue.location}”后无法恢复，已有会议不受影响。`,
-      '确认删除场馆模板',
-      {
-        confirmButtonText: '确认删除',
-        cancelButtonText: '取消',
-        type: 'warning',
-      },
-    )
-    await venueApi.remove(venue.id)
-    if (records.value.length === 1 && query.pageNum > 1) query.pageNum -= 1
-    ElMessage.success('场馆模板已删除')
-    await load()
-  } catch (error) {
-    if (error === 'cancel' || error === 'close') return
-    ElMessage.error(apiErrorMessage(error))
-  }
+  await runVenueRowAction(venue.id, 'delete', async () => {
+    try {
+      await ElMessageBox.confirm(
+        `删除“${venue.location}”后无法恢复，已有会议不受影响。`,
+        '确认删除场馆模板',
+        {
+          confirmButtonText: '确认删除',
+          cancelButtonText: '取消',
+          type: 'warning',
+        },
+      )
+      await venueApi.remove(venue.id)
+      if (records.value.length === 1 && query.pageNum > 1) query.pageNum -= 1
+      ElMessage.success('场馆模板已删除')
+      await load()
+    } catch (error) {
+      if (error === 'cancel' || error === 'close') return
+      ElMessage.error(apiErrorMessage(error))
+    }
+  })
 }
 
 async function handleSaved(updated) {
@@ -336,6 +363,7 @@ function displayText(value) {
                       <el-button
                         link
                         size="small"
+                        :loading="venueRowAction(row.id) === 'meeting'"
                         :disabled="row.seatCount === 0"
                         @click="startMeeting(row)"
                       >
@@ -343,20 +371,49 @@ function displayText(value) {
                       </el-button>
                     </span>
                   </el-tooltip>
-                  <el-button link size="small" @click="loadDetail(row, 'detail')">详情</el-button>
-                  <el-button link size="small" @click="previewVenue(row)">预览</el-button>
+                  <el-button
+                    link
+                    size="small"
+                    :loading="venueRowAction(row.id) === 'detail'"
+                    :disabled="Boolean(venueRowAction(row.id))"
+                    @click="loadDetail(row, 'detail')"
+                  >
+                    详情
+                  </el-button>
+                  <el-button
+                    link
+                    size="small"
+                    :disabled="Boolean(venueRowAction(row.id))"
+                    @click="previewVenue(row)"
+                  >
+                    预览
+                  </el-button>
                   <template v-if="!isSelectMode">
-                    <el-button link size="small" @click="loadDetail(row, 'edit')">
+                    <el-button
+                      link
+                      size="small"
+                      :loading="venueRowAction(row.id) === 'edit'"
+                      :disabled="Boolean(venueRowAction(row.id))"
+                      @click="loadDetail(row, 'edit')"
+                    >
                       编辑信息
                     </el-button>
                     <el-button
                       link
                       size="small"
+                      :disabled="Boolean(venueRowAction(row.id))"
                       @click="router.push(`/venues/${row.id}/layout/edit`)"
                     >
                       编辑布局
                     </el-button>
-                    <el-button link size="small" class="danger-action" @click="deleteVenue(row)">
+                    <el-button
+                      link
+                      size="small"
+                      class="danger-action"
+                      :loading="venueRowAction(row.id) === 'delete'"
+                      :disabled="Boolean(venueRowAction(row.id))"
+                      @click="deleteVenue(row)"
+                    >
                       删除
                     </el-button>
                   </template>
@@ -402,7 +459,7 @@ function displayText(value) {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="meetingVisible = false">取消</el-button>
+        <el-button :disabled="submitting" @click="meetingVisible = false">取消</el-button>
         <el-button type="primary" :loading="submitting" @click="createMeeting">
           创建并进入工作台
         </el-button>

@@ -107,6 +107,7 @@ function patchColor(color) {
         <div class="panel-actions">
           <el-button
             class="delete-button"
+            :loading="submitting"
             :disabled="submitting"
             @click="emit('delete')"
           >

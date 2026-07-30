@@ -62,6 +62,7 @@ watch(
 )
 
 async function submit() {
+  if (submitting.value) return
   if (!props.participant?.id) return
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -99,6 +100,8 @@ async function submit() {
       :model="form"
       :rules="rules"
       :validate-on-rule-change="false"
+      :disabled="submitting"
+      v-loading="submitting"
       label-position="top"
       class="participant-form-scroll"
     >
@@ -123,7 +126,7 @@ async function submit() {
     </el-form>
 
     <template #footer>
-      <el-button @click="visible = false">取消</el-button>
+      <el-button :disabled="submitting" @click="visible = false">取消</el-button>
       <el-button type="primary" :loading="submitting" @click="submit">保存</el-button>
     </template>
   </el-dialog>

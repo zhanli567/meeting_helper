@@ -54,6 +54,7 @@ function editMeeting(meeting) {
   editVisible.value = true
 }
 async function saveMeetingName() {
+  if (editSubmitting.value) return
   const trimmedName = editName.value.trim()
   if (!trimmedName) {
     ElMessage.warning('请输入会议名称')
@@ -81,6 +82,8 @@ async function saveMeetingName() {
   }
 }
 async function removeMeeting(meeting) {
+  if (deleteSubmitting.value) return
+  deleteSubmitting.value = meeting.id
   try {
     await ElMessageBox.confirm(
       `确认删除会议“${meeting.name}”？删除后人员名单、排座和版本记录都会一并移除。`,
@@ -93,9 +96,9 @@ async function removeMeeting(meeting) {
       },
     )
   } catch {
+    deleteSubmitting.value = ''
     return
   }
-  deleteSubmitting.value = meeting.id
   try {
     await meetingApi.deleteMeeting(meeting.id)
     store.meetings = store.meetings.filter((item) => item.id !== meeting.id)
@@ -183,6 +186,7 @@ async function removeMeeting(meeting) {
                   circle
                   text
                   :icon="EditPen"
+                  :disabled="deleteSubmitting === meeting.id"
                   aria-label="编辑会议名称"
                   @click.stop="editMeeting(meeting)"
                 />
@@ -199,6 +203,7 @@ async function removeMeeting(meeting) {
                   circle
                   text
                   :icon="ArrowRight"
+                  :disabled="deleteSubmitting === meeting.id"
                   aria-label="进入排座工作台"
                   @click.stop="openMeeting(meeting.id)"
                 />
@@ -219,7 +224,7 @@ async function removeMeeting(meeting) {
     </main>
 
     <el-dialog v-model="editVisible" title="编辑会议名称" width="420px">
-      <el-form class="meeting-edit-form" @submit.prevent="saveMeetingName">
+      <el-form class="meeting-edit-form" :disabled="editSubmitting" @submit.prevent="saveMeetingName">
         <el-form-item label="会议名称" required>
           <el-input
             v-model="editName"
@@ -230,7 +235,7 @@ async function removeMeeting(meeting) {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
+        <el-button :disabled="editSubmitting" @click="editVisible = false">取消</el-button>
         <el-button type="primary" :loading="editSubmitting" @click="saveMeetingName">
           确认
         </el-button>

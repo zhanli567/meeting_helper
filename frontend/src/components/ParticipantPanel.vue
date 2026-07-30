@@ -30,6 +30,7 @@ const props = defineProps({
   fieldDefinitions: { type: Array, required: true },
   selectedId: { type: String, default: undefined },
   saving: { type: Boolean, required: true },
+  busyActions: { type: Object, default: () => ({}) },
   readonly: { type: Boolean, default: false },
 })
 const emit = defineEmits(['select', 'unassign', 'dragState', 'attendance', 'remove', 'edit', 'add'])
@@ -112,6 +113,9 @@ function participantStatusTitle(person) {
     pending: '待排',
   }[participantStatus(person)]
 }
+function participantAction(person) {
+  return props.busyActions?.[person.id] || ''
+}
 function dragOverPanel(event) {
   if (props.readonly) return
   event.preventDefault()
@@ -189,7 +193,7 @@ function leavePanel(event) {
               absent: isTemporarilyAbsent(person),
               readonly,
             }"
-            :draggable="!readonly && !person.locked && !isTemporarilyAbsent(person)"
+            :draggable="!readonly && !participantAction(person) && !person.locked && !isTemporarilyAbsent(person)"
             @dragstart="dragStart($event, person)"
             @dragend="emit('dragState', undefined)"
             @click="emit('select', person)"
@@ -222,6 +226,8 @@ function leavePanel(event) {
                 circle
                 size="small"
                 :icon="Edit"
+                :loading="participantAction(person) === 'edit'"
+                :disabled="Boolean(participantAction(person))"
                 title="编辑人员"
                 @click="emit('edit', person)"
               />
@@ -231,6 +237,8 @@ function leavePanel(event) {
                 size="small"
                 :type="isTemporarilyAbsent(person) ? 'success' : 'warning'"
                 :icon="isTemporarilyAbsent(person) ? CircleCheckFilled : CircleCloseFilled"
+                :loading="participantAction(person) === 'attendance'"
+                :disabled="Boolean(participantAction(person))"
                 :title="isTemporarilyAbsent(person) ? '恢复出席' : '临时不来'"
                 @click="changeAttendance(person)"
               />
@@ -240,6 +248,8 @@ function leavePanel(event) {
                 size="small"
                 type="danger"
                 :icon="Delete"
+                :loading="participantAction(person) === 'remove'"
+                :disabled="Boolean(participantAction(person))"
                 title="移出会议"
                 @click="removeParticipant(person)"
               />

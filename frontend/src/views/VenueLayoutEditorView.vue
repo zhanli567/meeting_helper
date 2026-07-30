@@ -20,6 +20,7 @@ const loading = ref(true)
 const loadFailed = ref(false)
 const saving = ref(false)
 const dirty = ref(false)
+let loadingVenuePromise
 
 function updateLayout(value) {
   Object.assign(layout, value)
@@ -27,27 +28,32 @@ function updateLayout(value) {
 }
 
 async function loadVenue() {
+  if (loadingVenuePromise) return loadingVenuePromise
   loading.value = true
   loadFailed.value = false
-  try {
-    const [detail, savedLayout] = await Promise.all([
-      venueApi.detail(route.params.venueId),
-      venueApi.layout(route.params.venueId),
-    ])
-    venue.value = detail
-    Object.assign(layout, {
-      gridRows: savedLayout.gridRows,
-      gridColumns: savedLayout.gridColumns,
-      elements: savedLayout.elements || [],
-    })
-    rowVersion.value = savedLayout.rowVersion
-    dirty.value = false
-  } catch (error) {
-    loadFailed.value = true
-    ElMessage.error(apiErrorMessage(error))
-  } finally {
-    loading.value = false
-  }
+  loadingVenuePromise = (async () => {
+    try {
+      const [detail, savedLayout] = await Promise.all([
+        venueApi.detail(route.params.venueId),
+        venueApi.layout(route.params.venueId),
+      ])
+      venue.value = detail
+      Object.assign(layout, {
+        gridRows: savedLayout.gridRows,
+        gridColumns: savedLayout.gridColumns,
+        elements: savedLayout.elements || [],
+      })
+      rowVersion.value = savedLayout.rowVersion
+      dirty.value = false
+    } catch (error) {
+      loadFailed.value = true
+      ElMessage.error(apiErrorMessage(error))
+    } finally {
+      loading.value = false
+      loadingVenuePromise = undefined
+    }
+  })()
+  return loadingVenuePromise
 }
 
 async function saveLayout() {
@@ -97,7 +103,7 @@ onBeforeRouteLeave(() => {
 </script>
 
 <template>
-  <div v-loading="loading" class="app-page layout-editor-view">
+  <div v-loading="loading || saving" class="app-page layout-editor-view">
     <VenueLayoutEditor
       v-if="!loading && !loadFailed"
       :model-value="layout"
@@ -114,7 +120,7 @@ onBeforeRouteLeave(() => {
       <strong>场馆布局加载失败</strong>
       <div>
         <el-button @click="router.push('/venues')">返回场馆模板</el-button>
-        <el-button type="primary" @click="loadVenue">重新加载</el-button>
+        <el-button type="primary" :loading="loading" @click="loadVenue">重新加载</el-button>
       </div>
     </div>
   </div>

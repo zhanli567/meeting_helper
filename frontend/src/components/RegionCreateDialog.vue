@@ -75,6 +75,7 @@ function handleVisibleChange(value) {
 }
 
 function submit() {
+  if (props.submitting) return
   if (!props.selectedSeatCount) {
     ElMessage.warning('请先框选座位')
     return
@@ -150,7 +151,7 @@ watch(
       <el-radio-button label="merge">合并到已有区域</el-radio-button>
     </el-radio-group>
 
-    <el-form label-position="top" class="region-create-form">
+    <el-form label-position="top" class="region-create-form" :disabled="submitting">
       <el-form-item v-if="mode === 'merge'" label="选择已有区域" required>
         <el-select
           v-model="mergeTargetId"

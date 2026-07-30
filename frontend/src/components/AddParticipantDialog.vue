@@ -86,6 +86,7 @@ function clearFile() {
 }
 
 async function downloadTemplate() {
+  if (templateDownloading.value) return
   templateDownloading.value = true
   try {
     const template = await meetingApi.importTemplate()
@@ -102,6 +103,8 @@ async function downloadTemplate() {
 }
 
 async function parseFile() {
+  if (previewing.value) return
+  if (submitting.value) return
   if (!file.value) {
     ElMessage.warning('请先选择 Excel 文件')
     return
@@ -189,6 +192,7 @@ function validateBatchNames(rows) {
 }
 
 async function submit() {
+  if (submitting.value) return
   if (!tableRef.value?.validateCustomFields()) return
   if (!tableRef.value?.validateRecords()) return
   const rows = uniqueSubmitRows(normalizedRows())
@@ -223,6 +227,8 @@ async function submit() {
     <el-form
       :model="form"
       :validate-on-rule-change="false"
+      :disabled="submitting"
+      v-loading="submitting"
       label-position="top"
       class="participant-form-scroll"
     >
@@ -235,7 +241,7 @@ async function submit() {
           <el-button
             :icon="Download"
             :loading="templateDownloading"
-            :disabled="previewing"
+            :disabled="previewing || submitting"
             @click="downloadTemplate"
           >
             下载模板
@@ -251,13 +257,14 @@ async function submit() {
             :on-exceed="onFileExceed"
             :on-remove="clearFile"
           >
-            <el-button :icon="UploadFilled" :disabled="previewing">选择Excel</el-button>
+            <el-button :icon="UploadFilled" :disabled="previewing || submitting">选择Excel</el-button>
           </el-upload>
           <span v-if="selectedFileName" class="selected-file-name" :title="selectedFileName">
             <span class="selected-file-text">{{ selectedFileName }}</span>
             <button
               type="button"
               class="selected-file-remove"
+              :disabled="previewing || submitting || templateDownloading"
               aria-label="移除已选Excel"
               @click="clearFile"
             >
@@ -318,7 +325,7 @@ async function submit() {
       />
     </el-form>
     <template #footer>
-      <el-button @click="visible = false">取消</el-button>
+      <el-button :disabled="submitting" @click="visible = false">取消</el-button>
       <el-button type="primary" :loading="submitting" @click="submit">
         增加
       </el-button>

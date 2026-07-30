@@ -22,6 +22,7 @@ watch(visible, (isVisible) => {
 })
 
 function submit() {
+  if (props.submitting) return
   const versionName = normalizeVersionName(form.versionName)
   if (!versionName) {
     ElMessage.warning('请填写版本名称')
@@ -47,7 +48,7 @@ function submit() {
     append-to-body
     destroy-on-close
   >
-    <el-form label-position="top" @submit.prevent>
+    <el-form label-position="top" :disabled="submitting" @submit.prevent>
       <el-form-item label="版本名称" required>
         <el-input
           v-model="form.versionName"

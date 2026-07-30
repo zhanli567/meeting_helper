@@ -983,6 +983,11 @@ function closeOnOutsidePointer(event) {
   }
 }
 
+function requestSave() {
+  if (props.saving) return
+  emit('save')
+}
+
 onMounted(() => {
   window.addEventListener('pointerdown', closeOnOutsidePointer)
   scheduleCenterCanvas()
@@ -1047,7 +1052,7 @@ onBeforeUnmount(() => {
         </el-button>
         <el-button :icon="Plus" aria-label="放大画布" @click="setZoom(zoom + 0.1)" />
       </el-button-group>
-      <el-button type="primary" :icon="Check" :loading="saving" @click="emit('save')">
+      <el-button type="primary" :icon="Check" :loading="saving" @click="requestSave">
         {{ saveLabel }}
       </el-button>
     </header>
@@ -1093,7 +1098,7 @@ onBeforeUnmount(() => {
               <el-button :icon="Plus" aria-label="放大画布" @click="setZoom(zoom + 0.1)" />
             </el-button-group>
           </div>
-          <el-button type="primary" :icon="Check" :loading="saving" @click="emit('save')">
+          <el-button type="primary" :icon="Check" :loading="saving" @click="requestSave">
             {{ saveLabel }}
           </el-button>
         </div>
@@ -1240,11 +1245,16 @@ onBeforeUnmount(() => {
         />
       </main>
     </div>
+    <div v-if="saving" class="editor-saving-mask" aria-live="polite">
+      <span class="editor-saving-spinner" />
+      <span>保存中</span>
+    </div>
   </section>
 </template>
 
 <style scoped>
 .venue-layout-editor {
+  position: relative;
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -1252,6 +1262,38 @@ onBeforeUnmount(() => {
   flex-direction: column;
   overflow: hidden;
   background: #f4f7fb;
+}
+
+.editor-saving-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(1px);
+  cursor: wait;
+}
+
+.editor-saving-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #bfdbfe;
+  border-top-color: #1677ff;
+  border-radius: 999px;
+  animation: editor-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes editor-pulse {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
 }
 
 .venue-layout-editor.external-panel-mode {
