@@ -8,21 +8,30 @@ const normalize = (content) => content.replace(/\s+/g, ' ').trim()
 test('新增弹窗将完整上下文和提交事件接入可注入动作', () => {
   const dialog = normalize(source('../src/components/AddParticipantDialog.vue'))
   const rawDialog = source('../src/components/AddParticipantDialog.vue')
+  const recordTable = source('../src/components/ParticipantRecordTable.vue')
 
   assert.match(dialog, /import \{ submitParticipant \} from '@\/utils\/participantActions'/)
+  assert.match(rawDialog, /ParticipantRecordTable/)
+  assert.match(rawDialog, /meetingApi\.previewImport/)
+  assert.match(rawDialog, /applyPreviewRows\(preview\.value\)/)
+  assert.match(rawDialog, /nextPreview\?\.rows/)
+  assert.match(rawDialog, /addRow/)
+  assert.match(rawDialog, /allowMultipleRows/)
   assert.match(
     dialog,
-    /submitParticipant\(\{ addParticipant: meetingApi\.addParticipant, meetingId: props\.meetingId, form, targetElementId: props\.targetElementId, \}\)/,
+    /submitParticipant\(\{ addParticipant: meetingApi\.addParticipant, meetingId: props\.meetingId, form: row, targetElementId: addTargetElementId\(index\), \}\)/,
   )
   assert.match(dialog, /<el-button type="primary" :loading="submitting" @click="submit">/)
-  assert.match(dialog, /participant\?\.message/)
+  assert.match(dialog, /results\.map\(\(participant\) => participant\?\.message\)/)
   assert.doesNotMatch(dialog, /hasDuplicateEmployeeNo/)
   assert.match(rawDialog, />\s*增加\s*</)
+  assert.match(rawDialog, /title="新增人员"/)
+  assert.match(rawDialog, /导入Excel/)
   assert.doesNotMatch(rawDialog, /placeholder=/)
   assert.doesNotMatch(rawDialog, /8位数字|1个小写字母加8位数字|wx加6或7位数字/)
   assert.doesNotMatch(rawDialog, /maxlength="9"/)
   assert.match(rawDialog, /:validate-on-rule-change="false"/)
-  assert.match(rawDialog, /:validate-event="false"/)
+  assert.match(recordTable, /:validate-event="false"/)
   assert.doesNotMatch(rawDialog, /trigger:\s*(?:'|"|\[)/)
 })
 
@@ -30,6 +39,9 @@ test('人员面板保持筛选、分页、分组和操作包装器的完整接�
   const rawPanel = source('../src/components/ParticipantPanel.vue')
   const panel = normalize(rawPanel)
 
+  assert.match(rawPanel, /SidePanelEmptyState/)
+  assert.match(panel, /defineEmits\(\[[^\]]*'add'/)
+  assert.match(rawPanel, /@activate="emit\('add'\)"/)
   assert.match(panel, /from '@\/utils\/participantActions'/)
   assert.match(panel, /return filteredParticipants\(props\.participants, tab\.value, keyword\)/)
   assert.match(panel, /return paginateParticipants\(filtered\.value, currentPage\.value, pageSize\.value\)/)
@@ -60,6 +72,27 @@ test('人员面板保持筛选、分页、分组和操作包装器的完整接�
   assert.match(rawPanel, /\.participant-status-dot\.status-absent\s*\{[\s\S]*background:\s*#fecaca;/)
   assert.match(rawPanel, /\.participant-status-dot\.status-pending\s*\{[\s\S]*background:\s*#fde68a;/)
   assert.doesNotMatch(rawPanel, /assigned-dot/)
+})
+
+test('新增和编辑人员弹窗共用横向记录表格组件', () => {
+  const addDialog = source('../src/components/AddParticipantDialog.vue')
+  const editDialog = source('../src/components/EditParticipantDialog.vue')
+  const table = source('../src/components/ParticipantRecordTable.vue')
+
+  assert.match(addDialog, /import ParticipantRecordTable from '@\/components\/ParticipantRecordTable\.vue'/)
+  assert.match(editDialog, /import ParticipantRecordTable from '@\/components\/ParticipantRecordTable\.vue'/)
+  assert.match(table, /defineModel\('records'/)
+  assert.match(table, /defineModel\('customFields'/)
+  assert.match(table, /allowAddRows/)
+  assert.match(table, /allowAddColumns/)
+  assert.match(table, /addRecord/)
+  assert.match(table, /addColumn/)
+  assert.match(table, /removeCustomColumn/)
+  assert.match(table, /validateCustomFields/)
+  assert.match(table, /validateRecords/)
+  assert.match(table, /scrollbar-always-on/)
+  assert.doesNotMatch(table, /获奖信息/)
+  assert.doesNotMatch(table, /placeholder=/)
 })
 
 test('人员卡片悬浮操作层不拦截卡片主体选中点击', () => {

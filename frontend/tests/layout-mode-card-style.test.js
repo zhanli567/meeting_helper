@@ -14,6 +14,7 @@ test('layout mode separates canvas and element panel into card areas', async () 
 test('workbench layout mode uses the same left canvas and right panel shell as other modes', async () => {
   const workbench = await readFile(new URL('../src/views/WorkbenchView.vue', import.meta.url), 'utf8')
   const editor = await readFile(new URL('../src/components/VenueLayoutEditor.vue', import.meta.url), 'utf8')
+  const panel = await readFile(new URL('../src/components/VenueElementPanel.vue', import.meta.url), 'utf8')
 
   assert.doesNotMatch(workbench, /layout-wide/)
   assert.match(workbench, /id="workbench-layout-side"/)
@@ -26,4 +27,21 @@ test('workbench layout mode uses the same left canvas and right panel shell as o
   assert.match(editor, /sidePanelTarget/)
   assert.match(editor, /<Teleport[\s\S]*:disabled="!sidePanelTarget"/)
   assert.match(editor, /external-panel-mode/)
+  assert.match(panel, /SidePanelEmptyState/)
+  assert.match(panel, /未选中元素/)
+  assert.doesNotMatch(panel, /<el-icon><Setting \/><\/el-icon>/)
+  assert.doesNotMatch(panel, /import \{[^}]*Setting/)
+})
+
+test('workbench add participant flow removes old import menu and opens one dialog directly', async () => {
+  const workbench = await readFile(new URL('../src/views/WorkbenchView.vue', import.meta.url), 'utf8')
+
+  assert.match(workbench, /@add="openParticipantEntry"/)
+  assert.match(workbench, /@click="openParticipantEntry"/)
+  assert.match(workbench, /addTargetElementId\.value = undefined/)
+  assert.doesNotMatch(workbench, /ImportDialog/)
+  assert.doesNotMatch(workbench, /importVisible/)
+  assert.doesNotMatch(workbench, /addMenuVisible/)
+  assert.doesNotMatch(workbench, /openBatchImport/)
+  assert.doesNotMatch(workbench, /class="add-menu"/)
 })

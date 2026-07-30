@@ -71,11 +71,12 @@ export function firstParticipantSummary(participant, fieldDefinitions) {
 
 export function createParticipantPayload(form, targetElementId) {
   const extraAttributes = normalizeExtraFields(form.extraFields, form.fieldDefinitions)
+  const customFieldNames = customFieldNameMap(form.customFields)
   return {
-    employeeNo: form.employeeNo,
-    name: form.name,
+    employeeNo: nonEmptyValue(form.employeeNo),
+    name: nonEmptyValue(form.name),
     attributes: {
-      ...(form.attributes || {}),
+      ...normalizeRecordAttributes(form.attributes || {}, customFieldNames),
       ...extraAttributes,
     },
     targetElementId,

@@ -3,9 +3,6 @@ import { http, raw, unwrap } from './http.js'
 export const importContract = Object.freeze({
   templatePath: '/imports/template',
   previewPath: (meetingId) => `/meetings/${meetingId}/imports/preview`,
-  commitPath: (meetingId, token) => `/meetings/${meetingId}/imports/${token}/commit`,
-  canCommit: (preview) =>
-    Boolean(preview) && Array.isArray(preview.errors) && preview.errors.length === 0,
 })
 
 export const meetingApi = {
@@ -69,9 +66,6 @@ export const meetingApi = {
         headers: { 'Content-Type': 'multipart/form-data' },
       }),
     )
-  },
-  async commitImport(meetingId, token) {
-    return unwrap(http.post(importContract.commitPath(meetingId, token)))
   },
   async exportExcel(meetingId, versionId, options = {}) {
     return raw(

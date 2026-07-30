@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import ColorPickerPopover from '@/components/ColorPickerPopover.vue'
+import SidePanelEmptyState from '@/components/SidePanelEmptyState.vue'
 import { textColorForBackground } from '@/utils/venuePreferences'
 
 const props = defineProps({
@@ -20,7 +21,7 @@ const props = defineProps({
   submitting: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update:modelValue', 'select', 'new', 'save', 'delete', 'cancel'])
+const emit = defineEmits(['update:modelValue', 'select', 'delete'])
 
 const isEditing = computed(() => Boolean(props.modelValue?.id))
 const usedMarkerColors = computed(() =>
@@ -50,16 +51,14 @@ function patchColor(color) {
   <aside class="region-marker-panel">
     <header class="panel-heading">
       <div>
-        <h2 class="panel-title">{{ isEditing ? '编辑区域' : '新建区域' }}</h2>
+        <h2 class="panel-title">区域</h2>
         <p>已选座位 {{ selectedSeatCount }}</p>
       </div>
-      <el-button text @click="emit('cancel')">重置</el-button>
     </header>
 
     <section class="panel-tools marker-list-section">
       <div class="section-title">
         <span>已有区域</span>
-        <el-button link size="small" @click="emit('new')">新建区域</el-button>
       </div>
       <div v-if="markers.length" class="marker-list">
         <button
@@ -75,41 +74,53 @@ function patchColor(color) {
           <small>{{ (marker.targetElementIds || []).length }} 座</small>
         </button>
       </div>
-      <p v-else class="empty-markers">暂无区域</p>
+      <div v-else class="empty-marker-list">
+        <SidePanelEmptyState title="暂无区域" description="框选座位后创建区域" />
+      </div>
     </section>
 
-    <el-form label-position="top" class="marker-form">
-      <el-form-item label="区域名称" required>
-        <el-input
-          :model-value="modelValue.label"
-          maxlength="20"
-          show-word-limit
-          @update:model-value="patchMarker({ label: $event })"
-        />
-      </el-form-item>
+    <section class="marker-detail-section">
+      <template v-if="isEditing">
+        <el-form label-position="top" class="marker-form">
+          <el-form-item label="区域名称" required>
+            <el-input
+              :model-value="modelValue.label"
+              maxlength="20"
+              show-word-limit
+              @update:model-value="patchMarker({ label: $event })"
+            />
+          </el-form-item>
 
-      <el-form-item label="区域颜色">
-        <div class="color-control-row">
-          <span>{{ modelValue.backgroundColor }}</span>
-          <ColorPickerPopover
-            :model-value="modelValue.backgroundColor"
-            label="区域颜色"
-            :unavailable-colors="usedMarkerColors"
-            @update:model-value="patchColor"
-          />
+          <el-form-item label="区域颜色">
+            <div class="color-control-row">
+              <span>{{ modelValue.backgroundColor }}</span>
+              <ColorPickerPopover
+                :model-value="modelValue.backgroundColor"
+                label="区域颜色"
+                :unavailable-colors="usedMarkerColors"
+                @update:model-value="patchColor"
+              />
+            </div>
+          </el-form-item>
+        </el-form>
+
+        <div class="panel-actions">
+          <el-button
+            class="delete-button"
+            :disabled="submitting"
+            @click="emit('delete')"
+          >
+            删除区域
+          </el-button>
         </div>
-      </el-form-item>
-    </el-form>
+      </template>
 
-    <div class="panel-actions">
-      <el-button
-        class="delete-button"
-        :disabled="!isEditing || submitting"
-        @click="emit('delete')"
-      >
-        删除区域
-      </el-button>
-    </div>
+      <SidePanelEmptyState
+        v-else
+        title="未选中区域"
+        description="单击已有区域查看详情，或框选座位创建区域"
+      />
+    </section>
   </aside>
 </template>
 
@@ -224,17 +235,28 @@ function patchColor(color) {
   font-size: 12px;
 }
 
-.empty-markers {
-  margin: 0 0 10px;
-  color: var(--muted);
-  font-size: 12px;
+.empty-marker-list {
+  min-height: 116px;
+  display: grid;
+  place-items: center;
+}
+
+.marker-detail-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 10px;
+  background: #fbfcfd;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
 }
 
 .marker-form {
   flex: 1;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
   padding-right: 2px;
 }
 

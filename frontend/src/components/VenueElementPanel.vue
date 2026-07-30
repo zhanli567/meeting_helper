@@ -1,8 +1,9 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { Close, DArrowLeft, DArrowRight, Fold, Setting } from '@element-plus/icons-vue'
+import { Close, DArrowLeft, DArrowRight, Fold } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import ColorPickerPopover from '@/components/ColorPickerPopover.vue'
+import SidePanelEmptyState from '@/components/SidePanelEmptyState.vue'
 import { COMMON_ELEMENT_SUGGESTIONS, ELEMENT_KINDS } from '@/utils/venueModel'
 import { validElementProperties } from '@/utils/designerGeometry'
 import {
@@ -164,8 +165,7 @@ function commitColor(color) {
   <aside class="venue-element-panel" :class="{ collapsed }" @pointerdown.stop>
     <header>
       <div v-if="!collapsed">
-        <el-icon><Setting /></el-icon>
-        <strong>布局信息</strong>
+        <h2 class="panel-title">布局信息</h2>
       </div>
       <el-button
         text
@@ -237,6 +237,13 @@ function commitColor(color) {
         </footer>
       </section>
 
+      <section v-else class="element-editor element-empty">
+        <SidePanelEmptyState
+          title="未选中元素"
+          description="请选择画布元素，或框选区域添加元素"
+        />
+      </section>
+
       <div class="dock-actions">
         <el-button
           text
@@ -297,6 +304,13 @@ header > div {
   gap: 8px;
 }
 
+.panel-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 700;
+}
+
 .collapsed header {
   justify-content: center;
   padding: 0;
@@ -342,6 +356,11 @@ header > div {
   background: #fbfcfd;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
+}
+
+.element-empty {
+  display: grid;
+  place-items: center;
 }
 
 .section-title {

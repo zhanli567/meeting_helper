@@ -10,8 +10,6 @@ import {
   Rank,
   RefreshLeft,
   RefreshRight,
-  Upload,
-  User,
   ZoomIn,
   ZoomOut,
 } from '@element-plus/icons-vue'
@@ -20,7 +18,6 @@ import AddParticipantDialog from '@/components/AddParticipantDialog.vue'
 import EditParticipantDialog from '@/components/EditParticipantDialog.vue'
 import ExportOptionsDialog from '@/components/ExportOptionsDialog.vue'
 import GroupColorLegend from '@/components/GroupColorLegend.vue'
-import ImportDialog from '@/components/ImportDialog.vue'
 import ParticipantPanel from '@/components/ParticipantPanel.vue'
 import PublishVersionDialog from '@/components/PublishVersionDialog.vue'
 import RegionCreateDialog from '@/components/RegionCreateDialog.vue'
@@ -43,13 +40,12 @@ import { reservedItems, toggleSeatSelection } from '@/utils/seatRegions'
 import { computeSeatLabels } from '@/utils/seatNumbering'
 import { normalizeHexColor } from '@/utils/venuePreferences'
 import { toElementPayload } from '@/utils/venueModel'
-import { placeFabInRegion, placeFloatingMenu } from '@/utils/workbenchLayout'
+import { placeFabInRegion } from '@/utils/workbenchLayout'
 const router = useRouter()
 const route = useRoute()
 const store = useWorkspaceStore()
 const DEFAULT_CANVAS_ZOOM = 0.8
 const zoom = ref(DEFAULT_CANVAS_ZOOM)
-const importVisible = ref(false)
 const exportOptionsVisible = ref(false)
 const addVisible = ref(false)
 const undoStack = ref([])
@@ -67,7 +63,6 @@ const loadingVersion = ref(false)
 const publishing = ref(false)
 const layoutSaving = ref(false)
 const publishVisible = ref(false)
-const addMenuVisible = ref(false)
 const addTargetElementId = ref()
 const editParticipantVisible = ref(false)
 const editingParticipant = ref()
@@ -113,7 +108,6 @@ let fabPointerStartY = 0
 let fabMoved = false
 let fabManuallyMoved = false
 let suppressFabClick = false
-let addMenuHideTimer
 let autoSaveTimer
 const workspace = computed(() => publishedWorkspace.value || store.workspace)
 const readonlyMode = computed(() => activeVersionKey.value !== 'draft')
@@ -269,19 +263,6 @@ const fabStyle = computed(() => ({
   left: `${fab.x}px`,
   top: `${fab.y}px`,
 }))
-const addMenuStyle = computed(() => {
-  const position = placeFloatingMenu({
-    anchor: { x: fab.x, y: fab.y, width: 48, height: 48 },
-    menu: { width: 220, height: 132 },
-    viewport: { width: window.innerWidth, height: window.innerHeight },
-    gap: 10,
-    margin: 10,
-  })
-  return {
-    left: `${position.left}px`,
-    top: `${position.top}px`,
-  }
-})
 const layoutDirty = computed(() => {
   if (!workspace.value?.layout) return false
   return JSON.stringify(layoutDraft.value) !== JSON.stringify(cloneLayout(workspace.value.layout))
@@ -697,7 +678,6 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', keepFabInViewport)
   window.removeEventListener('beforeunload', warnUnsavedChanges)
-  window.clearTimeout(addMenuHideTimer)
   window.clearInterval(autoSaveTimer)
   stopFabDrag()
 })
@@ -933,7 +913,6 @@ watch(groupColorFieldCode, () => {
 watch(workbenchMode, (mode) => {
   if (mode !== 'marker') resetMarkerDraft()
   if (mode !== 'seating') {
-    addMenuVisible.value = false
     draggingParticipantId.value = undefined
     store.selectParticipant(undefined)
   } else {
@@ -1046,7 +1025,6 @@ async function onSeatClick(element) {
   if (occupied) return
   if (!(await saveDraft(true))) return
   addTargetElementId.value = element.id
-  addMenuVisible.value = false
   addVisible.value = true
 }
 function setGroupColorOverride(payload) {
@@ -1264,8 +1242,6 @@ function keepFabInViewport() {
   fab.y = Math.min(Math.max(64, fab.y), window.innerHeight - 52)
 }
 function startFabDrag(event) {
-  window.clearTimeout(addMenuHideTimer)
-  addMenuVisible.value = false
   fab.dragging = true
   fabMoved = false
   suppressFabClick = false
@@ -1302,36 +1278,18 @@ function stopFabDrag() {
     suppressFabClick = false
   }, 0)
 }
-function handleFabClick() {
+async function openParticipantEntry() {
   if (suppressFabClick) return
-  showAddMenu()
-}
-function showAddMenu() {
-  window.clearTimeout(addMenuHideTimer)
-  if (!fab.dragging) addMenuVisible.value = true
-}
-function scheduleAddMenuHide() {
-  window.clearTimeout(addMenuHideTimer)
-  addMenuHideTimer = window.setTimeout(() => {
-    if (!fab.dragging) addMenuVisible.value = false
-  }, 140)
-}
-async function openSingleAdd() {
   if (!(await saveDraft(true))) return
   addTargetElementId.value = undefined
-  addMenuVisible.value = false
   addVisible.value = true
 }
-async function openBatchImport() {
-  if (!(await saveDraft(true))) return
-  addMenuVisible.value = false
-  importVisible.value = true
-}
-async function onParticipantAdded(participant) {
+async function onParticipantAdded(participantResult) {
   addTargetElementId.value = undefined
   await store.loadWorkspace()
-  if (participant) {
-    const added = store.workspace?.participants.find((person) => person.id === participant.id)
+  const result = Array.isArray(participantResult) ? participantResult.at(-1) : participantResult
+  if (result) {
+    const added = store.workspace?.participants.find((person) => person.id === result.id)
     if (added) store.selectParticipant(added)
   }
 }
@@ -1472,9 +1430,7 @@ watch(
             :submitting="markerSubmitting"
             @update:model-value="updateMarkerDraft"
             @select="selectReservedMarker"
-            @new="resetMarkerDraft"
             @delete="deleteReservedMarker"
-            @cancel="resetMarkerDraft"
           />
           <ParticipantPanel
             v-else
@@ -1488,6 +1444,7 @@ watch(
             @attendance="updateParticipantAttendance"
             @remove="removeParticipant"
             @edit="openParticipantEdit"
+            @add="openParticipantEntry"
             @drag-state="draggingParticipantId = $event"
           />
         </div>
@@ -1660,22 +1617,6 @@ watch(
     </main>
 
     <template v-if="workspace && !readonlyMode && fabReady">
-      <div
-        v-if="addMenuVisible && workbenchMode === 'seating'"
-        class="add-menu"
-        :style="addMenuStyle"
-        @mouseenter="showAddMenu"
-        @mouseleave="scheduleAddMenuHide"
-      >
-        <button @click="openSingleAdd">
-          <el-icon><User /></el-icon>
-          <span><strong>单个添加</strong></span>
-        </button>
-        <button @click="openBatchImport">
-          <el-icon><Upload /></el-icon>
-          <span><strong>上传Excel批量添加</strong></span>
-        </button>
-      </div>
       <button
         v-if="workbenchMode === 'seating'"
         class="floating-add"
@@ -1684,9 +1625,7 @@ watch(
         aria-label="添加参会人员"
         title="拖动可调整位置"
         @pointerdown="startFabDrag"
-        @click="handleFabClick"
-        @mouseenter="showAddMenu"
-        @mouseleave="scheduleAddMenuHide"
+        @click="openParticipantEntry"
       >
         <Plus />
       </button>
@@ -1700,12 +1639,6 @@ watch(
       :participants="store.workspace.participants"
       :field-definitions="store.workspace.fieldDefinitions"
       @done="onParticipantAdded"
-    />
-    <ImportDialog
-      v-if="store.workspace && !readonlyMode"
-      v-model="importVisible"
-      :meeting-id="store.workspace.meeting.id"
-      @done="store.loadWorkspace"
     />
     <EditParticipantDialog
       v-if="store.workspace && !readonlyMode && editingParticipant"
@@ -2058,37 +1991,6 @@ watch(
   transition: none;
 }
 
-.add-menu {
-  width: 220px;
-  position: fixed;
-  z-index: 72;
-  display: grid;
-  gap: 4px;
-  padding: 7px;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-hover);
-}
-
-.add-menu button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px;
-  color: #2f486a;
-  background: transparent;
-  border: 0;
-  border-radius: 8px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.add-menu button:hover {
-  color: var(--brand);
-  background: var(--brand-soft);
-}
-
 @media (max-width: 1450px) {
   .workbench-page > .app-header {
     gap: 10px;
@@ -2111,21 +2013,6 @@ watch(
   .version-selector {
     width: 158px;
   }
-}
-
-.add-menu .el-icon {
-  width: 30px;
-  height: 30px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  color: var(--brand);
-  background: var(--brand-soft);
-  border-radius: 8px;
-}
-
-.add-menu span {
-  display: block;
 }
 
 @keyframes blink {

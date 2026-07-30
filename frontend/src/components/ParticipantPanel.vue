@@ -8,6 +8,7 @@ import {
   Search,
   UploadFilled,
 } from '@element-plus/icons-vue'
+import SidePanelEmptyState from '@/components/SidePanelEmptyState.vue'
 import {
   filteredParticipants,
   groupParticipants,
@@ -31,7 +32,7 @@ const props = defineProps({
   saving: { type: Boolean, required: true },
   readonly: { type: Boolean, default: false },
 })
-const emit = defineEmits(['select', 'unassign', 'dragState', 'attendance', 'remove', 'edit'])
+const emit = defineEmits(['select', 'unassign', 'dragState', 'attendance', 'remove', 'edit', 'add'])
 const tab = ref(props.readonly ? 'all' : 'pending')
 const search = ref('')
 const groupField = ref('')
@@ -252,8 +253,13 @@ function leavePanel(event) {
         </section>
       </template>
       <div v-else class="empty-copy">
-        <el-icon size="26"><UploadFilled /></el-icon>
-        <p>{{ tab === 'pending' ? '当前没有待排人员' : '没有匹配的参会人员' }}</p>
+        <SidePanelEmptyState
+          :icon="UploadFilled"
+          :title="tab === 'pending' ? '当前没有待排人员' : '没有匹配的参会人员'"
+          :description="readonly ? '' : '点击新增人员'"
+          :clickable="!readonly"
+          @activate="emit('add')"
+        />
       </div>
     </div>
 
@@ -554,7 +560,6 @@ function leavePanel(event) {
   display: grid;
   place-content: center;
   justify-items: center;
-  color: var(--tertiary);
 }
 
 .pagination-row {

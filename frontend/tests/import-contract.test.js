@@ -8,13 +8,11 @@ import { venueApi } from '../src/api/venue.js'
 test('通用人员导入使用单一后端路径契约', () => {
   assert.equal(importContract.templatePath, '/imports/template')
   assert.equal(importContract.previewPath('m1'), '/meetings/m1/imports/preview')
-  assert.equal(importContract.commitPath('m1', 't1'), '/meetings/m1/imports/t1/commit')
 })
 
-test('导入预览存在顶层阻断错误时不能提交', () => {
-  assert.equal(importContract.canCommit(undefined), false)
-  assert.equal(importContract.canCommit({ errors: [] }), true)
-  assert.equal(importContract.canCommit({ errors: ['工号a12345678已对应人员张三'] }), false)
+test('前端导入只保留解析预览，最终保存走新增人员提交', () => {
+  assert.equal('commitPath' in importContract, false)
+  assert.equal('canCommit' in importContract, false)
 })
 
 test('请求层只暴露 GET 和 POST 且不再手工附加用户请求头', () => {
