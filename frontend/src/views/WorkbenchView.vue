@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Aim,
@@ -42,7 +42,7 @@ import { reservedItems, toggleSeatSelection } from '@/utils/seatRegions'
 import { computeSeatLabels } from '@/utils/seatNumbering'
 import { normalizeHexColor } from '@/utils/venuePreferences'
 import { toElementPayload } from '@/utils/venueModel'
-import { placeFloatingMenu } from '@/utils/workbenchLayout'
+import { placeFabInRegion, placeFloatingMenu } from '@/utils/workbenchLayout'
 const router = useRouter()
 const route = useRoute()
 const store = useWorkspaceStore()
@@ -73,6 +73,7 @@ const sidePanelCollapsed = ref(false)
 const autoSaveSeconds = ref(0)
 const layoutEditorRef = ref()
 const venueCanvasRef = ref()
+const canvasShellRef = ref()
 const fabReady = ref(false)
 const FAB_SIZE = 48
 const FAB_EDGE_GAP = 24
@@ -108,6 +109,7 @@ let fabOffsetY = 0
 let fabPointerStartX = 0
 let fabPointerStartY = 0
 let fabMoved = false
+let fabManuallyMoved = false
 let suppressFabClick = false
 let addMenuHideTimer
 let autoSaveTimer
@@ -668,7 +670,7 @@ onMounted(async () => {
     store.rememberMeeting(store.activeMeetingId, 'draft')
     await router.replace(workbenchRoute(store.activeMeetingId, 'draft'))
   }
-  resetFab()
+  await resetFab()
   window.addEventListener('resize', keepFabInViewport)
   window.addEventListener('beforeunload', warnUnsavedChanges)
 })
@@ -914,8 +916,11 @@ watch(workbenchMode, (mode) => {
     addMenuVisible.value = false
     draggingParticipantId.value = undefined
     store.selectParticipant(undefined)
+  } else {
+    queueDefaultFabPosition()
   }
 })
+watch(sidePanelCollapsed, queueDefaultFabPosition)
 async function performAssign(participantId, targetElementId) {
   if (readonlyMode.value || workbenchMode.value !== 'seating') return
   if (!store.workspace || applyingHistory.value) {
@@ -1155,12 +1160,41 @@ async function saveMeetingLayout(silent = false) {
     layoutSaving.value = false
   }
 }
-function resetFab() {
-  fab.x = Math.max(FAB_EDGE_GAP, Math.floor(window.innerWidth / 2 - FAB_SIZE - FAB_EDGE_GAP))
-  fab.y = Math.max(76, window.innerHeight - FAB_BOTTOM_OFFSET)
+async function resetFab() {
+  fabManuallyMoved = false
+  await nextTick()
+  positionFabInCanvasShell()
   fabReady.value = true
 }
+function positionFabInCanvasShell() {
+  const rect = canvasShellRef.value?.getBoundingClientRect?.()
+  if (!rect) {
+    fab.x = FAB_EDGE_GAP
+    fab.y = Math.max(76, window.innerHeight - FAB_BOTTOM_OFFSET)
+    return
+  }
+  const position = placeFabInRegion({
+    region: rect,
+    button: { width: FAB_SIZE, height: FAB_SIZE },
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    gap: FAB_EDGE_GAP,
+    minTop: 64,
+  })
+  fab.x = position.x
+  fab.y = position.y
+}
+function queueDefaultFabPosition() {
+  if (fabManuallyMoved || fab.dragging) return
+  window.requestAnimationFrame(() => {
+    positionFabInCanvasShell()
+    window.setTimeout(positionFabInCanvasShell, 220)
+  })
+}
 function keepFabInViewport() {
+  if (!fabManuallyMoved && !fab.dragging) {
+    queueDefaultFabPosition()
+    return
+  }
   fab.x = Math.min(Math.max(4, fab.x), window.innerWidth - 52)
   fab.y = Math.min(Math.max(64, fab.y), window.innerHeight - 52)
 }
@@ -1186,6 +1220,7 @@ function moveFab(event) {
     return
   }
   fabMoved = true
+  fabManuallyMoved = true
   fab.x = Math.min(Math.max(2, event.clientX - fabOffsetX), window.innerWidth - 50)
   fab.y = Math.min(Math.max(64, event.clientY - fabOffsetY), window.innerHeight - 50)
 }
@@ -1393,7 +1428,7 @@ watch(
         </div>
       </div>
 
-      <section class="canvas-shell">
+      <section ref="canvasShellRef" class="canvas-shell">
         <div class="toolbar-card">
           <div class="canvas-title">
             <h1>{{ workspace.meeting.layoutName }}</h1>
