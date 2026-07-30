@@ -62,6 +62,23 @@ test('人员面板保持筛选、分页、分组和操作包装器的完整接�
   assert.doesNotMatch(rawPanel, /assigned-dot/)
 })
 
+test('人员卡片悬浮操作层不拦截卡片主体选中点击', () => {
+  const rawPanel = source('../src/components/ParticipantPanel.vue')
+  const actionButtonBlock = rawPanel.match(/\.person-actions \.el-button\s*\{[^}]*\}/)?.[0] || ''
+  const hoverActionButtonBlock = rawPanel.match(
+    /\.person-card:hover \.person-actions \.el-button,\s*\n\.person-card:focus-within \.person-actions \.el-button\s*\{[^}]*\}/,
+  )?.[0] || ''
+  const hoverOverlayBlock = rawPanel.match(
+    /\.person-card:hover \.person-actions,\s*\n\.person-card:focus-within \.person-actions\s*\{[^}]*\}/,
+  )?.[0] || ''
+
+  assert.match(rawPanel, /@click="emit\('select', person\)"/)
+  assert.match(rawPanel, /\.person-actions\s*\{[\s\S]*pointer-events:\s*none;/)
+  assert.match(actionButtonBlock, /pointer-events:\s*none;/)
+  assert.match(hoverActionButtonBlock, /pointer-events:\s*auto;/)
+  assert.doesNotMatch(hoverOverlayBlock, /pointer-events:\s*auto;/)
+})
+
 test('座位画布移除座位悬浮详情并统一拖拽预览', () => {
   const rawCanvas = source('../src/components/VenueCanvas.vue')
   const canvas = normalize(rawCanvas)

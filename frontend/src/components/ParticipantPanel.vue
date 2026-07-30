@@ -461,7 +461,6 @@ function leavePanel(event) {
 .person-card:hover .person-actions,
 .person-card:focus-within .person-actions {
   opacity: 1;
-  pointer-events: auto;
 }
 
 .person-actions .el-button {
@@ -471,6 +470,12 @@ function leavePanel(event) {
   padding: 0;
   background: #fff;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  pointer-events: none;
+}
+
+.person-card:hover .person-actions .el-button,
+.person-card:focus-within .person-actions .el-button {
+  pointer-events: auto;
 }
 
 .person-fixed {
