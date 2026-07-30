@@ -1682,9 +1682,8 @@ onBeforeUnmount(() => {
 .canvas-resize-corner {
   width: 16px;
   height: 16px;
-  background: #fff;
-  border: 2px solid var(--brand);
-  border-radius: 4px;
+  background: transparent;
+  border: 0;
 }
 
 .canvas-resize-north-west {

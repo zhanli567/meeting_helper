@@ -29,6 +29,22 @@ test('编辑器支持画布拉伸、属性侧栏和无旋转交互', async () =>
   assert.doesNotMatch(source, /rotate|旋转/)
 })
 
+test('布局编辑器隐藏画布缩放点但保留拖拽热区', async () => {
+  const source = await readSource('src/components/VenueLayoutEditor.vue')
+  const handleBlock = source.match(/\.canvas-resize-handle\s*\{[^}]*\}/)?.[0] || ''
+  const cornerBlock = source.match(/\.canvas-resize-corner\s*\{[^}]*\}/)?.[0] || ''
+
+  assert.match(source, /@pointerdown\.stop="startCanvasResize\(\$event, 'east'\)"/)
+  assert.match(source, /@pointerdown\.stop="startCanvasResize\(\$event, 'south'\)"/)
+  assert.match(source, /@pointerdown\.stop="startCanvasResize\(\$event, corner\)"/)
+  assert.match(handleBlock, /background:\s*transparent;/)
+  assert.match(handleBlock, /border:\s*0;/)
+  assert.match(cornerBlock, /background:\s*transparent;/)
+  assert.match(cornerBlock, /border:\s*0;/)
+  assert.doesNotMatch(cornerBlock, /border-radius/)
+  assert.doesNotMatch(cornerBlock, /var\(--brand\)/)
+})
+
 test('多格座位要求选择逐格或合并', async () => {
   const source = await readSource('src/components/VenueElementPicker.vue')
   assert.match(source, /逐格生成座位/)
