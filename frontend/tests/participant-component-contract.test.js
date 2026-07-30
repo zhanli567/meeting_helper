@@ -102,6 +102,19 @@ test('座位画布移除座位悬浮详情并统一拖拽预览', () => {
   assert.doesNotMatch(rawCanvas, /participantSeatSummary/)
 })
 
+test('拖拽人员时只高亮当前悬停座位', () => {
+  const rawCanvas = source('../src/components/VenueCanvas.vue')
+  const canvas = normalize(rawCanvas)
+
+  assert.match(canvas, /'drop-target': dragTargetId === element\.id/)
+  assert.match(canvas, /dragTargetId\.value = element\.id/)
+  assert.match(rawCanvas, /\.seat-element\.drop-target\s*\{[\s\S]*border-color:\s*var\(--brand\)\s*!important;/)
+  assert.doesNotMatch(rawCanvas, /'drop-ready':\s*draggingParticipantId/)
+  assert.doesNotMatch(rawCanvas, /'swap-ready':\s*draggingParticipantId/)
+  assert.doesNotMatch(rawCanvas, /\.canvas-scroll\.drag-active\s+\.seat-element\.drop-ready/)
+  assert.doesNotMatch(rawCanvas, /\.canvas-scroll\.drag-active\s+\.seat-element\.swap-ready/)
+})
+
 test('排座工作台仅允许通用座位元素接收人员且保留只读与拖放能力', () => {
   const rawCanvas = source('../src/components/VenueCanvas.vue')
   const canvas = normalize(rawCanvas)

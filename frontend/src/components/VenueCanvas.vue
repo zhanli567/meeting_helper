@@ -450,8 +450,6 @@ onBeforeUnmount(() => {
                 itemFor(element.id)?.type !== 'PERSON' &&
                 itemFor(element.id)?.type !== 'RESERVED',
               'continuous-target': continuousParticipantId && !itemFor(element.id),
-              'drop-ready': draggingParticipantId && !itemFor(element.id),
-              'swap-ready': draggingParticipantId && participantFor(element.id),
               'drop-target': dragTargetId === element.id,
             }"
             :style="visualStyle(element)"
@@ -604,16 +602,6 @@ onBeforeUnmount(() => {
   box-shadow:
     inset 0 0 0 2px var(--brand),
     0 0 0 2px rgba(10, 89, 247, 0.18);
-}
-
-.canvas-scroll.drag-active .seat-element.drop-ready {
-  border-color: var(--brand) !important;
-  box-shadow: inset 0 0 0 1px rgba(10, 89, 247, 0.26);
-}
-
-.canvas-scroll.drag-active .seat-element.swap-ready:not(.locked) {
-  border-color: rgba(10, 89, 247, 0.38) !important;
-  box-shadow: inset 0 0 0 1px rgba(10, 89, 247, 0.18);
 }
 
 .seat-element.drop-target {
