@@ -9,7 +9,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 /**
- * Represents the seating plan repository class.
+ * SeatingPlanRepository 类。
  */
 @Repository
 public class SeatingPlanRepository extends AbstractMyBatisRepository<SeatingPlanEntity> {

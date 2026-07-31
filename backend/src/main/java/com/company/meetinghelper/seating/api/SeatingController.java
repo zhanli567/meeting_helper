@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Represents the seating controller class.
+ * SeatingController 类。
  */
 @RestController
 @RequestMapping("/plans")

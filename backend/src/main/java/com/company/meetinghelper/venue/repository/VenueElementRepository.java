@@ -8,7 +8,7 @@ import java.util.List;
 import org.springframework.stereotype.Repository;
 
 /**
- * Represents the venue element repository class.
+ * VenueElementRepository 类。
  */
 @Repository
 public class VenueElementRepository extends AbstractMyBatisRepository<VenueElementEntity> {

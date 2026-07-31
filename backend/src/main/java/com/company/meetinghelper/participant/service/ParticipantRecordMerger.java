@@ -7,20 +7,18 @@ import java.util.Objects;
 import org.springframework.stereotype.Component;
 
 /**
- * Decides whether an incoming dynamic record should be skipped, merged into one existing record,
- * or appended as a new record.
+ * ParticipantRecordMerger 类。
  */
 @Component
 public class ParticipantRecordMerger {
 
-    /**
-     * Chooses the persistence action for one incoming dynamic record.
-     *
-     * @param incoming incoming attributes
-     * @param existing existing records in stable record order
-     * @return skip, merge, or append decision
-     */
-    public MergeDecision decide(Map<String, String> incoming, List<RecordValue> existing) {
+                /**
+         * decide 方法。
+         * @param incoming incoming 参数。
+         * @param existing existing 参数。
+         * @return 返回结果。
+         */
+public MergeDecision decide(Map<String, String> incoming, List<RecordValue> existing) {
         Map<String, String> normalizedIncoming = normalize(incoming);
         List<NormalizedRecord> normalizedExisting = existing.stream()
                 .map(record -> new NormalizedRecord(record, normalize(record.attributes())))
@@ -69,32 +67,30 @@ public class ParticipantRecordMerger {
     }
 
 /**
- * Represents the action enum.
+ * Action 枚举。
  */
-    public enum Action {
+public enum Action {
         SKIP,
         MERGE,
         APPEND
     }
 
 /**
- * Represents the record value record.
- *
- * @param recordId record id
- * @param recordOrder record order
- * @param attributes attributes
+ * RecordValue 数据结构。
+ * @param recordId recordId 参数。
+ * @param recordOrder recordOrder 参数。
+ * @param attributes attributes 参数。
  */
-    public record RecordValue(String recordId, int recordOrder, Map<String, String> attributes) {
+public record RecordValue(String recordId, int recordOrder, Map<String, String> attributes) {
     }
 
 /**
- * Represents the merge decision record.
- *
- * @param action action
- * @param targetRecordId target record id
- * @param mergedAttributes merged attributes
+ * MergeDecision 数据结构。
+ * @param action action 参数。
+ * @param targetRecordId targetRecordId 参数。
+ * @param mergedAttributes mergedAttributes 参数。
  */
-    public record MergeDecision(
+public record MergeDecision(
             Action action,
             String targetRecordId,
             Map<String, String> mergedAttributes

@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Represents the export palette class.
+ * ExportPalette 类。
  */
 public final class ExportPalette {
     public static final String SYSTEM_LAYOUT_COLOR = "#e5edf8";
@@ -22,13 +22,12 @@ public final class ExportPalette {
     }
 
 /**
- * Handles colors by value.
- *
- * @param values values
- * @param reservedColors reserved colors
- * @return result
+ * colorsByValue 方法。
+ * @param values values 参数。
+ * @param reservedColors reservedColors 参数。
+ * @return 返回结果。
  */
-    public static Map<String, String> colorsByValue(Set<String> values, Set<String> reservedColors) {
+public static Map<String, String> colorsByValue(Set<String> values, Set<String> reservedColors) {
         LinkedHashSet<String> reserved = new LinkedHashSet<String>(reservedColors);
         reserved.add(SYSTEM_LAYOUT_COLOR);
         LinkedHashMap<String, String> result = new LinkedHashMap<String, String>();

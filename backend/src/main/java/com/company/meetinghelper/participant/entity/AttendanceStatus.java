@@ -1,7 +1,7 @@
 package com.company.meetinghelper.participant.entity;
 
 /**
- * Represents the attendance status enum.
+ * AttendanceStatus 枚举。
  */
 public enum AttendanceStatus {
     PRESENT,

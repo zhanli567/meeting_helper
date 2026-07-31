@@ -1,12 +1,11 @@
 package com.company.meetinghelper.seating.api.dto.response;
 
 /**
- * Represents the restore version result record.
- *
- * @param id id
- * @param versionNo version no
- * @param versionName version name
- * @param restoredItems restored items
+ * RestoreVersionResult 数据结构。
+ * @param id id 参数。
+ * @param versionNo versionNo 参数。
+ * @param versionName versionName 参数。
+ * @param restoredItems restoredItems 参数。
  */
 public record RestoreVersionResult(
         String id,

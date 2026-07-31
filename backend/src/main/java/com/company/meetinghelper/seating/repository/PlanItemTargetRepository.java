@@ -10,7 +10,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 /**
- * Represents the plan item target repository class.
+ * PlanItemTargetRepository 类。
  */
 @Repository
 public class PlanItemTargetRepository extends AbstractMyBatisRepository<PlanItemTargetEntity> {

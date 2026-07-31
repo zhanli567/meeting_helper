@@ -49,7 +49,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Represents the plan version service class.
+ * PlanVersionService 类。
  */
 @Service
 public class PlanVersionService {

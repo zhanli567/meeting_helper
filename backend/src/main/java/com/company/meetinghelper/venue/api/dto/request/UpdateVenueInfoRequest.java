@@ -5,20 +5,19 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 /**
- * Represents the update venue info request record.
- *
- * @param location location
- * @param campus campus
- * @param mainScreenResolution main screen resolution
- * @param stageDimensions stage dimensions
- * @param manualCapacity manual capacity
- * @param contactInfo contact info
- * @param bookingUrl booking url
- * @param meetingRoomFunctions meeting room functions
- * @param servicesProvided services provided
- * @param description description
- * @param remarks remarks
- * @param rowVersion row version
+ * UpdateVenueInfoRequest 数据结构。
+ * @param location location 参数。
+ * @param campus campus 参数。
+ * @param mainScreenResolution mainScreenResolution 参数。
+ * @param stageDimensions stageDimensions 参数。
+ * @param manualCapacity manualCapacity 参数。
+ * @param contactInfo contactInfo 参数。
+ * @param bookingUrl bookingUrl 参数。
+ * @param meetingRoomFunctions meetingRoomFunctions 参数。
+ * @param servicesProvided servicesProvided 参数。
+ * @param description description 参数。
+ * @param remarks remarks 参数。
+ * @param rowVersion rowVersion 参数。
  */
 public record UpdateVenueInfoRequest(
         @NotBlank @Size(max = 200) String location,

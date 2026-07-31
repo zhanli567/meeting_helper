@@ -1,9 +1,8 @@
 package com.company.meetinghelper.venue.api.dto.response;
 
 /**
- * Represents the location availability record.
- *
- * @param available available
+ * LocationAvailability 数据结构。
+ * @param available available 参数。
  */
 public record LocationAvailability(boolean available) {
 }

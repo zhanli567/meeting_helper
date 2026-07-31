@@ -8,12 +8,11 @@ import jakarta.validation.constraints.PositiveOrZero;
 import java.util.List;
 
 /**
- * Represents the update venue layout request record.
- *
- * @param gridRows grid rows
- * @param gridColumns grid columns
- * @param elements elements
- * @param rowVersion row version
+ * UpdateVenueLayoutRequest 数据结构。
+ * @param gridRows gridRows 参数。
+ * @param gridColumns gridColumns 参数。
+ * @param elements elements 参数。
+ * @param rowVersion rowVersion 参数。
  */
 public record UpdateVenueLayoutRequest(
         @Min(5) int gridRows,

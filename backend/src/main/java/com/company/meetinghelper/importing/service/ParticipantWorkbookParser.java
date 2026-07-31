@@ -19,7 +19,9 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 
-/** Parses the single participant workbook format with dynamic participant fields. */
+/**
+ * ParticipantWorkbookParser 类。
+ */
 @Component
 public class ParticipantWorkbookParser {
 
@@ -29,12 +31,11 @@ public class ParticipantWorkbookParser {
 
     private final DataFormatter formatter = new DataFormatter();
 
-    /**
-     * Creates the single-sheet participant import template.
-     *
-     * @return a new workbook owned by the caller
-     */
-    public XSSFWorkbook createTemplate() {
+                /**
+         * createTemplate 方法。
+         * @return 返回结果。
+         */
+public XSSFWorkbook createTemplate() {
         XSSFWorkbook workbook = new XSSFWorkbook();
         Sheet sheet = workbook.createSheet(PARTICIPANT_SHEET);
         Row headerRow = sheet.createRow(0);
@@ -46,13 +47,12 @@ public class ParticipantWorkbookParser {
         return workbook;
     }
 
-    /**
-     * Parses dynamic participant fields from the first worksheet.
-     *
-     * @param workbook workbook to parse
-     * @return immutable parsed rows, field names, and validation errors
-     */
-    public ParsedParticipantWorkbook parse(XSSFWorkbook workbook) {
+                /**
+         * parse 方法。
+         * @param workbook workbook 参数。
+         * @return 返回结果。
+         */
+public ParsedParticipantWorkbook parse(XSSFWorkbook workbook) {
         List<String> errors = new ArrayList<>();
         if (workbook.getNumberOfSheets() == 0) {
             errors.add("Excel 文件缺少工作表");

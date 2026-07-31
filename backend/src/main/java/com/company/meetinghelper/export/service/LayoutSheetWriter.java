@@ -30,7 +30,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 
 /**
- * Represents the layout sheet writer class.
+ * LayoutSheetWriter 类。
  */
 @Component
 public class LayoutSheetWriter {
@@ -46,13 +46,12 @@ public class LayoutSheetWriter {
     }
 
 /**
- * Handles write.
- *
- * @param workbook workbook
- * @param workspace workspace
- * @param options options
+ * write 方法。
+ * @param workbook workbook 参数。
+ * @param workspace workspace 参数。
+ * @param options options 参数。
  */
-    public void write(
+public void write(
             XSSFWorkbook workbook,
             WorkspaceResponse workspace,
             ExportExcelRequest.LayoutSheet options

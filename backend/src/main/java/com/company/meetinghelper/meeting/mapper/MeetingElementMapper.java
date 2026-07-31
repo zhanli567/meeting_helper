@@ -6,7 +6,7 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Param;
 
 /**
- * Represents the meeting element mapper interface.
+ * MeetingElementMapper 接口。
  */
 public interface MeetingElementMapper extends BaseMapper<MeetingElementEntity> {
     @Delete("delete from t_meeting_elements where id = #{id}")

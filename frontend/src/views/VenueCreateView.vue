@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -7,6 +7,7 @@ import { venueApi } from '@/api/venue'
 import { apiErrorMessage } from '@/api/http'
 import VenueInfoForm from '@/components/VenueInfoForm.vue'
 import VenueLayoutEditor from '@/components/VenueLayoutEditor.vue'
+import { useBeforeUnloadGuard } from '@/composables/useBeforeUnloadGuard'
 import { emptyVenueInfo, toCreateVenuePayload } from '@/utils/venueModel'
 
 const router = useRouter()
@@ -69,16 +70,7 @@ async function saveVenue() {
   }
 }
 
-function beforeUnload(event) {
-  if (!dirty.value) {
-    return
-  }
-  event.preventDefault()
-  event.returnValue = ''
-}
-
-onMounted(() => window.addEventListener('beforeunload', beforeUnload))
-onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
+useBeforeUnloadGuard(() => dirty.value)
 
 onBeforeRouteLeave(() => {
   if (!dirty.value) {

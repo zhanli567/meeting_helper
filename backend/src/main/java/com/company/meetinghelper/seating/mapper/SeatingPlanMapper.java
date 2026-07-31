@@ -6,7 +6,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 /**
- * Represents the seating plan mapper interface.
+ * SeatingPlanMapper 接口。
  */
 public interface SeatingPlanMapper extends BaseMapper<SeatingPlanEntity> {
     @Select("""

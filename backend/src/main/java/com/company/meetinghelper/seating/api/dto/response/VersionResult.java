@@ -1,13 +1,12 @@
 package com.company.meetinghelper.seating.api.dto.response;
 
 /**
- * Represents the version result record.
- *
- * @param id id
- * @param versionNo version no
- * @param versionName version name
- * @param assignedCount assigned count
- * @param unassignedCount unassigned count
+ * VersionResult 数据结构。
+ * @param id id 参数。
+ * @param versionNo versionNo 参数。
+ * @param versionName versionName 参数。
+ * @param assignedCount assignedCount 参数。
+ * @param unassignedCount unassignedCount 参数。
  */
 public record VersionResult(
         String id,

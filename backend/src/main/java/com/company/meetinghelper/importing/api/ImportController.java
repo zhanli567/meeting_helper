@@ -18,7 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Represents the import controller class.
+ * ImportController 类。
  */
 @RestController
 @RequestMapping
@@ -63,13 +63,13 @@ public class ImportController {
             value = "/meetings/{meetingId}/imports/preview",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
-/**
- * Handles preview.
- *
- * @param meetingId meeting id
- * @param file file
- * @return result
- */
+    /**
+     * 解析上传文件并生成导入预览。
+     *
+     * @param meetingId 会议ID
+     * @param file 上传的Excel文件
+     * @return 导入预览
+     */
     public ImportPreview preview(
             @PathVariable String meetingId,
             @RequestPart MultipartFile file

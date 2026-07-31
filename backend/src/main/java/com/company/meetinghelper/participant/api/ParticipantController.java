@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Represents the participant controller class.
+ * ParticipantController 类。
  */
 @RestController
 @RequestMapping("/meetings/{meetingId}/participants")

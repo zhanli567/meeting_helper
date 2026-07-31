@@ -7,7 +7,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * Represents the venue template mapper interface.
+ * VenueTemplateMapper 接口。
  */
 public interface VenueTemplateMapper extends BaseMapper<VenueTemplateEntity> {
     @Select("""

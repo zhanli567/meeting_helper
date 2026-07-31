@@ -6,9 +6,8 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 /**
- * Represents the save assignments request record.
- *
- * @param assignments assignments
+ * SaveAssignmentsRequest 数据结构。
+ * @param assignments assignments 参数。
  */
 public record SaveAssignmentsRequest(
         @NotNull List<@Valid AssignmentInput> assignments

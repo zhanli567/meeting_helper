@@ -59,7 +59,7 @@ function writeOverrides(overrides, storage = browserStorage()) {
   try {
     storage.setItem(GROUP_COLOR_OVERRIDE_STORAGE_KEY, JSON.stringify(overrides))
   } catch {
-    // Coloring still works with defaults if preferences cannot be persisted.
+    // 本地偏好无法保存时，仍使用默认颜色保证着色可用。
   }
 }
 

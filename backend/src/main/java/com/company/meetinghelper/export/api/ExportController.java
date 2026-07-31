@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Represents the export controller class.
+ * ExportController 类。
  */
 @RestController
 @RequestMapping("/meetings/{meetingId}/exports")
@@ -31,14 +31,13 @@ public class ExportController {
         this.exportService = exportService;
     }
 
-    /**
- * Handles excel.
- *
- * @param meetingId meeting id
- * @param request request
- * @return result
- */
-    @PostMapping("/excel")
+                /**
+         * excel 方法。
+         * @param meetingId meetingId 参数。
+         * @param request request 参数。
+         * @return 返回结果。
+         */
+@PostMapping("/excel")
     public ResponseEntity<byte[]> excel(
             @PathVariable String meetingId,
             @RequestBody(required = false) ExportExcelRequest request

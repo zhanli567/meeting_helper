@@ -3,10 +3,9 @@ package com.company.meetinghelper.participant.api.dto.request;
 import java.util.Map;
 
 /**
- * Represents the participant record input record.
- *
- * @param id id
- * @param attributes attributes
+ * ParticipantRecordInput 数据结构。
+ * @param id id 参数。
+ * @param attributes attributes 参数。
  */
 public record ParticipantRecordInput(String id, Map<String, String> attributes) {
 }

@@ -6,11 +6,10 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 /**
- * Represents the update meeting layout request record.
- *
- * @param gridRows grid rows
- * @param gridColumns grid columns
- * @param elements elements
+ * UpdateMeetingLayoutRequest 数据结构。
+ * @param gridRows gridRows 参数。
+ * @param gridColumns gridColumns 参数。
+ * @param elements elements 参数。
  */
 public record UpdateMeetingLayoutRequest(
         @Min(5) int gridRows,

@@ -7,16 +7,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Represents the my batis plus config class.
+ * MyBatisPlusConfig 类。
  */
 @Configuration
 public class MyBatisPlusConfig {
 /**
- * Handles mybatis plus interceptor.
- *
- * @return result
+ * mybatisPlusInterceptor 方法。
+ * @return 返回结果。
  */
-    @Bean
+@Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
         interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.POSTGRE_SQL));

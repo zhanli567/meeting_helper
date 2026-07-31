@@ -7,7 +7,7 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 
 /**
- * Represents the venue element mapper interface.
+ * VenueElementMapper 接口。
  */
 public interface VenueElementMapper extends BaseMapper<VenueElementEntity> {
     @Insert({

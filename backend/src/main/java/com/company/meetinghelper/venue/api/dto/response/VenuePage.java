@@ -3,12 +3,11 @@ package com.company.meetinghelper.venue.api.dto.response;
 import java.util.List;
 
 /**
- * Represents the venue page record.
- *
- * @param records records
- * @param total total
- * @param pageNum page num
- * @param pageSize page size
+ * VenuePage 数据结构。
+ * @param records records 参数。
+ * @param total total 参数。
+ * @param pageNum pageNum 参数。
+ * @param pageSize pageSize 参数。
  */
 public record VenuePage(
         List<VenueSummary> records,

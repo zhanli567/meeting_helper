@@ -61,7 +61,7 @@ function writeArray(key, values, storage = browserStorage()) {
   try {
     storage.setItem(key, JSON.stringify(values))
   } catch {
-    // Local preferences are nice to have; editing should keep working without storage.
+    // 本地偏好只是增强体验，即使不可用也不能影响编辑。
   }
 }
 

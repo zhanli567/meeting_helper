@@ -6,7 +6,7 @@ import java.util.Objects;
 import org.springframework.stereotype.Component;
 
 /**
- * Represents the current user provider class.
+ * CurrentUserProvider 类。
  */
 @Component
 public class CurrentUserProvider {

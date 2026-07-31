@@ -16,7 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 30)
 /**
- * Represents the api access log filter class.
+ * ApiAccessLogFilter 类。
  */
 public class ApiAccessLogFilter extends OncePerRequestFilter {
 

@@ -42,7 +42,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 /**
- * Represents the export service class.
+ * ExportService 类。
  */
 @Service
 public class ExportService {
@@ -53,23 +53,21 @@ public class ExportService {
     private final LayoutSheetWriter layoutSheetWriter;
 
 /**
- * Represents the export options record.
- *
- * @param fieldCodes field codes
- * @param includeAttendance include attendance
- * @param includeSeatLabel include seat label
+ * ExportOptions 数据结构。
+ * @param fieldCodes fieldCodes 参数。
+ * @param includeAttendance includeAttendance 参数。
+ * @param includeSeatLabel includeSeatLabel 参数。
  */
-    public record ExportOptions(
+public record ExportOptions(
             List<String> fieldCodes,
             boolean includeAttendance,
             boolean includeSeatLabel
     ) {
 /**
- * Handles default options.
- *
- * @return result
+ * defaultOptions 方法。
+ * @return 返回结果。
  */
-        public static ExportOptions defaultOptions() {
+public static ExportOptions defaultOptions() {
             return new ExportOptions(null, false, false);
         }
     }

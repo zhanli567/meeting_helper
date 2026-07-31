@@ -16,11 +16,10 @@ import com.company.meetinghelper.participant.repository.MeetingParticipantFieldR
 import com.company.meetinghelper.participant.repository.ParticipantRecordRepository;
 import com.company.meetinghelper.participant.repository.ParticipantRepository;
 import com.company.meetinghelper.participant.service.ParticipantFieldRegistrationService;
+import com.company.meetinghelper.participant.service.ParticipantRecordAttributeCodec;
 import com.company.meetinghelper.participant.service.ParticipantRecordMerger;
 import com.company.meetinghelper.participant.service.ParticipantRecordMerger.MergeDecision;
 import com.company.meetinghelper.participant.service.ParticipantRecordMerger.RecordValue;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.OffsetDateTime;
@@ -39,7 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Represents the import service class.
+ * ImportService 类。
  */
 @Service
 public class ImportService {
@@ -50,8 +49,8 @@ public class ImportService {
     private final ParticipantFieldRegistrationService fieldRegistrationService;
     private final ParticipantRecordRepository recordRepository;
     private final ParticipantRecordMerger recordMerger;
+    private final ParticipantRecordAttributeCodec attributeCodec;
     private final ImportPreviewStore previewStore;
-    private final ObjectMapper objectMapper;
 
     /**
      * 创建通用人员导入服务。
@@ -63,8 +62,8 @@ public class ImportService {
      * @param fieldRegistrationService 人员动态字段注册服务
      * @param recordRepository 人员动态记录仓储
      * @param recordMerger 人员动态记录合并器
+     * @param attributeCodec 人员动态记录属性编解码组件
      * @param previewStore 导入预览存储
-     * @param objectMapper JSON序列化器
      */
     public ImportService(
             ParticipantWorkbookParser workbookParser,
@@ -74,8 +73,8 @@ public class ImportService {
             ParticipantFieldRegistrationService fieldRegistrationService,
             ParticipantRecordRepository recordRepository,
             ParticipantRecordMerger recordMerger,
-            ImportPreviewStore previewStore,
-            ObjectMapper objectMapper
+            ParticipantRecordAttributeCodec attributeCodec,
+            ImportPreviewStore previewStore
     ) {
         this.workbookParser = workbookParser;
         this.meetingAccessService = meetingAccessService;
@@ -84,8 +83,8 @@ public class ImportService {
         this.fieldRegistrationService = fieldRegistrationService;
         this.recordRepository = recordRepository;
         this.recordMerger = recordMerger;
+        this.attributeCodec = attributeCodec;
         this.previewStore = previewStore;
-        this.objectMapper = objectMapper;
     }
 
     /**
@@ -292,7 +291,7 @@ public class ImportService {
                     participant.getId(),
                     ignored -> new ArrayList<>()
             );
-            MergeDecision decision = recordMerger.decide(incomingAttributes, mergerValues(records));
+            MergeDecision decision = recordMerger.decide(incomingAttributes, attributeCodec.mergerValues(records));
             switch (decision.action()) {
                 case SKIP -> skippedRecords++;
                 case MERGE -> {
@@ -303,7 +302,7 @@ public class ImportService {
                                     HttpStatus.INTERNAL_SERVER_ERROR,
                                     "待合并人员记录不存在"
                             ));
-                    target.setAttributesJson(writeAttributes(decision.mergedAttributes()));
+                    target.setAttributesJson(attributeCodec.write(decision.mergedAttributes()));
                     recordRepository.save(target);
                     mergedRecords++;
                 }
@@ -314,7 +313,7 @@ public class ImportService {
                             .mapToInt(ParticipantRecordEntity::getRecordOrder)
                             .max()
                             .orElse(0) + 1);
-                    record.setAttributesJson(writeAttributes(decision.mergedAttributes()));
+                    record.setAttributesJson(attributeCodec.write(decision.mergedAttributes()));
                     recordRepository.save(record);
                     records.add(record);
                     appendedRecords++;
@@ -358,7 +357,7 @@ public class ImportService {
                     state = new PreviewParticipant(
                             existing.getName(),
                             false,
-                            new ArrayList<>(mergerValues(records))
+                            new ArrayList<>(attributeCodec.mergerValues(records))
                     );
                 }
                 workingParticipants.put(employeeKey, state);
@@ -501,38 +500,6 @@ public class ImportService {
                         .computeIfAbsent(record.getParticipantId(), ignored -> new ArrayList<>())
                         .add(record));
         return recordsByParticipant;
-    }
-
-    private List<ParticipantRecordMerger.RecordValue> mergerValues(
-            List<ParticipantRecordEntity> records
-    ) {
-        return records.stream()
-                .map(record -> new ParticipantRecordMerger.RecordValue(
-                        record.getId(),
-                        record.getRecordOrder(),
-                        readAttributes(record.getAttributesJson())
-                ))
-                .toList();
-    }
-
-    private Map<String, String> readAttributes(String json) {
-        if (json == null || json.isBlank()) {
-            return Map.of();
-        }
-        try {
-            return objectMapper.readValue(json, new TypeReference<>() {
-            });
-        } catch (Exception exception) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "人员动态记录格式不正确");
-        }
-    }
-
-    private String writeAttributes(Map<String, String> attributes) {
-        try {
-            return objectMapper.writeValueAsString(attributes);
-        } catch (Exception exception) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "人员动态记录无法保存");
-        }
     }
 
     private String normalize(String value) {

@@ -6,14 +6,13 @@ import jakarta.validation.constraints.Pattern;
 import java.util.List;
 
 /**
- * Represents the reserved area input record.
- *
- * @param id id
- * @param label label
- * @param backgroundColor background color
- * @param textColor text color
- * @param bold bold
- * @param targetElementIds target element ids
+ * ReservedAreaInput 数据结构。
+ * @param id id 参数。
+ * @param label label 参数。
+ * @param backgroundColor backgroundColor 参数。
+ * @param textColor textColor 参数。
+ * @param bold bold 参数。
+ * @param targetElementIds targetElementIds 参数。
  */
 public record ReservedAreaInput(
         String id,

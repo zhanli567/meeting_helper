@@ -1,13 +1,12 @@
 package com.company.meetinghelper.participant.api.dto.response;
 
 /**
- * Represents the participant result record.
- *
- * @param id id
- * @param employeeNo employee no
- * @param name name
- * @param action action
- * @param message message
+ * ParticipantResult 数据结构。
+ * @param id id 参数。
+ * @param employeeNo employeeNo 参数。
+ * @param name name 参数。
+ * @param action action 参数。
+ * @param message message 参数。
  */
 public record ParticipantResult(
         String id,

@@ -9,17 +9,16 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 /**
- * Represents the seat label service class.
+ * SeatLabelService 类。
  */
 @Service
 public class SeatLabelService {
 /**
- * Handles labels by element id.
- *
- * @param elements elements
- * @return result
+ * labelsByElementId 方法。
+ * @param elements elements 参数。
+ * @return 返回结果。
  */
-    public Map<String, String> labelsByElementId(List<WorkspaceResponse.ElementView> elements) {
+public Map<String, String> labelsByElementId(List<WorkspaceResponse.ElementView> elements) {
         LinkedHashMap<String, String> labels = new LinkedHashMap<String, String>();
         List<Integer> sourceRows = seatRows(elements);
         for (int rowIndex = 0; rowIndex < sourceRows.size(); rowIndex++) {
@@ -37,12 +36,11 @@ public class SeatLabelService {
     }
 
 /**
- * Handles row labels.
- *
- * @param elements elements
- * @return result
+ * rowLabels 方法。
+ * @param elements elements 参数。
+ * @return 返回结果。
  */
-    public List<RowLabel> rowLabels(List<WorkspaceResponse.ElementView> elements) {
+public List<RowLabel> rowLabels(List<WorkspaceResponse.ElementView> elements) {
         List<Integer> rows = seatRows(elements);
         return java.util.stream.IntStream.range(0, rows.size())
                 .mapToObj(index -> new RowLabel(rows.get(index), index + 1))
@@ -64,11 +62,10 @@ public class SeatLabelService {
     }
 
 /**
- * Represents the row label record.
- *
- * @param sourceRow source row
- * @param displayRow display row
+ * RowLabel 数据结构。
+ * @param sourceRow sourceRow 参数。
+ * @param displayRow displayRow 参数。
  */
-    public record RowLabel(int sourceRow, int displayRow) {
+public record RowLabel(int sourceRow, int displayRow) {
     }
 }

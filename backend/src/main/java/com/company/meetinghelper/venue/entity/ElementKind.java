@@ -1,7 +1,7 @@
 package com.company.meetinghelper.venue.entity;
 
 /**
- * Represents the element kind enum.
+ * ElementKind 枚举。
  */
 public enum ElementKind {
     SEAT,

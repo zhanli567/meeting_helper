@@ -3,7 +3,7 @@ package com.company.meetinghelper.common.exception;
 import org.springframework.http.HttpStatus;
 
 /**
- * Represents the api exception class.
+ * ApiException 类。
  */
 public class ApiException extends RuntimeException {
     private final HttpStatus status;
@@ -14,11 +14,10 @@ public class ApiException extends RuntimeException {
     }
 
 /**
- * Handles get status.
- *
- * @return result
+ * getStatus 方法。
+ * @return 返回结果。
  */
-    public HttpStatus getStatus() {
+public HttpStatus getStatus() {
         return status;
     }
 }

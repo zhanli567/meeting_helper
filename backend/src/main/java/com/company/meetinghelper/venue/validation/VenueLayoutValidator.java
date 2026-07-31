@@ -12,7 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 /**
- * Represents the venue layout validator class.
+ * VenueLayoutValidator 类。
  */
 @Component
 public class VenueLayoutValidator {
@@ -168,11 +168,10 @@ public class VenueLayoutValidator {
     }
 
 /**
- * Represents the validation result record.
- *
- * @param elements elements
- * @param seatCount seat count
+ * ValidationResult 数据结构。
+ * @param elements elements 参数。
+ * @param seatCount seatCount 参数。
  */
-    public record ValidationResult(List<ElementInput> elements, int seatCount) {
+public record ValidationResult(List<ElementInput> elements, int seatCount) {
     }
 }

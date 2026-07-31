@@ -6,7 +6,7 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Param;
 
 /**
- * Represents the meeting participant field mapper interface.
+ * MeetingParticipantFieldMapper 接口。
  */
 public interface MeetingParticipantFieldMapper extends BaseMapper<MeetingParticipantFieldEntity> {
     @Delete("delete from t_meeting_participant_fields where id = #{id}")

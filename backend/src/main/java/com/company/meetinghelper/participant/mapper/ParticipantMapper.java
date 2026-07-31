@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.company.meetinghelper.participant.entity.ParticipantEntity;
 
 /**
- * Represents the participant mapper interface.
+ * ParticipantMapper 接口。
  */
 public interface ParticipantMapper extends BaseMapper<ParticipantEntity> {
 }

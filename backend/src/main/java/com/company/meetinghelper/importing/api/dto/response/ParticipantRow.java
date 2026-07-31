@@ -3,13 +3,12 @@ package com.company.meetinghelper.importing.api.dto.response;
 import java.util.Map;
 
 /**
- * Represents the participant row record.
- *
- * @param sourceRow source row
- * @param employeeNo employee no
- * @param name name
- * @param attributes attributes
- * @param expectedAction expected action
+ * ParticipantRow 数据结构。
+ * @param sourceRow sourceRow 参数。
+ * @param employeeNo employeeNo 参数。
+ * @param name name 参数。
+ * @param attributes attributes 参数。
+ * @param expectedAction expectedAction 参数。
  */
 public record ParticipantRow(
         int sourceRow,

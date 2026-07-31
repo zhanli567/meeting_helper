@@ -5,9 +5,8 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 /**
- * Represents the save reserved areas request record.
- *
- * @param reservedAreas reserved areas
+ * SaveReservedAreasRequest 数据结构。
+ * @param reservedAreas reservedAreas 参数。
  */
 public record SaveReservedAreasRequest(
         @NotNull List<@Valid ReservedAreaInput> reservedAreas

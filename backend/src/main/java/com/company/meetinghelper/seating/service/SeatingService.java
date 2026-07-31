@@ -32,7 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Represents the seating service class.
+ * SeatingService 类。
  */
 @Service
 public class SeatingService {

@@ -9,7 +9,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 /**
- * Represents the plan version repository class.
+ * PlanVersionRepository 类。
  */
 @Repository
 public class PlanVersionRepository extends AbstractMyBatisRepository<PlanVersionEntity> {

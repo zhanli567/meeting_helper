@@ -1,12 +1,11 @@
 package com.company.meetinghelper.importing.api.dto.response;
 
 /**
- * Represents the commit result record.
- *
- * @param newParticipants new participants
- * @param mergedRecords merged records
- * @param appendedRecords appended records
- * @param skippedRecords skipped records
+ * CommitResult 数据结构。
+ * @param newParticipants newParticipants 参数。
+ * @param mergedRecords mergedRecords 参数。
+ * @param appendedRecords appendedRecords 参数。
+ * @param skippedRecords skippedRecords 参数。
  */
 public record CommitResult(
         int newParticipants,

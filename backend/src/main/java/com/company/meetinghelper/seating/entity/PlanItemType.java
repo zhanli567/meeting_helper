@@ -1,7 +1,7 @@
 package com.company.meetinghelper.seating.entity;
 
 /**
- * Represents the plan item type enum.
+ * PlanItemType 枚举。
  */
 public enum PlanItemType {
     PERSON,

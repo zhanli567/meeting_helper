@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Represents the venue template entity class.
+ * VenueTemplateEntity 类。
  */
 @Getter
 @Setter

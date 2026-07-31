@@ -21,8 +21,6 @@ import com.company.meetinghelper.seating.repository.PlanItemRepository;
 import com.company.meetinghelper.seating.repository.PlanItemTargetRepository;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
 import com.company.meetinghelper.seating.service.SeatingService;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Represents the participant service class.
+ * ParticipantService 类。
  */
 @Service
 public class ParticipantService {
@@ -47,7 +45,7 @@ public class ParticipantService {
     private final PlanItemTargetRepository targetRepository;
     private final SeatingService seatingService;
     private final ParticipantRecordMerger recordMerger;
-    private final ObjectMapper objectMapper;
+    private final ParticipantRecordAttributeCodec attributeCodec;
 
     public ParticipantService(
             MeetingAccessService meetingAccessService,
@@ -59,7 +57,7 @@ public class ParticipantService {
             PlanItemTargetRepository targetRepository,
             SeatingService seatingService,
             ParticipantRecordMerger recordMerger,
-            ObjectMapper objectMapper
+            ParticipantRecordAttributeCodec attributeCodec
     ) {
         this.meetingAccessService = meetingAccessService;
         this.participantRepository = participantRepository;
@@ -70,17 +68,16 @@ public class ParticipantService {
         this.targetRepository = targetRepository;
         this.seatingService = seatingService;
         this.recordMerger = recordMerger;
-        this.objectMapper = objectMapper;
+        this.attributeCodec = attributeCodec;
     }
 
 /**
- * Handles create.
- *
- * @param meetingId meeting id
- * @param request request
- * @return result
+ * create 方法。
+ * @param meetingId meetingId 参数。
+ * @param request request 参数。
+ * @return 返回结果。
  */
-    @Transactional
+@Transactional
     public ParticipantResult create(String meetingId, CreateParticipantRequest request) {
         meetingAccessService.requireOwnedMeeting(meetingId);
         CreateParticipantContext context = createParticipantContext(meetingId, request);
@@ -157,7 +154,7 @@ public class ParticipantService {
             ParticipantRecordEntity record = new ParticipantRecordEntity();
             record.setParticipantId(participantId);
             record.setRecordOrder(1);
-            record.setAttributesJson(writeAttributes(attributes));
+            record.setAttributesJson(attributeCodec.write(attributes));
             recordRepository.save(record);
         }
     }
@@ -176,14 +173,13 @@ public class ParticipantService {
     }
 
 /**
- * Handles update.
- *
- * @param meetingId meeting id
- * @param participantId participant id
- * @param request request
- * @return result
+ * update 方法。
+ * @param meetingId meetingId 参数。
+ * @param participantId participantId 参数。
+ * @param request request 参数。
+ * @return 返回结果。
  */
-    @Transactional
+@Transactional
     public ParticipantResult update(
             String meetingId,
             String participantId,
@@ -230,20 +226,19 @@ public class ParticipantService {
             ParticipantRecordEntity record = new ParticipantRecordEntity();
             record.setParticipantId(participantId);
             record.setRecordOrder(++order);
-            record.setAttributesJson(writeAttributes(attributes));
+            record.setAttributesJson(attributeCodec.write(attributes));
             recordRepository.save(record);
         }
         return new ParticipantResult(participant.getId(), participant.getEmployeeNo(), participant.getName());
     }
 
 /**
- * Handles update attendance.
- *
- * @param meetingId meeting id
- * @param participantId participant id
- * @param request request
+ * updateAttendance 方法。
+ * @param meetingId meetingId 参数。
+ * @param participantId participantId 参数。
+ * @param request request 参数。
  */
-    @Transactional
+@Transactional
     public void updateAttendance(
             String meetingId,
             String participantId,
@@ -261,12 +256,11 @@ public class ParticipantService {
     }
 
 /**
- * Handles delete.
- *
- * @param meetingId meeting id
- * @param participantId participant id
+ * delete 方法。
+ * @param meetingId meetingId 参数。
+ * @param participantId participantId 参数。
  */
-    @Transactional
+@Transactional
     public void delete(String meetingId, String participantId) {
         meetingAccessService.requireOwnedMeeting(meetingId);
         ParticipantEntity participant = participantRepository.findById(participantId)
@@ -291,12 +285,12 @@ public class ParticipantService {
                     .findAllByParticipantIdOrderByRecordOrderAsc(participant.getId());
             ParticipantRecordMerger.MergeDecision decision = recordMerger.decide(
                     attributes,
-                    mergerValues(records)
+                    attributeCodec.mergerValues(records)
             );
             action = decision.action();
             switch (decision.action()) {
                 case SKIP -> {
-                    // Same dynamic record already exists. Keep data unchanged and tell the user.
+                    // 相同的动态记录已经存在，保持数据不变并提示用户。
                 }
                 case MERGE -> {
                     ParticipantRecordEntity target = records.stream()
@@ -306,7 +300,7 @@ public class ParticipantService {
                                     HttpStatus.INTERNAL_SERVER_ERROR,
                                     "待合并人员记录不存在"
                             ));
-                    target.setAttributesJson(writeAttributes(decision.mergedAttributes()));
+                    target.setAttributesJson(attributeCodec.write(decision.mergedAttributes()));
                     recordRepository.save(target);
                 }
                 case APPEND -> {
@@ -316,7 +310,7 @@ public class ParticipantService {
                             .mapToInt(ParticipantRecordEntity::getRecordOrder)
                             .max()
                             .orElse(0) + 1);
-                    record.setAttributesJson(writeAttributes(decision.mergedAttributes()));
+                    record.setAttributesJson(attributeCodec.write(decision.mergedAttributes()));
                     recordRepository.save(record);
                 }
                 default -> throw new IllegalStateException("Unsupported merge action: " + decision.action());
@@ -384,18 +378,6 @@ public class ParticipantService {
         });
     }
 
-    private List<ParticipantRecordMerger.RecordValue> mergerValues(
-            List<ParticipantRecordEntity> records
-    ) {
-        return records.stream()
-                .map(record -> new ParticipantRecordMerger.RecordValue(
-                        record.getId(),
-                        record.getRecordOrder(),
-                        readAttributes(record.getAttributesJson())
-                ))
-                .toList();
-    }
-
     private Map<String, String> canonicalAttributes(
             Map<String, String> incomingAttributes,
             Map<String, String> canonicalNames
@@ -441,26 +423,6 @@ public class ParticipantService {
 
     private Map<String, String> recordAttributes(ParticipantRecordInput record) {
         return record == null || record.attributes() == null ? Map.of() : record.attributes();
-    }
-
-    private Map<String, String> readAttributes(String json) {
-        if (json == null || json.isBlank()) {
-            return Map.of();
-        }
-        try {
-            return objectMapper.readValue(json, new TypeReference<>() {
-            });
-        } catch (Exception exception) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "人员动态记录格式不正确");
-        }
-    }
-
-    private String writeAttributes(Map<String, String> attributes) {
-        try {
-            return objectMapper.writeValueAsString(attributes);
-        } catch (Exception exception) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "人员动态记录无法保存");
-        }
     }
 
     private record CreateParticipantContext(

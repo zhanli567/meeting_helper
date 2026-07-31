@@ -5,16 +5,15 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
 /**
- * Represents the meeting element input record.
- *
- * @param id id
- * @param kind kind
- * @param name name
- * @param row row
- * @param column column
- * @param rowSpan row span
- * @param columnSpan column span
- * @param fillColor fill color
+ * MeetingElementInput 数据结构。
+ * @param id id 参数。
+ * @param kind kind 参数。
+ * @param name name 参数。
+ * @param row row 参数。
+ * @param column column 参数。
+ * @param rowSpan rowSpan 参数。
+ * @param columnSpan columnSpan 参数。
+ * @param fillColor fillColor 参数。
  */
 public record MeetingElementInput(
         String id,

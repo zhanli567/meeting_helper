@@ -126,6 +126,9 @@ class CodeStyleConventionTests {
                 continue;
             }
             String javadoc = javadocBefore(source, declarationStart);
+            if (!containsChinese(javadoc)) {
+                issues.add(location(file, source, declarationStart, "Javadoc must be written in Chinese"));
+            }
             if (matcher.group(2).startsWith("record")) {
                 issues.addAll(recordJavadocIssues(file, source, declarationStart, javadoc));
             } else if (matcher.group(2).endsWith("(")) {
@@ -218,6 +221,10 @@ class CodeStyleConventionTests {
             }
         }
         return false;
+    }
+
+    private static boolean containsChinese(String source) {
+        return Pattern.compile("[\\u4e00-\\u9fff]").matcher(source).find();
     }
 
     private static List<String> recordJavadocIssues(Path file, String source, int declarationStart, String javadoc) {

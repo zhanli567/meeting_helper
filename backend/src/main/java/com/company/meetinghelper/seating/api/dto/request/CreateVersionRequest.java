@@ -4,11 +4,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * Represents the create version request record.
- *
- * @param versionName version name
- * @param changeNote change note
- * @param automatic automatic
+ * CreateVersionRequest 数据结构。
+ * @param versionName versionName 参数。
+ * @param changeNote changeNote 参数。
+ * @param automatic automatic 参数。
  */
 public record CreateVersionRequest(
         @NotBlank @Size(max = 120) String versionName,

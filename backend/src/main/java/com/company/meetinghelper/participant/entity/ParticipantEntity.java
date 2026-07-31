@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Represents the participant entity class.
+ * ParticipantEntity 类。
  */
 @Getter
 @Setter

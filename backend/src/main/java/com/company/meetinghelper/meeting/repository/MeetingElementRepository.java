@@ -10,7 +10,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 /**
- * Represents the meeting element repository class.
+ * MeetingElementRepository 类。
  */
 @Repository
 public class MeetingElementRepository extends AbstractMyBatisRepository<MeetingElementEntity> {

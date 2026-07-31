@@ -22,6 +22,7 @@ import CanvasBoard from '@/components/CanvasBoard.vue'
 import CanvasViewport from '@/components/CanvasViewport.vue'
 import VenueElementPanel from '@/components/VenueElementPanel.vue'
 import VenueElementPicker from '@/components/VenueElementPicker.vue'
+import { scheduleCanvasCenter } from '@/utils/canvasSchedule'
 import {
   activeSelectionRect,
   appendHistorySnapshot,
@@ -918,7 +919,7 @@ function onGlobalPointerUp(event) {
   } else if (isPanning.value) {
     finishPan()
   } else {
-    // Pointer tracking may be attached after a cancelled or already-finished session.
+    // 指针监听可能在会话已取消或已结束后才绑定。
   }
   detachGlobalPointerTracking()
 }
@@ -978,21 +979,7 @@ function centerCanvas() {
 }
 
 function scheduleCenterCanvas() {
-  nextTick(centerCanvas)
-  const frame =
-    typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
-      ? window.requestAnimationFrame.bind(window)
-      : undefined
-  if (frame) {
-    frame(centerCanvas)
-  }
-  const defer =
-    typeof window !== 'undefined' && typeof window.setTimeout === 'function'
-      ? window.setTimeout.bind(window)
-      : globalThis.setTimeout
-  if (typeof defer === 'function') {
-    defer(centerCanvas, 0)
-  }
+  scheduleCanvasCenter(centerCanvas)
 }
 
 function centerLayout() {

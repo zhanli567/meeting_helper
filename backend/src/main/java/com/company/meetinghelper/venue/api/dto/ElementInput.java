@@ -6,15 +6,14 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
- * Represents the element input record.
- *
- * @param kind kind
- * @param name name
- * @param row row
- * @param column column
- * @param rowSpan row span
- * @param columnSpan column span
- * @param fillColor fill color
+ * ElementInput 数据结构。
+ * @param kind kind 参数。
+ * @param name name 参数。
+ * @param row row 参数。
+ * @param column column 参数。
+ * @param rowSpan rowSpan 参数。
+ * @param columnSpan columnSpan 参数。
+ * @param fillColor fillColor 参数。
  */
 public record ElementInput(
         @NotBlank String kind,

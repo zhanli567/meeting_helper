@@ -4,16 +4,15 @@ import com.company.meetinghelper.venue.api.dto.ElementInput;
 import java.util.List;
 
 /**
- * Represents the venue layout record.
- *
- * @param id id
- * @param location location
- * @param manualCapacity manual capacity
- * @param gridRows grid rows
- * @param gridColumns grid columns
- * @param seatCount seat count
- * @param rowVersion row version
- * @param elements elements
+ * VenueLayout 数据结构。
+ * @param id id 参数。
+ * @param location location 参数。
+ * @param manualCapacity manualCapacity 参数。
+ * @param gridRows gridRows 参数。
+ * @param gridColumns gridColumns 参数。
+ * @param seatCount seatCount 参数。
+ * @param rowVersion rowVersion 参数。
+ * @param elements elements 参数。
  */
 public record VenueLayout(
         String id,

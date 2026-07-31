@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
 /**
- * Represents the import preview store class.
+ * ImportPreviewStore 类。
  */
 @Component
 public class ImportPreviewStore {

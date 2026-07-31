@@ -7,7 +7,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * Represents the meeting mapper interface.
+ * MeetingMapper 接口。
  */
 public interface MeetingMapper extends BaseMapper<MeetingEntity> {
     @Select("""

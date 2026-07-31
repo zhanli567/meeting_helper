@@ -10,7 +10,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 /**
- * Represents the meeting participant field repository class.
+ * MeetingParticipantFieldRepository 类。
  */
 @Repository
 public class MeetingParticipantFieldRepository

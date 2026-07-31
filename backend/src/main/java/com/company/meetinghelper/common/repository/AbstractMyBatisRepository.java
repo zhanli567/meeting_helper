@@ -100,24 +100,22 @@ public abstract class AbstractMyBatisRepository<T extends AuditedEntity> {
      * 保留原JPA Repository的刷新调用契约；MyBatis写操作会立即发送SQL。
      */
     public void flush() {
-        // MyBatis does not keep a JPA-style persistence context.
+        // MyBatis 不维护 JPA 那种持久化上下文。
     }
 
 /**
- * Handles mapper.
- *
- * @return result
+ * mapper 方法。
+ * @return 返回结果。
  */
-    protected BaseMapper<T> mapper() {
+protected BaseMapper<T> mapper() {
         return mapper;
     }
 
 /**
- * Handles prepare insert.
- *
- * @param entity entity
+ * prepareInsert 方法。
+ * @param entity entity 参数。
  */
-    protected void prepareInsert(T entity) {
+protected void prepareInsert(T entity) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         String userId = currentUserId();
         String userName = currentUserName();
@@ -140,11 +138,10 @@ public abstract class AbstractMyBatisRepository<T extends AuditedEntity> {
     }
 
 /**
- * Handles prepare update.
- *
- * @param entity entity
+ * prepareUpdate 方法。
+ * @param entity entity 参数。
  */
-    protected void prepareUpdate(T entity) {
+protected void prepareUpdate(T entity) {
         entity.setUpdatedById(currentUserId());
         entity.setUpdatedByName(currentUserName());
         entity.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));

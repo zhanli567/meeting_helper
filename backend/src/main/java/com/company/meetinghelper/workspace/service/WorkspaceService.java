@@ -38,7 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Represents the workspace service class.
+ * WorkspaceService 类。
  */
 @Service
 public class WorkspaceService {

@@ -158,7 +158,7 @@ test('场馆新建保留信息和默认布局草稿并在第二步统一保存',
   assert.match(source, /<VenueInfoForm/)
   assert.match(source, /<VenueLayoutEditor/)
   assert.match(source, /onBeforeRouteLeave/)
-  assert.match(source, /beforeunload/)
+  assert.match(source, /useBeforeUnloadGuard\(\(\) => dirty\.value\)/)
   assert.match(source, /venueApi\.create\(toCreateVenuePayload\(info,\s*layout\)\)/)
   assert.doesNotMatch(source, /画布行数|画布列数/)
 })

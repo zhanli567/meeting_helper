@@ -3,28 +3,27 @@ package com.company.meetinghelper.venue.api.dto.response;
 import java.time.OffsetDateTime;
 
 /**
- * Represents the venue detail record.
- *
- * @param id id
- * @param location location
- * @param campus campus
- * @param mainScreenResolution main screen resolution
- * @param stageDimensions stage dimensions
- * @param manualCapacity manual capacity
- * @param seatCount seat count
- * @param contactInfo contact info
- * @param bookingUrl booking url
- * @param meetingRoomFunctions meeting room functions
- * @param servicesProvided services provided
- * @param description description
- * @param remarks remarks
- * @param gridRows grid rows
- * @param gridColumns grid columns
- * @param createdByName created by name
- * @param createdAt created at
- * @param updatedByName updated by name
- * @param updatedAt updated at
- * @param rowVersion row version
+ * VenueDetail 数据结构。
+ * @param id id 参数。
+ * @param location location 参数。
+ * @param campus campus 参数。
+ * @param mainScreenResolution mainScreenResolution 参数。
+ * @param stageDimensions stageDimensions 参数。
+ * @param manualCapacity manualCapacity 参数。
+ * @param seatCount seatCount 参数。
+ * @param contactInfo contactInfo 参数。
+ * @param bookingUrl bookingUrl 参数。
+ * @param meetingRoomFunctions meetingRoomFunctions 参数。
+ * @param servicesProvided servicesProvided 参数。
+ * @param description description 参数。
+ * @param remarks remarks 参数。
+ * @param gridRows gridRows 参数。
+ * @param gridColumns gridColumns 参数。
+ * @param createdByName createdByName 参数。
+ * @param createdAt createdAt 参数。
+ * @param updatedByName updatedByName 参数。
+ * @param updatedAt updatedAt 参数。
+ * @param rowVersion rowVersion 参数。
  */
 public record VenueDetail(
         String id,

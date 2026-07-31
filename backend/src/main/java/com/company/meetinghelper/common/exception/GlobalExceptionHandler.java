@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 /**
- * Represents the global exception handler class.
+ * GlobalExceptionHandler 类。
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -49,17 +49,7 @@ public class GlobalExceptionHandler {
                 .findFirst()
                 .map(error -> error.getField() + "：" + error.getDefaultMessage())
                 .orElse("请求参数不正确");
-        LOGGER.warn(
-                "[API][EXCEPTION] requestId={} method={} path={} status={} exception={} message={}",
-                request.getAttribute(ApiAccessLogFilter.REQUEST_ID_ATTRIBUTE),
-                request.getMethod(),
-                request.getRequestURI(),
-                HttpStatus.BAD_REQUEST.value(),
-                exception.getClass().getSimpleName(),
-                message
-        );
-        return ResponseEntity.badRequest()
-                .body(ApiResponse.failure(HttpStatus.BAD_REQUEST.value(), message));
+        return validationFailure(exception, request, message);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)

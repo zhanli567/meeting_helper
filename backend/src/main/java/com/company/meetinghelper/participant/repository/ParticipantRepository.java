@@ -9,7 +9,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 /**
- * Represents the participant repository class.
+ * ParticipantRepository 类。
  */
 @Repository
 public class ParticipantRepository extends AbstractMyBatisRepository<ParticipantEntity> {

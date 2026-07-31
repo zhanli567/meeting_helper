@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Represents the seating plan entity class.
+ * SeatingPlanEntity 类。
  */
 @Getter
 @Setter

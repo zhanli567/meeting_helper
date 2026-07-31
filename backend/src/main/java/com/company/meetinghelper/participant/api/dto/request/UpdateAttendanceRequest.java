@@ -4,9 +4,8 @@ import com.company.meetinghelper.participant.entity.AttendanceStatus;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * Represents the update attendance request record.
- *
- * @param attendanceStatus attendance status
+ * UpdateAttendanceRequest 数据结构。
+ * @param attendanceStatus attendanceStatus 参数。
  */
 public record UpdateAttendanceRequest(@NotNull AttendanceStatus attendanceStatus) {
 }

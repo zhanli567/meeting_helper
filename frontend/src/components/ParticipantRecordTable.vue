@@ -80,7 +80,7 @@ function addColumn(label = '') {
       custom: true,
     })
   } else {
-    // Existing fields only need the record attribute backfill below.
+    // 已有字段只需要后续从记录属性中回填。
   }
   records.value.forEach((record) => {
     if (!Object.prototype.hasOwnProperty.call(record.attributes, id)) {

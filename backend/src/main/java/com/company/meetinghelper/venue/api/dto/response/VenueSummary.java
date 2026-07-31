@@ -3,17 +3,16 @@ package com.company.meetinghelper.venue.api.dto.response;
 import java.time.OffsetDateTime;
 
 /**
- * Represents the venue summary record.
- *
- * @param id id
- * @param location location
- * @param campus campus
- * @param manualCapacity manual capacity
- * @param seatCount seat count
- * @param usable usable
- * @param updatedByName updated by name
- * @param updatedAt updated at
- * @param rowVersion row version
+ * VenueSummary 数据结构。
+ * @param id id 参数。
+ * @param location location 参数。
+ * @param campus campus 参数。
+ * @param manualCapacity manualCapacity 参数。
+ * @param seatCount seatCount 参数。
+ * @param usable usable 参数。
+ * @param updatedByName updatedByName 参数。
+ * @param updatedAt updatedAt 参数。
+ * @param rowVersion rowVersion 参数。
  */
 public record VenueSummary(
         String id,

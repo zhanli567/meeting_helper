@@ -346,7 +346,7 @@ function onSeatClick(element) {
     emit('seatClick', element)
   }
   else {
-    // Assigned plan items without a participant do not open seat actions.
+    // 没有绑定人员的已排项目不打开座位操作。
   }
 }
 function selectReservedRegionFromSeat(element) {

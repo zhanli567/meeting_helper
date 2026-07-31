@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Represents the plan item target entity class.
+ * PlanItemTargetEntity 类。
  */
 @Getter
 @Setter

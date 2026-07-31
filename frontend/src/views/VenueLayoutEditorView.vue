@@ -1,10 +1,11 @@
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { venueApi } from '@/api/venue'
 import { apiErrorMessage } from '@/api/http'
 import VenueLayoutEditor from '@/components/VenueLayoutEditor.vue'
+import { useBeforeUnloadGuard } from '@/composables/useBeforeUnloadGuard'
 import { DEFAULT_CANVAS, toElementPayload } from '@/utils/venueModel'
 
 const route = useRoute()
@@ -90,19 +91,10 @@ async function saveLayout() {
   }
 }
 
-function beforeUnload(event) {
-  if (!dirty.value) {
-    return
-  }
-  event.preventDefault()
-  event.returnValue = ''
-}
-
 onMounted(() => {
-  window.addEventListener('beforeunload', beforeUnload)
   loadVenue()
 })
-onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
+useBeforeUnloadGuard(() => dirty.value)
 
 onBeforeRouteLeave(() => {
   if (!dirty.value) {

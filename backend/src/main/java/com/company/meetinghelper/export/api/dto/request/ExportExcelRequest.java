@@ -3,32 +3,29 @@ package com.company.meetinghelper.export.api.dto.request;
 import java.util.List;
 
 /**
- * Represents the export excel request record.
- *
- * @param versionId version id
- * @param sheets sheets
+ * ExportExcelRequest 数据结构。
+ * @param versionId versionId 参数。
+ * @param sheets sheets 参数。
  */
 public record ExportExcelRequest(
         String versionId,
         SheetSelection sheets
 ) {
 /**
- * Handles normalized sheets.
- *
- * @return result
+ * normalizedSheets 方法。
+ * @return 返回结果。
  */
-    public SheetSelection normalizedSheets() {
+public SheetSelection normalizedSheets() {
         return sheets == null ? SheetSelection.defaults() : sheets.withDefaults();
     }
 
 /**
- * Represents the sheet selection record.
- *
- * @param participants participants
- * @param layout layout
- * @param seatDetails seat details
+ * SheetSelection 数据结构。
+ * @param participants participants 参数。
+ * @param layout layout 参数。
+ * @param seatDetails seatDetails 参数。
  */
-    public record SheetSelection(
+public record SheetSelection(
             ParticipantSheet participants,
             LayoutSheet layout,
             SeatDetailSheet seatDetails
@@ -51,14 +48,13 @@ public record ExportExcelRequest(
     }
 
 /**
- * Represents the participant sheet record.
- *
- * @param enabled enabled
- * @param fieldCodes field codes
- * @param includeAttendance include attendance
- * @param includeSeatLabel include seat label
+ * ParticipantSheet 数据结构。
+ * @param enabled enabled 参数。
+ * @param fieldCodes fieldCodes 参数。
+ * @param includeAttendance includeAttendance 参数。
+ * @param includeSeatLabel includeSeatLabel 参数。
  */
-    public record ParticipantSheet(
+public record ParticipantSheet(
             Boolean enabled,
             List<String> fieldCodes,
             Boolean includeAttendance,
@@ -79,14 +75,13 @@ public record ExportExcelRequest(
     }
 
 /**
- * Represents the layout sheet record.
- *
- * @param enabled enabled
- * @param fieldCodes field codes
- * @param colorFieldCodes color field codes
- * @param styleRules style rules
+ * LayoutSheet 数据结构。
+ * @param enabled enabled 参数。
+ * @param fieldCodes fieldCodes 参数。
+ * @param colorFieldCodes colorFieldCodes 参数。
+ * @param styleRules styleRules 参数。
  */
-    public record LayoutSheet(
+public record LayoutSheet(
             Boolean enabled,
             List<String> fieldCodes,
             List<String> colorFieldCodes,
@@ -111,26 +106,24 @@ public record ExportExcelRequest(
     }
 
 /**
- * Represents the style rule record.
- *
- * @param fieldCode field code
- * @param value value
- * @param backgroundColor background color
- * @param textColor text color
+ * StyleRule 数据结构。
+ * @param fieldCode fieldCode 参数。
+ * @param value value 参数。
+ * @param backgroundColor backgroundColor 参数。
+ * @param textColor textColor 参数。
  */
-    public record StyleRule(String fieldCode, String value, String backgroundColor, String textColor) {
+public record StyleRule(String fieldCode, String value, String backgroundColor, String textColor) {
     }
 
 /**
- * Represents the seat detail sheet record.
- *
- * @param enabled enabled
- * @param fieldCodes field codes
- * @param includeOccupancyType include occupancy type
- * @param includeRegionName include region name
- * @param includeParticipant include participant
+ * SeatDetailSheet 数据结构。
+ * @param enabled enabled 参数。
+ * @param fieldCodes fieldCodes 参数。
+ * @param includeOccupancyType includeOccupancyType 参数。
+ * @param includeRegionName includeRegionName 参数。
+ * @param includeParticipant includeParticipant 参数。
  */
-    public record SeatDetailSheet(
+public record SeatDetailSheet(
             Boolean enabled,
             List<String> fieldCodes,
             Boolean includeOccupancyType,

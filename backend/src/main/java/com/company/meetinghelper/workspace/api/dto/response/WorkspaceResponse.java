@@ -5,16 +5,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Represents the workspace response record.
- *
- * @param meeting meeting
- * @param plan plan
- * @param layout layout
- * @param participants participants
- * @param items items
- * @param versions versions
- * @param fieldDefinitions field definitions
- * @param styleRules style rules
+ * WorkspaceResponse 数据结构。
+ * @param meeting meeting 参数。
+ * @param plan plan 参数。
+ * @param layout layout 参数。
+ * @param participants participants 参数。
+ * @param items items 参数。
+ * @param versions versions 参数。
+ * @param fieldDefinitions fieldDefinitions 参数。
+ * @param styleRules styleRules 参数。
  */
 public record WorkspaceResponse(
         MeetingView meeting,
@@ -27,17 +26,16 @@ public record WorkspaceResponse(
         List<StyleRuleView> styleRules
 ) {
 /**
- * Represents the meeting view record.
- *
- * @param id id
- * @param name name
- * @param status status
- * @param layoutName layout name
- * @param layoutVersion layout version
- * @param updatedAt updated at
- * @param updatedByName updated by name
+ * MeetingView 数据结构。
+ * @param id id 参数。
+ * @param name name 参数。
+ * @param status status 参数。
+ * @param layoutName layoutName 参数。
+ * @param layoutVersion layoutVersion 参数。
+ * @param updatedAt updatedAt 参数。
+ * @param updatedByName updatedByName 参数。
  */
-    public record MeetingView(
+public record MeetingView(
             String id,
             String name,
             String status,
@@ -49,39 +47,36 @@ public record WorkspaceResponse(
     }
 
 /**
- * Represents the plan view record.
- *
- * @param id id
- * @param name name
- * @param status status
- * @param currentVersionNo current version no
+ * PlanView 数据结构。
+ * @param id id 参数。
+ * @param name name 参数。
+ * @param status status 参数。
+ * @param currentVersionNo currentVersionNo 参数。
  */
-    public record PlanView(String id, String name, String status, int currentVersionNo) {
+public record PlanView(String id, String name, String status, int currentVersionNo) {
     }
 
 /**
- * Represents the layout view record.
- *
- * @param gridRows grid rows
- * @param gridColumns grid columns
- * @param elements elements
+ * LayoutView 数据结构。
+ * @param gridRows gridRows 参数。
+ * @param gridColumns gridColumns 参数。
+ * @param elements elements 参数。
  */
-    public record LayoutView(int gridRows, int gridColumns, List<ElementView> elements) {
+public record LayoutView(int gridRows, int gridColumns, List<ElementView> elements) {
     }
 
 /**
- * Represents the element view record.
- *
- * @param id id
- * @param kind kind
- * @param name name
- * @param row row
- * @param column column
- * @param rowSpan row span
- * @param columnSpan column span
- * @param fillColor fill color
+ * ElementView 数据结构。
+ * @param id id 参数。
+ * @param kind kind 参数。
+ * @param name name 参数。
+ * @param row row 参数。
+ * @param column column 参数。
+ * @param rowSpan rowSpan 参数。
+ * @param columnSpan columnSpan 参数。
+ * @param fillColor fillColor 参数。
  */
-    public record ElementView(
+public record ElementView(
             String id,
             String kind,
             String name,
@@ -94,19 +89,18 @@ public record WorkspaceResponse(
     }
 
 /**
- * Represents the participant view record.
- *
- * @param id id
- * @param employeeNo employee no
- * @param name name
- * @param primaryAttributes primary attributes
- * @param attributeValues attribute values
- * @param records records
- * @param attendanceStatus attendance status
- * @param locked locked
- * @param assignedElementId assigned element id
+ * ParticipantView 数据结构。
+ * @param id id 参数。
+ * @param employeeNo employeeNo 参数。
+ * @param name name 参数。
+ * @param primaryAttributes primaryAttributes 参数。
+ * @param attributeValues attributeValues 参数。
+ * @param records records 参数。
+ * @param attendanceStatus attendanceStatus 参数。
+ * @param locked locked 参数。
+ * @param assignedElementId assignedElementId 参数。
  */
-    public record ParticipantView(
+public record ParticipantView(
             String id,
             String employeeNo,
             String name,
@@ -120,13 +114,12 @@ public record WorkspaceResponse(
     }
 
 /**
- * Represents the participant record view record.
- *
- * @param id id
- * @param recordOrder record order
- * @param attributes attributes
+ * ParticipantRecordView 数据结构。
+ * @param id id 参数。
+ * @param recordOrder recordOrder 参数。
+ * @param attributes attributes 参数。
  */
-    public record ParticipantRecordView(
+public record ParticipantRecordView(
             String id,
             int recordOrder,
             Map<String, String> attributes
@@ -134,19 +127,18 @@ public record WorkspaceResponse(
     }
 
 /**
- * Represents the plan item view record.
- *
- * @param id id
- * @param type type
- * @param participantId participant id
- * @param label label
- * @param locked locked
- * @param backgroundColor background color
- * @param textColor text color
- * @param bold bold
- * @param targetElementIds target element ids
+ * PlanItemView 数据结构。
+ * @param id id 参数。
+ * @param type type 参数。
+ * @param participantId participantId 参数。
+ * @param label label 参数。
+ * @param locked locked 参数。
+ * @param backgroundColor backgroundColor 参数。
+ * @param textColor textColor 参数。
+ * @param bold bold 参数。
+ * @param targetElementIds targetElementIds 参数。
  */
-    public record PlanItemView(
+public record PlanItemView(
             String id,
             String type,
             String participantId,
@@ -160,19 +152,18 @@ public record WorkspaceResponse(
     }
 
 /**
- * Represents the version view record.
- *
- * @param id id
- * @param versionNo version no
- * @param versionName version name
- * @param changeNote change note
- * @param automatic automatic
- * @param assignedCount assigned count
- * @param unassignedCount unassigned count
- * @param createdAt created at
- * @param createdByName created by name
+ * VersionView 数据结构。
+ * @param id id 参数。
+ * @param versionNo versionNo 参数。
+ * @param versionName versionName 参数。
+ * @param changeNote changeNote 参数。
+ * @param automatic automatic 参数。
+ * @param assignedCount assignedCount 参数。
+ * @param unassignedCount unassignedCount 参数。
+ * @param createdAt createdAt 参数。
+ * @param createdByName createdByName 参数。
  */
-    public record VersionView(
+public record VersionView(
             String id,
             int versionNo,
             String versionName,
@@ -186,17 +177,16 @@ public record WorkspaceResponse(
     }
 
 /**
- * Represents the field definition view record.
- *
- * @param code code
- * @param label label
- * @param type type
- * @param searchable searchable
- * @param filterable filterable
- * @param sortable sortable
- * @param cardVisible card visible
+ * FieldDefinitionView 数据结构。
+ * @param code code 参数。
+ * @param label label 参数。
+ * @param type type 参数。
+ * @param searchable searchable 参数。
+ * @param filterable filterable 参数。
+ * @param sortable sortable 参数。
+ * @param cardVisible cardVisible 参数。
  */
-    public record FieldDefinitionView(
+public record FieldDefinitionView(
             String code,
             String label,
             String type,
@@ -208,13 +198,12 @@ public record WorkspaceResponse(
     }
 
 /**
- * Represents the style rule view record.
- *
- * @param fieldCode field code
- * @param value value
- * @param backgroundColor background color
- * @param textColor text color
+ * StyleRuleView 数据结构。
+ * @param fieldCode fieldCode 参数。
+ * @param value value 参数。
+ * @param backgroundColor backgroundColor 参数。
+ * @param textColor textColor 参数。
  */
-    public record StyleRuleView(String fieldCode, String value, String backgroundColor, String textColor) {
+public record StyleRuleView(String fieldCode, String value, String backgroundColor, String textColor) {
     }
 }

@@ -6,7 +6,7 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Param;
 
 /**
- * Represents the plan item mapper interface.
+ * PlanItemMapper 接口。
  */
 public interface PlanItemMapper extends BaseMapper<PlanItemEntity> {
     @Delete("delete from t_plan_items where id = #{id}")

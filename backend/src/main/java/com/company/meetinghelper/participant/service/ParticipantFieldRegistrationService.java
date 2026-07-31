@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Represents the participant field registration service class.
+ * ParticipantFieldRegistrationService 类。
  */
 @Service
 public class ParticipantFieldRegistrationService {
