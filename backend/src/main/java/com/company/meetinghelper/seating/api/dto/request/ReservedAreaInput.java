@@ -5,6 +5,16 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
 import java.util.List;
 
+/**
+ * Represents the reserved area input record.
+ *
+ * @param id id
+ * @param label label
+ * @param backgroundColor background color
+ * @param textColor text color
+ * @param bold bold
+ * @param targetElementIds target element ids
+ */
 public record ReservedAreaInput(
         String id,
         @NotBlank String label,

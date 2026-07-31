@@ -8,6 +8,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
+/**
+ * Represents the import preview store class.
+ */
 @Component
 public class ImportPreviewStore {
     private final Map<String, StoredPreview> previews = new ConcurrentHashMap<>();

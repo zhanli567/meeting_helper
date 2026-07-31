@@ -7,6 +7,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Represents the meeting entity class.
+ */
 @Getter
 @Setter
 @NoArgsConstructor

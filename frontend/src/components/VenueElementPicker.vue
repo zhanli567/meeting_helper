@@ -74,7 +74,9 @@ function chooseSeat(mode) {
 
 function createCustom() {
   const name = saveCustomElementName(customName.value)
-  if (!name) return
+  if (!name) {
+    return
+  }
   refreshSuggestions()
   emit('choose', choicePayload(suggestions.value.find((suggestion) => suggestion.name === name)))
 }

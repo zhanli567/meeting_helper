@@ -30,7 +30,9 @@ function updateLayout(value) {
 }
 
 async function continueToLayout() {
-  if (validatingInfo.value) return
+  if (validatingInfo.value) {
+    return
+  }
   validatingInfo.value = true
   try {
     await formRef.value?.validate()
@@ -51,7 +53,9 @@ function back() {
 }
 
 async function saveVenue() {
-  if (saving.value) return
+  if (saving.value) {
+    return
+  }
   saving.value = true
   try {
     await venueApi.create(toCreateVenuePayload(info, layout))
@@ -66,7 +70,9 @@ async function saveVenue() {
 }
 
 function beforeUnload(event) {
-  if (!dirty.value) return
+  if (!dirty.value) {
+    return
+  }
   event.preventDefault()
   event.returnValue = ''
 }
@@ -75,7 +81,9 @@ onMounted(() => window.addEventListener('beforeunload', beforeUnload))
 onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
 
 onBeforeRouteLeave(() => {
-  if (!dirty.value) return true
+  if (!dirty.value) {
+    return true
+  }
   return window.confirm('当前场馆信息尚未保存，确认离开吗？')
 })
 </script>

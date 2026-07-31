@@ -17,7 +17,9 @@ function getViewportElement() {
 
 function centerCanvas() {
   const viewport = viewportRef.value
-  if (!viewport) return
+  if (!viewport) {
+    return
+  }
   viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2)
   viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 2)
 }
@@ -28,12 +30,16 @@ function centerCanvasAfterRender() {
     typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
       ? window.requestAnimationFrame.bind(window)
       : undefined
-  if (frame) frame(centerCanvas)
+  if (frame) {
+    frame(centerCanvas)
+  }
   const defer =
     typeof window !== 'undefined' && typeof window.setTimeout === 'function'
       ? window.setTimeout.bind(window)
       : globalThis.setTimeout
-  if (typeof defer === 'function') defer(centerCanvas, 0)
+  if (typeof defer === 'function') {
+    defer(centerCanvas, 0)
+  }
 }
 
 defineExpose({

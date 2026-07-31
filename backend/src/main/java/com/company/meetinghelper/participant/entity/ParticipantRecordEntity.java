@@ -7,6 +7,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Represents the participant record entity class.
+ */
 @Getter
 @Setter
 @NoArgsConstructor

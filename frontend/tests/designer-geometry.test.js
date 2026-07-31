@@ -202,15 +202,39 @@ test('画布四边拖拽换算尺寸并遵守最小边长', () => {
   const size = { rows: 20, columns: 30 }
 
   assert.deepEqual(
-    designerGeometry.canvasSizeFromPointer(size, 'east', 88, 0, 44, 1, 5),
+    designerGeometry.canvasSizeFromPointer({
+      start: size,
+      direction: 'east',
+      deltaX: 88,
+      deltaY: 0,
+      cellSize: 44,
+      zoom: 1,
+      minimumSize: 5,
+    }),
     { rows: 20, columns: 32 },
   )
   assert.deepEqual(
-    designerGeometry.canvasSizeFromPointer(size, 'north', 0, 880, 44, 1, 5),
+    designerGeometry.canvasSizeFromPointer({
+      start: size,
+      direction: 'north',
+      deltaX: 0,
+      deltaY: 880,
+      cellSize: 44,
+      zoom: 1,
+      minimumSize: 5,
+    }),
     { rows: 5, columns: 30 },
   )
   assert.deepEqual(
-    designerGeometry.canvasSizeFromPointer(size, 'west', -88, 0, 44, 1, 5),
+    designerGeometry.canvasSizeFromPointer({
+      start: size,
+      direction: 'west',
+      deltaX: -88,
+      deltaY: 0,
+      cellSize: 44,
+      zoom: 1,
+      minimumSize: 5,
+    }),
     { rows: 20, columns: 32 },
   )
 })

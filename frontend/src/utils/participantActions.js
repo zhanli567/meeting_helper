@@ -18,7 +18,9 @@ export function canStartParticipantDrag({ readonly, locked, participant }) {
 }
 
 export function createParticipantDragPreview(participant) {
-  if (typeof document === 'undefined') return undefined
+  if (typeof document === 'undefined') {
+    return undefined
+  }
   const preview = document.createElement('div')
   preview.className = 'participant-drag-preview'
   preview.textContent = participant?.employeeNo
@@ -33,7 +35,9 @@ export function disposeParticipantDragPreview(preview) {
 }
 
 function scheduleParticipantDragPreviewDisposal(preview) {
-  if (!preview) return
+  if (!preview) {
+    return
+  }
   const cleanup = () => disposeParticipantDragPreview(preview)
   if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
     window.requestAnimationFrame(cleanup)
@@ -72,11 +76,15 @@ export function startParticipantDrag({
 }
 
 export function dropParticipantToPending({ event, readonly, onUnassign, onDrop }) {
-  if (readonly) return false
+  if (readonly) {
+    return false
+  }
   event.preventDefault()
   onDrop()
   const participantId = event.dataTransfer?.getData('text/participant-id')
-  if (!participantId) return false
+  if (!participantId) {
+    return false
+  }
   onUnassign(participantId)
   return true
 }
@@ -91,13 +99,17 @@ export function resolveParticipantPage(currentPage, total, pageSize) {
 }
 
 export function requestParticipantAttendance({ readonly, participant, emit }) {
-  if (readonly) return false
+  if (readonly) {
+    return false
+  }
   emit('attendance', participant, isTemporarilyAbsent(participant) ? 'PRESENT' : 'TEMPORARILY_ABSENT')
   return true
 }
 
 export function requestParticipantRemoval({ readonly, participant, emit }) {
-  if (readonly) return false
+  if (readonly) {
+    return false
+  }
   emit('remove', participant)
   return true
 }

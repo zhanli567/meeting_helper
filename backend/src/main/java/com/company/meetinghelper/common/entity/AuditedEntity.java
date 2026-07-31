@@ -8,6 +8,9 @@ import lombok.Setter;
 
 import java.time.OffsetDateTime;
 
+/**
+ * Represents the audited entity class.
+ */
 @Getter
 @Setter
 public abstract class AuditedEntity {

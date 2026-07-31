@@ -15,6 +15,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 30)
+/**
+ * Represents the api access log filter class.
+ */
 public class ApiAccessLogFilter extends OncePerRequestFilter {
 
     public static final String REQUEST_ID_ATTRIBUTE = ApiAccessLogFilter.class.getName() + ".requestId";

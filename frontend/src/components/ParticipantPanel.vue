@@ -53,7 +53,9 @@ const paged = computed(() => {
   return paginateParticipants(filtered.value, currentPage.value, pageSize.value)
 })
 const grouped = computed(() => {
-  if (!groupField.value) return [{ key: '', label: '', people: paged.value }]
+  if (!groupField.value) {
+    return [{ key: '', label: '', people: paged.value }]
+  }
   return groupParticipants(paged.value, groupField.value)
 })
 watch([tab, search, groupField], () => {
@@ -62,7 +64,9 @@ watch([tab, search, groupField], () => {
 watch(
   () => props.readonly,
   (readonly) => {
-    if (readonly) tab.value = 'all'
+    if (readonly) {
+      tab.value = 'all'
+    }
   },
   { immediate: true },
 )
@@ -102,8 +106,12 @@ function participantDynamicSummary(person) {
   return participantSummary(person, props.fieldDefinitions)
 }
 function participantStatus(person) {
-  if (isTemporarilyAbsent(person)) return 'absent'
-  if (person.assignedElementId) return 'assigned'
+  if (isTemporarilyAbsent(person)) {
+    return 'absent'
+  }
+  if (person.assignedElementId) {
+    return 'assigned'
+  }
   return 'pending'
 }
 function participantStatusTitle(person) {
@@ -117,13 +125,19 @@ function participantAction(person) {
   return props.busyActions?.[person.id] || ''
 }
 function dragOverPanel(event) {
-  if (props.readonly) return
+  if (props.readonly) {
+    return
+  }
   event.preventDefault()
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
   dropActive.value = true
 }
 function leavePanel(event) {
-  if (!event.currentTarget.contains(event.relatedTarget)) dropActive.value = false
+  if (!event.currentTarget.contains(event.relatedTarget)) {
+    dropActive.value = false
+  }
 }
 </script>
 

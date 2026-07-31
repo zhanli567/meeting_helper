@@ -22,13 +22,17 @@ const submitting = ref(false)
 watch(
   () => [visible.value, props.venue],
   ([isVisible, venue]) => {
-    if (isVisible && venue) Object.assign(form, emptyVenueInfo(), normalizeVenueInfo(venue))
+    if (isVisible && venue) {
+      Object.assign(form, emptyVenueInfo(), normalizeVenueInfo(venue))
+    }
   },
   { immediate: true },
 )
 
 async function submit() {
-  if (!props.venue || submitting.value) return
+  if (!props.venue || submitting.value) {
+    return
+  }
   try {
     await formRef.value?.validate()
   } catch {

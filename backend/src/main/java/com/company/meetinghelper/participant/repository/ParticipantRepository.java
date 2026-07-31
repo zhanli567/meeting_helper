@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
+/**
+ * Represents the participant repository class.
+ */
 @Repository
 public class ParticipantRepository extends AbstractMyBatisRepository<ParticipantEntity> {
     private final ParticipantMapper participantMapper;

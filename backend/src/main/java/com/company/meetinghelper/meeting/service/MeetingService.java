@@ -41,6 +41,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Represents the meeting service class.
+ */
 @Service
 public class MeetingService {
     private final MeetingRepository meetingRepository;

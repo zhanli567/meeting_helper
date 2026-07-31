@@ -63,8 +63,11 @@ function createHostRenderer() {
   const insert = (child, parent, anchor) => {
     child.parent = parent
     const index = anchor ? parent.children.indexOf(anchor) : -1
-    if (index < 0) parent.children.push(child)
-    else parent.children.splice(index, 0, child)
+    if (index < 0) {
+      parent.children.push(child)
+    } else {
+      parent.children.splice(index, 0, child)
+    }
   }
   return createRenderer({
     patchProp(element, key, _previous, next) {
@@ -73,7 +76,9 @@ function createHostRenderer() {
     insert,
     remove(child) {
       const index = child.parent?.children.indexOf(child) ?? -1
-      if (index >= 0) child.parent.children.splice(index, 1)
+      if (index >= 0) {
+        child.parent.children.splice(index, 1)
+      }
       child.parent = undefined
     },
     createElement: (tag) => new HostElement(tag),
@@ -196,8 +201,11 @@ const CheckboxStub = defineComponent({
         {
           'aria-checked': group ? group.selected(props.label) : props.modelValue,
           onClick: () => {
-            if (group) group.toggle(props.label)
-            else emit('update:modelValue', !props.modelValue)
+            if (group) {
+              group.toggle(props.label)
+            } else {
+              emit('update:modelValue', !props.modelValue)
+            }
           },
         },
         slots.default?.(),
@@ -210,7 +218,9 @@ function allNodes(node) {
 }
 
 function nodeText(node) {
-  if (node.text != null) return String(node.text)
+  if (node.text != null) {
+    return String(node.text)
+  }
   return (node.children || []).map(nodeText).join('')
 }
 

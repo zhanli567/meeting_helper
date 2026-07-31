@@ -33,6 +33,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Represents the participant service class.
+ */
 @Service
 public class ParticipantService {
     private final MeetingAccessService meetingAccessService;
@@ -70,9 +73,38 @@ public class ParticipantService {
         this.objectMapper = objectMapper;
     }
 
+/**
+ * Handles create.
+ *
+ * @param meetingId meeting id
+ * @param request request
+ * @return result
+ */
     @Transactional
     public ParticipantResult create(String meetingId, CreateParticipantRequest request) {
         meetingAccessService.requireOwnedMeeting(meetingId);
+        CreateParticipantContext context = createParticipantContext(meetingId, request);
+        ParticipantEntity existing = participantRepository
+                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, context.employeeNo())
+                .orElse(null);
+        if (existing != null) {
+            return createExistingParticipantResult(meetingId, existing, context, request.targetElementId());
+        }
+
+        ParticipantEntity participant = saveNewParticipant(meetingId, context);
+        saveInitialRecord(participant.getId(), context.attributes());
+        boolean assigned = assignTargetElementIfPresent(
+                meetingId,
+                participant.getId(),
+                request.targetElementId()
+        );
+        return createdParticipantResult(participant, assigned);
+    }
+
+    private CreateParticipantContext createParticipantContext(
+            String meetingId,
+            CreateParticipantRequest request
+    ) {
         Map<String,String> incomingAttributes = request.attributes();
         Map<String,String> canonicalNames = fieldRegistrationService.registerFields(
                 meetingId,
@@ -81,46 +113,59 @@ public class ParticipantService {
         String employeeNo = request.employeeNo().trim();
         String name = request.name().trim();
         Map<String,String> attributes = canonicalAttributes(incomingAttributes, canonicalNames);
+        return new CreateParticipantContext(employeeNo, name, attributes);
+    }
 
-        ParticipantEntity existing = participantRepository
-                .findByMeetingIdAndEmployeeNoIgnoreCase(meetingId, employeeNo)
-                .orElse(null);
-        if (existing != null) {
-            if (!existing.getName().equals(name)) {
-                throw new ApiException(
-                        HttpStatus.CONFLICT,
-                        "工号" + employeeNo + "已对应人员" + existing.getName()
-                );
-            }
-            return updateExistingParticipantRecord(
-                    meetingId,
-                    existing,
-                    attributes,
-                    request.targetElementId()
+    private ParticipantResult createExistingParticipantResult(
+            String meetingId,
+            ParticipantEntity existing,
+            CreateParticipantContext context,
+            String targetElementId
+    ) {
+        if (!existing.getName().equals(context.name())) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "工号" + context.employeeNo() + "已对应人员" + existing.getName()
             );
         }
+        return updateExistingParticipantRecord(
+                meetingId,
+                existing,
+                context.attributes(),
+                targetElementId
+        );
+    }
 
+    private ParticipantEntity saveNewParticipant(
+            String meetingId,
+            CreateParticipantContext context
+    ) {
         ParticipantEntity participant = new ParticipantEntity();
         participant.setMeetingId(meetingId);
-        participant.setEmployeeNo(employeeNo);
-        participant.setName(name);
+        participant.setEmployeeNo(context.employeeNo());
+        participant.setName(context.name());
         try {
             participantRepository.saveAndFlush(participant);
         } catch (DataIntegrityViolationException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "该工号已在会议名单中");
         }
+        return participant;
+    }
+
+    private void saveInitialRecord(String participantId, Map<String, String> attributes) {
         if (!attributes.isEmpty()) {
             ParticipantRecordEntity record = new ParticipantRecordEntity();
-            record.setParticipantId(participant.getId());
+            record.setParticipantId(participantId);
             record.setRecordOrder(1);
             record.setAttributesJson(writeAttributes(attributes));
             recordRepository.save(record);
         }
-        boolean assigned = assignTargetElementIfPresent(
-                meetingId,
-                participant.getId(),
-                request.targetElementId()
-        );
+    }
+
+    private ParticipantResult createdParticipantResult(
+            ParticipantEntity participant,
+            boolean assigned
+    ) {
         return new ParticipantResult(
                 participant.getId(),
                 participant.getEmployeeNo(),
@@ -130,6 +175,14 @@ public class ParticipantService {
         );
     }
 
+/**
+ * Handles update.
+ *
+ * @param meetingId meeting id
+ * @param participantId participant id
+ * @param request request
+ * @return result
+ */
     @Transactional
     public ParticipantResult update(
             String meetingId,
@@ -183,6 +236,13 @@ public class ParticipantService {
         return new ParticipantResult(participant.getId(), participant.getEmployeeNo(), participant.getName());
     }
 
+/**
+ * Handles update attendance.
+ *
+ * @param meetingId meeting id
+ * @param participantId participant id
+ * @param request request
+ */
     @Transactional
     public void updateAttendance(
             String meetingId,
@@ -200,6 +260,12 @@ public class ParticipantService {
         participantRepository.save(participant);
     }
 
+/**
+ * Handles delete.
+ *
+ * @param meetingId meeting id
+ * @param participantId participant id
+ */
     @Transactional
     public void delete(String meetingId, String participantId) {
         meetingAccessService.requireOwnedMeeting(meetingId);
@@ -253,6 +319,7 @@ public class ParticipantService {
                     record.setAttributesJson(writeAttributes(decision.mergedAttributes()));
                     recordRepository.save(record);
                 }
+                default -> throw new IllegalStateException("Unsupported merge action: " + decision.action());
             }
         }
         boolean assigned = assignTargetElementIfPresent(
@@ -274,6 +341,7 @@ public class ParticipantService {
             case SKIP -> "SKIPPED";
             case MERGE -> "MERGED";
             case APPEND -> "APPENDED";
+            default -> throw new IllegalStateException("Unsupported merge action: " + action);
         };
     }
 
@@ -285,6 +353,7 @@ public class ParticipantService {
             case SKIP -> "该人员记录已存在，未重复添加";
             case MERGE -> "已合并到已有人员记录";
             case APPEND -> "已为已有人员追加一条记录";
+            default -> throw new IllegalStateException("Unsupported merge action: " + action);
         };
         return assigned ? message + "，并安排到所选座位" : message;
     }
@@ -392,5 +461,12 @@ public class ParticipantService {
         } catch (Exception exception) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "人员动态记录无法保存");
         }
+    }
+
+    private record CreateParticipantContext(
+            String employeeNo,
+            String name,
+            Map<String, String> attributes
+    ) {
     }
 }

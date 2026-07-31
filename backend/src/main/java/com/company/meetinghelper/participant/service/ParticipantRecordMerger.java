@@ -68,15 +68,32 @@ public class ParticipantRecordMerger {
         return Map.copyOf(normalized);
     }
 
+/**
+ * Represents the action enum.
+ */
     public enum Action {
         SKIP,
         MERGE,
         APPEND
     }
 
+/**
+ * Represents the record value record.
+ *
+ * @param recordId record id
+ * @param recordOrder record order
+ * @param attributes attributes
+ */
     public record RecordValue(String recordId, int recordOrder, Map<String, String> attributes) {
     }
 
+/**
+ * Represents the merge decision record.
+ *
+ * @param action action
+ * @param targetRecordId target record id
+ * @param mergedAttributes merged attributes
+ */
     public record MergeDecision(
             Action action,
             String targetRecordId,

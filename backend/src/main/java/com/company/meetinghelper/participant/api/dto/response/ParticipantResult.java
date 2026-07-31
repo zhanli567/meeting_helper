@@ -1,5 +1,14 @@
 package com.company.meetinghelper.participant.api.dto.response;
 
+/**
+ * Represents the participant result record.
+ *
+ * @param id id
+ * @param employeeNo employee no
+ * @param name name
+ * @param action action
+ * @param message message
+ */
 public record ParticipantResult(
         String id,
         String employeeNo,

@@ -56,18 +56,30 @@ function resetForm() {
 watch(
   () => [visible.value, props.participant, props.fieldDefinitions],
   () => {
-    if (visible.value) resetForm()
+    if (visible.value) {
+      resetForm()
+    }
   },
   { immediate: true },
 )
 
 async function submit() {
-  if (submitting.value) return
-  if (!props.participant?.id) return
+  if (submitting.value) {
+    return
+  }
+  if (!props.participant?.id) {
+    return
+  }
   const valid = await formRef.value?.validate().catch(() => false)
-  if (!valid) return
-  if (!recordTableRef.value?.validateCustomFields()) return
-  if (!recordTableRef.value?.validateRecords()) return
+  if (!valid) {
+    return
+  }
+  if (!recordTableRef.value?.validateCustomFields()) {
+    return
+  }
+  if (!recordTableRef.value?.validateRecords()) {
+    return
+  }
   form.fieldDefinitions = props.fieldDefinitions
   submitting.value = true
   try {

@@ -9,11 +9,15 @@ const props = defineProps({
 const emit = defineEmits(['activate'])
 
 function activate() {
-  if (props.clickable) emit('activate')
+  if (props.clickable) {
+    emit('activate')
+  }
 }
 
 function onKeydown(event) {
-  if (!props.clickable || !['Enter', ' '].includes(event.key)) return
+  if (!props.clickable || !['Enter', ' '].includes(event.key)) {
+    return
+  }
   event.preventDefault()
   emit('activate')
 }

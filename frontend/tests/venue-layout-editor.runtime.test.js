@@ -32,7 +32,9 @@ async function loadEditor(t, componentIndex = 0, includeColorPicker = false) {
     '/src/components/CanvasViewport.vue',
     '/src/components/CanvasBoard.vue',
   ]
-  if (includeColorPicker) componentPaths.push('/src/components/ColorPickerPopover.vue')
+  if (includeColorPicker) {
+    componentPaths.push('/src/components/ColorPickerPopover.vue')
+  }
   const components = []
   for (const componentPath of componentPaths) {
     const component = (await server.ssrLoadModule(componentPath)).default
@@ -90,7 +92,9 @@ class HostElement {
 
   contains(target) {
     for (let node = target; node; node = node.parent) {
-      if (node === this) return true
+      if (node === this) {
+        return true
+      }
     }
     return false
   }
@@ -99,13 +103,19 @@ class HostElement {
     if (selector.startsWith('.')) {
       const className = selector.slice(1)
       for (let node = this; node; node = node.parent) {
-        if (String(node.props?.class || '').split(/\s+/).includes(className)) return node
+        if (String(node.props?.class || '').split(/\s+/).includes(className)) {
+          return node
+        }
       }
       return undefined
     }
-    if (selector !== '[data-editor-id]') return undefined
+    if (selector !== '[data-editor-id]') {
+      return undefined
+    }
     for (let node = this; node; node = node.parent) {
-      if (node.props?.['data-editor-id'] != null) return node
+      if (node.props?.['data-editor-id'] != null) {
+        return node
+      }
     }
     return undefined
   }
@@ -154,8 +164,11 @@ function createHostRenderer() {
   const insert = (child, parent, anchor) => {
     child.parent = parent
     const index = anchor ? parent.children.indexOf(anchor) : -1
-    if (index < 0) parent.children.push(child)
-    else parent.children.splice(index, 0, child)
+    if (index < 0) {
+      parent.children.push(child)
+    } else {
+      parent.children.splice(index, 0, child)
+    }
   }
   return createRenderer({
     patchProp(element, key, _previous, next) {
@@ -164,7 +177,9 @@ function createHostRenderer() {
     insert,
     remove(child) {
       const index = child.parent?.children.indexOf(child) ?? -1
-      if (index >= 0) child.parent.children.splice(index, 1)
+      if (index >= 0) {
+        child.parent.children.splice(index, 1)
+      }
       child.parent = undefined
     },
     createElement: (tag) => new HostElement(tag),
@@ -226,16 +241,22 @@ const InputStub = defineComponent({
 function allNodes(root) {
   const result = []
   const visit = (node) => {
-    if (!node) return
+    if (!node) {
+      return
+    }
     result.push(node)
-    for (const child of node.children || []) visit(child)
+    for (const child of node.children || []) {
+      visit(child)
+    }
   }
   visit(root)
   return result
 }
 
 function nodeText(node) {
-  if (node.text != null) return String(node.text)
+  if (node.text != null) {
+    return String(node.text)
+  }
   return (node.children || []).map(nodeText).join('')
 }
 

@@ -5,6 +5,9 @@ import com.company.meetinghelper.seating.entity.PlanItemTargetEntity;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Param;
 
+/**
+ * Represents the plan item target mapper interface.
+ */
 public interface PlanItemTargetMapper extends BaseMapper<PlanItemTargetEntity> {
     @Delete("delete from t_plan_item_targets where id = #{id}")
     int physicalDeleteById(@Param("id") String id);

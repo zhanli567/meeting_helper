@@ -65,6 +65,14 @@ public class ParticipantWorkbookParser {
             return result(headers.fieldNames(), List.of(), 0, 0, errors);
         }
 
+        return result(parseRows(sheet, headers, errors));
+    }
+
+    private ParsedWorkbookResult parseRows(
+            Sheet sheet,
+            HeaderResolution headers,
+            List<String> errors
+    ) {
         List<ParsedParticipantRow> rows = new ArrayList<>();
         Map<String, String> employeeNames = new HashMap<>();
         Set<String> duplicateKeys = new LinkedHashSet<>();
@@ -105,7 +113,7 @@ public class ParticipantWorkbookParser {
             rows.add(new ParsedParticipantRow(sourceRow, employeeNo, name, attributes));
         }
 
-        return result(
+        return new ParsedWorkbookResult(
                 headers.fieldNames(),
                 rows,
                 totalRows,
@@ -185,24 +193,24 @@ public class ParticipantWorkbookParser {
             int ignoredDuplicateRows,
             List<String> errors
     ) {
-        return result(fieldNames, rows, totalRows, ignoredDuplicateRows, errors, false);
-    }
-
-    private ParsedParticipantWorkbook result(
-            List<String> fieldNames,
-            List<ParsedParticipantRow> rows,
-            int totalRows,
-            int ignoredDuplicateRows,
-            List<String> errors,
-            boolean employeeNameConflict
-    ) {
-        return new ParsedParticipantWorkbook(
-                List.copyOf(fieldNames),
-                List.copyOf(rows),
+        return result(new ParsedWorkbookResult(
+                fieldNames,
+                rows,
                 totalRows,
                 ignoredDuplicateRows,
-                List.copyOf(errors),
-                employeeNameConflict);
+                errors,
+                false
+        ));
+    }
+
+    private ParsedParticipantWorkbook result(ParsedWorkbookResult result) {
+        return new ParsedParticipantWorkbook(
+                List.copyOf(result.fieldNames()),
+                List.copyOf(result.rows()),
+                result.totalRows(),
+                result.ignoredDuplicateRows(),
+                List.copyOf(result.errors()),
+                result.employeeNameConflict());
     }
 
     private boolean isBlank(Row row) {
@@ -220,6 +228,16 @@ public class ParticipantWorkbookParser {
     }
 
     private record Header(String name, int column) {
+    }
+
+    private record ParsedWorkbookResult(
+            List<String> fieldNames,
+            List<ParsedParticipantRow> rows,
+            int totalRows,
+            int ignoredDuplicateRows,
+            List<String> errors,
+            boolean employeeNameConflict
+    ) {
     }
 
     private record HeaderResolution(

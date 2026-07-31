@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
+/**
+ * Represents the plan item repository class.
+ */
 @Repository
 public class PlanItemRepository extends AbstractMyBatisRepository<PlanItemEntity> {
     private final PlanItemMapper itemMapper;

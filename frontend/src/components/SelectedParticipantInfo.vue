@@ -15,7 +15,9 @@ const props = defineProps({
 const emit = defineEmits(['update:collapsed', 'edit'])
 
 function cleanValue(value) {
-  if (value === undefined || value === null) return ''
+  if (value === undefined || value === null) {
+    return ''
+  }
   return String(value).trim()
 }
 
@@ -24,8 +26,12 @@ const dynamicFields = computed(() =>
 )
 
 const statusText = computed(() => {
-  if (props.participant.attendanceStatus === 'TEMPORARILY_ABSENT') return '临时不出席'
-  if (props.participant.assignedElementId) return '已排'
+  if (props.participant.attendanceStatus === 'TEMPORARILY_ABSENT') {
+    return '临时不出席'
+  }
+  if (props.participant.assignedElementId) {
+    return '已排'
+  }
   return '待排'
 })
 

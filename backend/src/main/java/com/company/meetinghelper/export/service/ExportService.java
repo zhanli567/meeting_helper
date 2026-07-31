@@ -41,6 +41,9 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+/**
+ * Represents the export service class.
+ */
 @Service
 public class ExportService {
     private final PlanVersionService versionService;
@@ -49,11 +52,23 @@ public class ExportService {
     private final WorkspaceService workspaceService;
     private final LayoutSheetWriter layoutSheetWriter;
 
+/**
+ * Represents the export options record.
+ *
+ * @param fieldCodes field codes
+ * @param includeAttendance include attendance
+ * @param includeSeatLabel include seat label
+ */
     public record ExportOptions(
             List<String> fieldCodes,
             boolean includeAttendance,
             boolean includeSeatLabel
     ) {
+/**
+ * Handles default options.
+ *
+ * @return result
+ */
         public static ExportOptions defaultOptions() {
             return new ExportOptions(null, false, false);
         }
@@ -312,6 +327,11 @@ public class ExportService {
         }
         writeHeaderRow(sheet, headers.toArray(String[]::new));
         Map<String,String> seatLabelByParticipant = seatLabelByParticipant(workspace);
+        ParticipantRowContext rowContext = new ParticipantRowContext(
+                participantFields,
+                options,
+                seatLabelByParticipant
+        );
         int rowIndex = 1;
         for (ParticipantView participant : workspace.participants()) {
             List<ParticipantRecordView> records = participant.records() == null
@@ -321,10 +341,8 @@ public class ExportService {
                 writeParticipantRow(
                         sheet.createRow(rowIndex++),
                         participant,
-                        participantFields,
                         Map.of(),
-                        options,
-                        seatLabelByParticipant
+                        rowContext
                 );
                 continue;
             }
@@ -332,10 +350,8 @@ public class ExportService {
                 writeParticipantRow(
                         sheet.createRow(rowIndex++),
                         participant,
-                        participantFields,
                         record.attributes() == null ? Map.of() : record.attributes(),
-                        options,
-                        seatLabelByParticipant
+                        rowContext
                 );
             }
         }
@@ -345,25 +361,23 @@ public class ExportService {
     private void writeParticipantRow(
             Row row,
             WorkspaceResponse.ParticipantView participant,
-            List<WorkspaceResponse.FieldDefinitionView> participantFields,
             Map<String, String> attributes,
-            ExportOptions options,
-            Map<String, String> seatLabelByParticipant
+            ParticipantRowContext context
     ) {
         row.createCell(0).setCellValue(participant.employeeNo());
         row.createCell(1).setCellValue(participant.name());
-        for (int fieldIndex = 0; fieldIndex < participantFields.size(); fieldIndex++) {
+        for (int fieldIndex = 0; fieldIndex < context.participantFields().size(); fieldIndex++) {
             row.createCell(2 + fieldIndex).setCellValue(attributes.getOrDefault(
-                    participantFields.get(fieldIndex).code(),
+                    context.participantFields().get(fieldIndex).code(),
                     ""
             ));
         }
-        int nextColumn = 2 + participantFields.size();
-        if (options.includeAttendance()) {
+        int nextColumn = 2 + context.participantFields().size();
+        if (context.options().includeAttendance()) {
             row.createCell(nextColumn++).setCellValue(attendanceLabel(participant));
         }
-        if (options.includeSeatLabel()) {
-            row.createCell(nextColumn).setCellValue(seatLabelByParticipant.getOrDefault(participant.id(), ""));
+        if (context.options().includeSeatLabel()) {
+            row.createCell(nextColumn).setCellValue(context.seatLabelByParticipant().getOrDefault(participant.id(), ""));
         }
     }
 
@@ -469,5 +483,12 @@ public class ExportService {
 
     private String nullToEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    private record ParticipantRowContext(
+            List<WorkspaceResponse.FieldDefinitionView> participantFields,
+            ExportOptions options,
+            Map<String, String> seatLabelByParticipant
+    ) {
     }
 }

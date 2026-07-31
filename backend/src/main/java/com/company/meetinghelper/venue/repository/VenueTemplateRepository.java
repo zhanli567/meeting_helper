@@ -10,6 +10,9 @@ import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Repository;
 
+/**
+ * Represents the venue template repository class.
+ */
 @Repository
 public class VenueTemplateRepository extends AbstractMyBatisRepository<VenueTemplateEntity> {
     private final VenueTemplateMapper templateMapper;

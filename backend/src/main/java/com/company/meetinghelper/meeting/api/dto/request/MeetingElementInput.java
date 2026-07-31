@@ -4,6 +4,18 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
+/**
+ * Represents the meeting element input record.
+ *
+ * @param id id
+ * @param kind kind
+ * @param name name
+ * @param row row
+ * @param column column
+ * @param rowSpan row span
+ * @param columnSpan column span
+ * @param fillColor fill color
+ */
 public record MeetingElementInput(
         String id,
         @NotBlank String kind,

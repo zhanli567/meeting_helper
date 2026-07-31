@@ -9,6 +9,9 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
+/**
+ * Represents the meeting participant field repository class.
+ */
 @Repository
 public class MeetingParticipantFieldRepository
         extends AbstractMyBatisRepository<MeetingParticipantFieldEntity> {

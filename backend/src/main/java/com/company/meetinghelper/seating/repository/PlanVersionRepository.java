@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
+/**
+ * Represents the plan version repository class.
+ */
 @Repository
 public class PlanVersionRepository extends AbstractMyBatisRepository<PlanVersionEntity> {
     private final PlanVersionMapper versionMapper;

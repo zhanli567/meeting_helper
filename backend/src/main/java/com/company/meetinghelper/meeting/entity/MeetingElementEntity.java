@@ -8,6 +8,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Represents the meeting element entity class.
+ */
 @Getter
 @Setter
 @NoArgsConstructor

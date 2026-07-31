@@ -11,11 +11,17 @@ import {
 const recentMeetingStorageKey = `meeting-helper:recent-meeting:${currentUser.tenantId}:${currentUser.id}`
 function readRecentMeetingSession() {
   const fallback = { meetingId: '', versionKey: 'draft' }
-  if (typeof window === 'undefined') return fallback
+  if (typeof window === 'undefined') {
+    return fallback
+  }
   try {
     const raw = window.localStorage.getItem(recentMeetingStorageKey) || ''
-    if (!raw) return fallback
-    if (!raw.trim().startsWith('{')) return { meetingId: raw, versionKey: 'draft' }
+    if (!raw) {
+      return fallback
+    }
+    if (!raw.trim().startsWith('{')) {
+      return { meetingId: raw, versionKey: 'draft' }
+    }
     const parsed = JSON.parse(raw)
     return {
       meetingId: typeof parsed.meetingId === 'string' ? parsed.meetingId : '',
@@ -100,7 +106,9 @@ function createWorkspaceStore() {
     }
   }
   async function loadWorkspace() {
-    if (!activeMeetingId.value) return
+    if (!activeMeetingId.value) {
+      return
+    }
     workspace.value = normalizeWorkspace(await meetingApi.workspace(activeMeetingId.value))
     dirty.value = false
   }
@@ -121,16 +129,22 @@ function createWorkspaceStore() {
     }
   }
   function assign(participantId, targetElementId) {
-    if (!workspace.value) return false
+    if (!workspace.value) {
+      return false
+    }
     const person = workspace.value.participants.find((value) => value.id === participantId)
     const target = workspace.value.layout.elements.find((value) => value.id === targetElementId)
-    if (!participantCanBeSeated(person) || target?.kind !== 'SEAT') return false
+    if (!participantCanBeSeated(person) || target?.kind !== 'SEAT') {
+      return false
+    }
     if (person.locked) {
       ElMessage.warning('该人员已锁定，无法移动')
       return false
     }
     const originalTargetId = person.assignedElementId
-    if (originalTargetId === targetElementId) return true
+    if (originalTargetId === targetElementId) {
+      return true
+    }
     const targetItem = workspace.value.items.find((item) =>
       item.targetElementIds.includes(targetElementId),
     )
@@ -164,12 +178,16 @@ function createWorkspaceStore() {
   }
 
   function unassign(participantId) {
-    if (!workspace.value) return false
+    if (!workspace.value) {
+      return false
+    }
     const person = workspace.value.participants.find((value) => value.id === participantId)
     const item = workspace.value.items.find(
       (value) => value.type === 'PERSON' && value.participantId === participantId,
     )
-    if (!person?.assignedElementId) return false
+    if (!person?.assignedElementId) {
+      return false
+    }
     if (person.locked || item?.locked) {
       ElMessage.warning('该座位已锁定')
       return false
@@ -181,8 +199,12 @@ function createWorkspaceStore() {
   }
 
   async function saveAssignments({ silent = false } = {}) {
-    if (saveAssignmentsPromise) return saveAssignmentsPromise
-    if (!workspace.value || !dirty.value) return true
+    if (saveAssignmentsPromise) {
+      return saveAssignmentsPromise
+    }
+    if (!workspace.value || !dirty.value) {
+      return true
+    }
     saving.value = true
     saveAssignmentsPromise = (async () => {
       try {
@@ -194,7 +216,9 @@ function createWorkspaceStore() {
           }))
         await meetingApi.saveAssignments(workspace.value.plan.id, assignments)
         await loadWorkspace()
-        if (!silent) ElMessage.success('排座草稿已保存')
+        if (!silent) {
+          ElMessage.success('排座草稿已保存')
+        }
         return true
       } catch (error) {
         ElMessage.error(apiErrorMessage(error))
@@ -207,7 +231,9 @@ function createWorkspaceStore() {
     return saveAssignmentsPromise
   }
   async function setLock(participantId, locked) {
-    if (!workspace.value) return
+    if (!workspace.value) {
+      return
+    }
     try {
       await meetingApi.setLock(workspace.value.plan.id, participantId, locked)
       await loadWorkspace()
@@ -217,7 +243,9 @@ function createWorkspaceStore() {
     }
   }
   async function removeParticipant(participantId) {
-    if (!workspace.value) return
+    if (!workspace.value) {
+      return
+    }
     try {
       await meetingApi.deleteParticipant(workspace.value.meeting.id, participantId)
       selectedParticipantId.value = undefined
@@ -228,11 +256,15 @@ function createWorkspaceStore() {
     }
   }
   async function updateAttendance(participantId, attendanceStatus) {
-    if (!workspace.value) return false
+    if (!workspace.value) {
+      return false
+    }
     try {
       if (dirty.value) {
         const saved = await saveAssignments({ silent: true })
-        if (!saved) return false
+        if (!saved) {
+          return false
+        }
       }
       await meetingApi.updateAttendance(
         workspace.value.meeting.id,
@@ -253,7 +285,9 @@ function createWorkspaceStore() {
     }
   }
   async function exportPlan(versionId, options) {
-    if (!workspace.value) return false
+    if (!workspace.value) {
+      return false
+    }
     try {
       const data = await meetingApi.exportExcel(workspace.value.meeting.id, versionId, options)
       downloadBlob(
@@ -297,7 +331,9 @@ function createWorkspaceStore() {
   function rememberMeeting(meetingId, versionKey = 'draft') {
     activeMeetingId.value = meetingId
     recentVersionKey.value = versionKey || 'draft'
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined') {
+      return
+    }
     try {
       if (meetingId) {
         window.localStorage.setItem(

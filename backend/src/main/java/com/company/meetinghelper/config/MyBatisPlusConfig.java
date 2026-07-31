@@ -6,8 +6,16 @@ import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerIntercept
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Represents the my batis plus config class.
+ */
 @Configuration
 public class MyBatisPlusConfig {
+/**
+ * Handles mybatis plus interceptor.
+ *
+ * @return result
+ */
     @Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();

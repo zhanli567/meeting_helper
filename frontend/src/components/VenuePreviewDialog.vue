@@ -30,7 +30,9 @@ const canvasStyle = computed(() => ({
 watch(
   () => [visible.value, props.venueId],
   async ([isVisible, venueId]) => {
-    if (!isVisible || !venueId) return
+    if (!isVisible || !venueId) {
+      return
+    }
     loading.value = true
     try {
       venue.value = await venueApi.layout(venueId)
@@ -59,7 +61,9 @@ function elementStyle(element) {
 }
 
 function readableTextColor(color) {
-  if (!color?.startsWith('#') || color.length !== 7) return '#31506f'
+  if (!color?.startsWith('#') || color.length !== 7) {
+    return '#31506f'
+  }
   const red = Number.parseInt(color.slice(1, 3), 16)
   const green = Number.parseInt(color.slice(3, 5), 16)
   const blue = Number.parseInt(color.slice(5, 7), 16)
@@ -70,7 +74,9 @@ function changeZoom(delta, event) {
   const viewport = viewportRef.value
   const oldZoom = zoom.value
   const nextZoom = Math.min(2.5, Math.max(0.25, Number((oldZoom + delta).toFixed(2))))
-  if (!viewport || nextZoom === oldZoom) return
+  if (!viewport || nextZoom === oldZoom) {
+    return
+  }
   const rect = viewport.getBoundingClientRect()
   const pointerX = (event?.clientX ?? rect.left + rect.width / 2) - rect.left + viewport.scrollLeft
   const pointerY = (event?.clientY ?? rect.top + rect.height / 2) - rect.top + viewport.scrollTop
@@ -88,7 +94,9 @@ function onWheel(event) {
 
 function fitCanvas() {
   const viewport = viewportRef.value
-  if (!viewport || !venue.value) return
+  if (!viewport || !venue.value) {
+    return
+  }
   zoom.value = previewFitZoom({
     gridColumns: venue.value.gridColumns,
     gridRows: venue.value.gridRows,
@@ -100,13 +108,17 @@ function fitCanvas() {
 
 function centerCanvas() {
   const viewport = viewportRef.value
-  if (!viewport) return
+  if (!viewport) {
+    return
+  }
   viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2)
   viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 2)
 }
 
 function startPan(event) {
-  if (event.button !== 2 || !viewportRef.value) return
+  if (event.button !== 2 || !viewportRef.value) {
+    return
+  }
   panning.value = true
   panStartX = event.clientX
   panStartY = event.clientY
@@ -118,7 +130,9 @@ function startPan(event) {
 }
 
 function movePan(event) {
-  if (!panning.value || !viewportRef.value) return
+  if (!panning.value || !viewportRef.value) {
+    return
+  }
   viewportRef.value.scrollLeft = panScrollLeft - (event.clientX - panStartX)
   viewportRef.value.scrollTop = panScrollTop - (event.clientY - panStartY)
 }

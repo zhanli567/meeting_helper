@@ -49,13 +49,17 @@ function resetForm() {
 watch(
   () => [visible.value, props.targetElementId],
   () => {
-    if (visible.value) resetForm()
+    if (visible.value) {
+      resetForm()
+    }
   },
   { immediate: true },
 )
 
 function addRow() {
-  if (!allowMultipleRows.value) return
+  if (!allowMultipleRows.value) {
+    return
+  }
   tableRef.value?.addRecord()
 }
 
@@ -74,7 +78,9 @@ function onFileChange(uploadFile) {
 
 function onFileExceed(files) {
   const nextFile = files?.[0]
-  if (!nextFile) return
+  if (!nextFile) {
+    return
+  }
   uploadRef.value?.clearFiles()
   setSelectedFile(nextFile)
 }
@@ -86,7 +92,9 @@ function clearFile() {
 }
 
 async function downloadTemplate() {
-  if (templateDownloading.value) return
+  if (templateDownloading.value) {
+    return
+  }
   templateDownloading.value = true
   try {
     const template = await meetingApi.importTemplate()
@@ -103,8 +111,12 @@ async function downloadTemplate() {
 }
 
 async function parseFile() {
-  if (previewing.value) return
-  if (submitting.value) return
+  if (previewing.value) {
+    return
+  }
+  if (submitting.value) {
+    return
+  }
   if (!file.value) {
     ElMessage.warning('请先选择 Excel 文件')
     return
@@ -173,7 +185,9 @@ function uniqueSubmitRows(rows) {
     seen.add(key)
     uniqueRows.push(row)
   }
-  if (skipped) ElMessage.warning(`存在 ${skipped} 条完全相同的人员记录，已跳过重复项`)
+  if (skipped) {
+    ElMessage.warning(`存在 ${skipped} 条完全相同的人员记录，已跳过重复项`)
+  }
   return uniqueRows
 }
 
@@ -192,11 +206,19 @@ function validateBatchNames(rows) {
 }
 
 async function submit() {
-  if (submitting.value) return
-  if (!tableRef.value?.validateCustomFields()) return
-  if (!tableRef.value?.validateRecords()) return
+  if (submitting.value) {
+    return
+  }
+  if (!tableRef.value?.validateCustomFields()) {
+    return
+  }
+  if (!tableRef.value?.validateRecords()) {
+    return
+  }
   const rows = uniqueSubmitRows(normalizedRows())
-  if (!rows.length || !validateBatchNames(rows)) return
+  if (!rows.length || !validateBatchNames(rows)) {
+    return
+  }
   submitting.value = true
   try {
     const results = []

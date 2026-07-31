@@ -4,8 +4,11 @@ export function reservedItems(items) {
 
 export function toggleSeatSelection(selection, elementId) {
   const next = new Set(selection || [])
-  if (next.has(elementId)) next.delete(elementId)
-  else next.add(elementId)
+  if (next.has(elementId)) {
+    next.delete(elementId)
+  } else {
+    next.add(elementId)
+  }
   return next
 }
 
@@ -51,7 +54,9 @@ export function connectedSeatGroups(elementIds, elements) {
   const groups = []
 
   for (const startId of orderedIds) {
-    if (!remaining.has(startId)) continue
+    if (!remaining.has(startId)) {
+      continue
+    }
     const queue = [startId]
     const group = []
     remaining.delete(startId)

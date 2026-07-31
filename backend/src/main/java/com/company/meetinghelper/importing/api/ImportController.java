@@ -17,6 +17,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 
+/**
+ * Represents the import controller class.
+ */
 @RestController
 @RequestMapping
 public class ImportController {
@@ -60,6 +63,13 @@ public class ImportController {
             value = "/meetings/{meetingId}/imports/preview",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
+/**
+ * Handles preview.
+ *
+ * @param meetingId meeting id
+ * @param file file
+ * @return result
+ */
     public ImportPreview preview(
             @PathVariable String meetingId,
             @RequestPart MultipartFile file

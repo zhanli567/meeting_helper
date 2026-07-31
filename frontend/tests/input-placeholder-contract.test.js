@@ -7,7 +7,9 @@ async function collectVueFiles(directory) {
   const files = await Promise.all(
     entries.map(async (entry) => {
       const child = new URL(`${entry.name}${entry.isDirectory() ? '/' : ''}`, directory)
-      if (entry.isDirectory()) return collectVueFiles(child)
+      if (entry.isDirectory()) {
+        return collectVueFiles(child)
+      }
       return entry.name.endsWith('.vue') ? [child] : []
     }),
   )
@@ -21,7 +23,9 @@ test('all app input controls avoid placeholder copy so forms stay visually consi
 
   for (const file of files) {
     const source = await readFile(file, 'utf8')
-    if (/placeholder=/.test(source)) offenders.push(file)
+    if (/placeholder=/.test(source)) {
+      offenders.push(file)
+    }
   }
 
   assert.deepEqual(offenders, [])

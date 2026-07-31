@@ -7,7 +7,9 @@ export function computeElementColumnBounds(elements, fallback = { minColumn: 1, 
   }
   const bounds = (elements || []).reduce((current, element) => {
     const column = Number(element?.column)
-    if (!Number.isFinite(column)) return current
+    if (!Number.isFinite(column)) {
+      return current
+    }
     const columnSpan = Math.max(1, Number(element?.columnSpan || 1))
     return {
       minColumn: Math.min(current.minColumn, column),

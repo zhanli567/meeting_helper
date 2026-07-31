@@ -70,7 +70,9 @@ const basicColorSwatches = SEMANTIC_COLOR_SWATCHES
 const draftValid = computed(() => validElementProperties(draft))
 const usedGenericColors = computed(() => usedGenericElementColors(props.elements, draft.name))
 const unavailableFillColors = computed(() => {
-  if (draft.kind !== ELEMENT_KINDS.GENERIC) return []
+  if (draft.kind !== ELEMENT_KINDS.GENERIC) {
+    return []
+  }
   return [
     ...usedGenericColors.value,
     ...props.reservedGenericColors,
@@ -80,7 +82,9 @@ const unavailableFillColors = computed(() => {
 watch(
   () => props.element,
   (element) => {
-    if (!element) return
+    if (!element) {
+      return
+    }
     Object.assign(draft, {
       kind: element.kind,
       name: element.name,
@@ -124,7 +128,9 @@ function queryNames(query, callback) {
 }
 
 function confirm() {
-  if (!draftValid.value) return
+  if (!draftValid.value) {
+    return
+  }
   if (
     draft.kind === ELEMENT_KINDS.GENERIC
     && unavailableFillColors.value.includes(normalizeHexColor(draft.fillColor))
@@ -146,7 +152,9 @@ function confirm() {
 
 function commitColor(color) {
   const normalized = normalizeHexColor(color)
-  if (!props.element || !normalized) return
+  if (!props.element || !normalized) {
+    return
+  }
   draft.fillColor = normalized
   if (
     draft.kind === ELEMENT_KINDS.GENERIC

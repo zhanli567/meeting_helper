@@ -36,7 +36,9 @@ function openMeeting(meetingId, versionKey = 'draft') {
   })
 }
 function openRecentMeeting() {
-  if (!recentMeeting.value) return
+  if (!recentMeeting.value) {
+    return
+  }
   openMeeting(recentMeeting.value.id, store.recentVersionKey)
 }
 function formatTime(value) {
@@ -54,7 +56,9 @@ function editMeeting(meeting) {
   editVisible.value = true
 }
 async function saveMeetingName() {
-  if (editSubmitting.value) return
+  if (editSubmitting.value) {
+    return
+  }
   const trimmedName = editName.value.trim()
   if (!trimmedName) {
     ElMessage.warning('请输入会议名称')
@@ -68,7 +72,9 @@ async function saveMeetingName() {
   try {
     const updated = await meetingApi.updateMeetingName(editingMeeting.id, trimmedName)
     const index = store.meetings.findIndex((meeting) => meeting.id === updated.id)
-    if (index >= 0) store.meetings[index] = { ...store.meetings[index], ...updated }
+    if (index >= 0) {
+      store.meetings[index] = { ...store.meetings[index], ...updated }
+    }
     if (store.workspace?.meeting?.id === updated.id) {
       store.workspace.meeting.name = updated.name
     }
@@ -82,7 +88,9 @@ async function saveMeetingName() {
   }
 }
 async function removeMeeting(meeting) {
-  if (deleteSubmitting.value) return
+  if (deleteSubmitting.value) {
+    return
+  }
   deleteSubmitting.value = meeting.id
   try {
     await ElMessageBox.confirm(

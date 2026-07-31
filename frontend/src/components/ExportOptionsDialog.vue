@@ -133,20 +133,28 @@ function normalizeActiveTab() {
 
 function goPrevious() {
   const index = currentTabIndex.value
-  if (index <= 0) return
+  if (index <= 0) {
+    return
+  }
   activeTab.value = exportTabs.value[index - 1].name
 }
 
 function goNext() {
-  if (!canExport()) return
+  if (!canExport()) {
+    return
+  }
   const index = currentTabIndex.value
   const tabs = exportTabs.value
   activeTab.value = tabs[Math.min(index + 1, tabs.length - 1)].name
 }
 
 function submit() {
-  if (props.submitting) return
-  if (!canExport()) return
+  if (props.submitting) {
+    return
+  }
+  if (!canExport()) {
+    return
+  }
   emit('export', {
     sheets: {
       participants: {
@@ -167,11 +175,15 @@ function submit() {
 }
 
 watch(visible, (isVisible) => {
-  if (isVisible) resetOptions()
+  if (isVisible) {
+    resetOptions()
+  }
 })
 
 watch(dynamicFields, (fields) => {
-  if (!visible.value) return
+  if (!visible.value) {
+    return
+  }
   const availableCodes = new Set(fields.map((field) => field.code))
   form.participants.fieldCodes = retainAvailableFields(form.participants.fieldCodes, availableCodes)
   form.layout.fieldCodes = retainAvailableFields(form.layout.fieldCodes, availableCodes)

@@ -8,8 +8,17 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
+/**
+ * Represents the seat label service class.
+ */
 @Service
 public class SeatLabelService {
+/**
+ * Handles labels by element id.
+ *
+ * @param elements elements
+ * @return result
+ */
     public Map<String, String> labelsByElementId(List<WorkspaceResponse.ElementView> elements) {
         LinkedHashMap<String, String> labels = new LinkedHashMap<String, String>();
         List<Integer> sourceRows = seatRows(elements);
@@ -27,6 +36,12 @@ public class SeatLabelService {
         return labels;
     }
 
+/**
+ * Handles row labels.
+ *
+ * @param elements elements
+ * @return result
+ */
     public List<RowLabel> rowLabels(List<WorkspaceResponse.ElementView> elements) {
         List<Integer> rows = seatRows(elements);
         return java.util.stream.IntStream.range(0, rows.size())
@@ -48,6 +63,12 @@ public class SeatLabelService {
                 .collect(Collectors.toList());
     }
 
+/**
+ * Represents the row label record.
+ *
+ * @param sourceRow source row
+ * @param displayRow display row
+ */
     public record RowLabel(int sourceRow, int displayRow) {
     }
 }

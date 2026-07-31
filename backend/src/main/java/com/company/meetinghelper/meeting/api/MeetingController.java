@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * Represents the meeting controller class.
+ */
 @RestController
 @RequestMapping("/meetings")
 public class MeetingController {

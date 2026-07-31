@@ -11,8 +11,16 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 		"com.company.meetinghelper.participant.mapper",
 		"com.company.meetinghelper.seating.mapper"
 })
+/**
+ * Represents the meeting helper application class.
+ */
 public class MeetingHelperApplication {
 
+/**
+ * Handles main.
+ *
+ * @param args args
+ */
 	public static void main(String[] args) {
 		SpringApplication.run(MeetingHelperApplication.class, args);
 	}

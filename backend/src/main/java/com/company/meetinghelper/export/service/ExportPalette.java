@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Represents the export palette class.
+ */
 public final class ExportPalette {
     public static final String SYSTEM_LAYOUT_COLOR = "#e5edf8";
     public static final List<String> SEMANTIC_COLORS = List.of(
@@ -18,6 +21,13 @@ public final class ExportPalette {
     private ExportPalette() {
     }
 
+/**
+ * Handles colors by value.
+ *
+ * @param values values
+ * @param reservedColors reserved colors
+ * @return result
+ */
     public static Map<String, String> colorsByValue(Set<String> values, Set<String> reservedColors) {
         LinkedHashSet<String> reserved = new LinkedHashSet<String>(reservedColors);
         reserved.add(SYSTEM_LAYOUT_COLOR);

@@ -3,7 +3,18 @@ package com.company.meetinghelper.importing.api.dto.response;
 import java.util.List;
 
 /**
- * 通用人员导入的可提交预览。
+ * Represents the import preview record.
+ *
+ * @param token token
+ * @param totalRows total rows
+ * @param validRows valid rows
+ * @param ignoredDuplicateRows ignored duplicate rows
+ * @param participantCount participant count
+ * @param recordCount record count
+ * @param newFields new fields
+ * @param existingFields existing fields
+ * @param rows rows
+ * @param errors errors
  */
 public record ImportPreview(
         String token,

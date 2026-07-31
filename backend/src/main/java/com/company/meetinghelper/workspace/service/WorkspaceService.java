@@ -37,6 +37,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Represents the workspace service class.
+ */
 @Service
 public class WorkspaceService {
     private final MeetingAccessService meetingAccessService;
@@ -99,8 +102,27 @@ public class WorkspaceService {
         MeetingEntity meeting = meetingAccessService.requireOwnedMeeting(meetingId);
         SeatingPlanEntity plan = planRepository.findFirstByMeetingIdOrderByCreatedAtAsc(meetingId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议尚未建立排座方案"));
-        List<MeetingElementEntity> elements =
-                elementRepository.findAllByMeetingIdOrderByStartRowAscStartColumnAsc(meetingId);
+        WorkspaceData data = workspaceData(meetingId, plan.getId());
+        return new WorkspaceResponse(
+                meetingView(meeting),
+                new WorkspaceResponse.PlanView(
+                        plan.getId(),
+                        plan.getName(),
+                        plan.getStatus(),
+                        plan.getCurrentVersionNo()
+                ),
+                layoutView(meeting, data.elements()),
+                participantViews(data),
+                itemViews(data),
+                versionViews(plan.getId()),
+                fieldDefinitions(data.participantFields()),
+                List.of()
+        );
+    }
+
+    private WorkspaceData workspaceData(String meetingId, String planId) {
+        List<MeetingElementEntity> elements = elementRepository
+                .findAllByMeetingIdOrderByStartRowAscStartColumnAsc(meetingId);
         List<ParticipantEntity> participants = participantRepository.findAllByMeetingIdOrderByNameAsc(meetingId);
         List<String> participantIds = participants.stream().map(ParticipantEntity::getId).toList();
         List<MeetingParticipantFieldEntity> participantFields = fieldRepository
@@ -117,7 +139,7 @@ public class WorkspaceService {
                 Collectors.toList()
         ));
 
-        List<PlanItemEntity> items = itemRepository.findAllByPlanIdOrderByCreatedAtAsc(plan.getId());
+        List<PlanItemEntity> items = itemRepository.findAllByPlanIdOrderByCreatedAtAsc(planId);
         List<String> itemIds = items.stream().map(item -> item.getId()).toList();
         List<PlanItemTargetEntity> targets = itemIds.isEmpty()
                 ? List.<PlanItemTargetEntity>of()
@@ -127,14 +149,51 @@ public class WorkspaceService {
                 LinkedHashMap::new,
                 Collectors.mapping(target -> target.getMeetingElementId(), Collectors.toList())
         ));
-        Map<String,String> assignedByParticipant = items.stream()
+        return new WorkspaceData(
+                elements,
+                participants,
+                participantFields,
+                recordsByParticipant,
+                items,
+                targetsByItem
+        );
+    }
+
+    private WorkspaceResponse.MeetingView meetingView(MeetingEntity meeting) {
+        return new WorkspaceResponse.MeetingView(
+                meeting.getId(),
+                meeting.getName(),
+                meeting.getStatus(),
+                meeting.getLayoutName(),
+                meeting.getLayoutVersion(),
+                meeting.getUpdatedAt(),
+                meeting.getUpdatedByName()
+        );
+    }
+
+    private WorkspaceResponse.LayoutView layoutView(
+            MeetingEntity meeting,
+            List<MeetingElementEntity> elements
+    ) {
+        return new WorkspaceResponse.LayoutView(
+                meeting.getGridRows(),
+                meeting.getGridColumns(),
+                elements.stream().map(this::toElementView).toList()
+        );
+    }
+
+    private List<ParticipantView> participantViews(WorkspaceData data) {
+        Map<String,String> assignedByParticipant = data.items().stream()
                 .filter(item -> item.getItemType() == PlanItemType.PERSON && item.getParticipantId() != null)
                 .collect(Collectors.toMap(
                         item -> item.getParticipantId(),
-                        item -> targetsByItem.getOrDefault(item.getId(), List.of()).stream().findFirst().orElse(null),
+                        item -> data.targetsByItem().getOrDefault(item.getId(), List.of())
+                                .stream()
+                                .findFirst()
+                                .orElse(null),
                         (left, right) -> left
                 ));
-        Map<String,Boolean> lockedByParticipant = items.stream()
+        Map<String,Boolean> lockedByParticipant = data.items().stream()
                 .filter(item -> item.getItemType() == PlanItemType.PERSON && item.getParticipantId() != null)
                 .collect(Collectors.toMap(
                         item -> item.getParticipantId(),
@@ -142,16 +201,19 @@ public class WorkspaceService {
                         (left, right) -> left
                 ));
 
-        List<ParticipantView> participantViews = participants.stream()
+        return data.participants().stream()
                 .map(participant -> toParticipantView(
                         participant,
-                        participantFields,
-                        recordsByParticipant.getOrDefault(participant.getId(), List.of()),
+                        data.participantFields(),
+                        data.recordsByParticipant().getOrDefault(participant.getId(), List.of()),
                         assignedByParticipant.get(participant.getId()),
                         lockedByParticipant.getOrDefault(participant.getId(), false)
                 ))
                 .toList();
-        List<PlanItemView> itemViews = items.stream().map(item -> new WorkspaceResponse.PlanItemView(
+    }
+
+    private List<PlanItemView> itemViews(WorkspaceData data) {
+        return data.items().stream().map(item -> new WorkspaceResponse.PlanItemView(
                 item.getId(),
                 item.getItemType().name(),
                 item.getParticipantId(),
@@ -160,28 +222,24 @@ public class WorkspaceService {
                 item.getBackgroundColor(),
                 item.getTextColor(),
                 item.isBold(),
-                targetsByItem.getOrDefault(item.getId(), List.of())
+                data.targetsByItem().getOrDefault(item.getId(), List.of())
         )).toList();
+    }
 
-        return new WorkspaceResponse(
-                new WorkspaceResponse.MeetingView(
-                        meeting.getId(), meeting.getName(), meeting.getStatus(), meeting.getLayoutName(),
-                        meeting.getLayoutVersion(), meeting.getUpdatedAt(), meeting.getUpdatedByName()),
-                new WorkspaceResponse.PlanView(plan.getId(), plan.getName(), plan.getStatus(), plan.getCurrentVersionNo()),
-                new WorkspaceResponse.LayoutView(
-                        meeting.getGridRows(), meeting.getGridColumns(),
-                        elements.stream().map(this::toElementView).toList()),
-                participantViews,
-                itemViews,
-                versionRepository.findAllByPlanIdOrderByVersionNoDesc(plan.getId()).stream()
-                        .map(version -> new WorkspaceResponse.VersionView(
-                                version.getId(), version.getVersionNo(), version.getVersionName(), version.getChangeNote(),
-                                version.isAutomatic(), version.getAssignedCount(), version.getUnassignedCount(),
-                                version.getCreatedAt(), version.getCreatedByName()))
-                        .toList(),
-                fieldDefinitions(participantFields),
-                List.of()
-        );
+    private List<WorkspaceResponse.VersionView> versionViews(String planId) {
+        return versionRepository.findAllByPlanIdOrderByVersionNoDesc(planId).stream()
+                .map(version -> new WorkspaceResponse.VersionView(
+                        version.getId(),
+                        version.getVersionNo(),
+                        version.getVersionName(),
+                        version.getChangeNote(),
+                        version.isAutomatic(),
+                        version.getAssignedCount(),
+                        version.getUnassignedCount(),
+                        version.getCreatedAt(),
+                        version.getCreatedByName()
+                ))
+                .toList();
     }
 
     private WorkspaceResponse.ElementView toElementView(MeetingElementEntity element) {
@@ -284,5 +342,15 @@ public class WorkspaceService {
                 false
         )));
         return List.copyOf(fields);
+    }
+
+    private record WorkspaceData(
+            List<MeetingElementEntity> elements,
+            List<ParticipantEntity> participants,
+            List<MeetingParticipantFieldEntity> participantFields,
+            Map<String, List<ParticipantRecordEntity>> recordsByParticipant,
+            List<PlanItemEntity> items,
+            Map<String, List<String>> targetsByItem
+    ) {
     }
 }

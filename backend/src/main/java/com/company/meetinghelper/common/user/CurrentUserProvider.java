@@ -5,6 +5,9 @@ import com.company.meetinghelper.common.security.CurrentUser;
 import java.util.Objects;
 import org.springframework.stereotype.Component;
 
+/**
+ * Represents the current user provider class.
+ */
 @Component
 public class CurrentUserProvider {
 

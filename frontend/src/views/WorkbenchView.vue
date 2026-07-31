@@ -137,7 +137,9 @@ const protectedElementIds = computed(() => [
 const markerSelectionIds = computed(() => [...markerSelection.value])
 const markerItems = computed(() => markerAreaDrafts.value)
 const canvasWorkspace = computed(() => {
-  if (!workspace.value) return undefined
+  if (!workspace.value) {
+    return undefined
+  }
   return {
     ...workspace.value,
     items: [
@@ -151,7 +153,9 @@ const selectedParticipant = computed(() =>
 )
 const selectedParticipantSeatLabel = computed(() => {
   const elementId = selectedParticipant.value?.assignedElementId
-  if (!elementId || !canvasWorkspace.value?.layout?.elements) return ''
+  if (!elementId || !canvasWorkspace.value?.layout?.elements) {
+    return ''
+  }
   return (
     computeSeatLabels(canvasWorkspace.value.layout.elements || []).labelsByElementId.get(elementId) ||
     ''
@@ -193,16 +197,24 @@ const hasAnyUnsavedChanges = computed(() =>
   modeDirty('seating') || modeDirty('layout') || modeDirty('marker'),
 )
 const saveStatusText = computed(() => {
-  if (readonlyMode.value) return '已发布版本'
+  if (readonlyMode.value) {
+    return '已发布版本'
+  }
   if (workbenchMode.value === 'layout') {
-    if (layoutSaving.value) return '布局保存中'
+    if (layoutSaving.value) {
+      return '布局保存中'
+    }
     return layoutDirty.value ? '布局未保存' : '布局已保存'
   }
   if (workbenchMode.value === 'marker') {
-    if (markerSubmitting.value) return '区域保存中'
+    if (markerSubmitting.value) {
+      return '区域保存中'
+    }
     return markerDirty.value ? '区域未保存' : '区域已保存'
   }
-  if (store.saving) return '排座保存中'
+  if (store.saving) {
+    return '排座保存中'
+  }
   return store.dirty ? '排座未保存' : '排座已保存'
 })
 const colorFieldOptions = computed(() =>
@@ -264,21 +276,39 @@ const activeGroupColors = computed(() =>
 )
 function layoutPublicValue(key, fallback) {
   const value = layoutEditorRef.value?.[key]
-  if (value && typeof value === 'object' && 'value' in value) return value.value
+  if (value && typeof value === 'object' && 'value' in value) {
+    return value.value
+  }
   return value ?? fallback
 }
 const toolbarUndoDisabled = computed(() => {
-  if (readonlyMode.value) return true
-  if (workbenchMode.value === 'layout') return !layoutPublicValue('canUndo', false)
-  if (workbenchMode.value === 'seating') return !undoStack.value.length
-  if (workbenchMode.value === 'marker') return !markerUndoStack.value.length
+  if (readonlyMode.value) {
+    return true
+  }
+  if (workbenchMode.value === 'layout') {
+    return !layoutPublicValue('canUndo', false)
+  }
+  if (workbenchMode.value === 'seating') {
+    return !undoStack.value.length
+  }
+  if (workbenchMode.value === 'marker') {
+    return !markerUndoStack.value.length
+  }
   return true
 })
 const toolbarRedoDisabled = computed(() => {
-  if (readonlyMode.value) return true
-  if (workbenchMode.value === 'layout') return !layoutPublicValue('canRedo', false)
-  if (workbenchMode.value === 'seating') return !redoStack.value.length
-  if (workbenchMode.value === 'marker') return !markerRedoStack.value.length
+  if (readonlyMode.value) {
+    return true
+  }
+  if (workbenchMode.value === 'layout') {
+    return !layoutPublicValue('canRedo', false)
+  }
+  if (workbenchMode.value === 'seating') {
+    return !redoStack.value.length
+  }
+  if (workbenchMode.value === 'marker') {
+    return !markerRedoStack.value.length
+  }
   return true
 })
 const toolbarZoomValue = computed(() => (
@@ -291,7 +321,9 @@ const fabStyle = computed(() => ({
   top: `${fab.y}px`,
 }))
 const layoutDirty = computed(() => {
-  if (!workspace.value?.layout) return false
+  if (!workspace.value?.layout) {
+    return false
+  }
   return JSON.stringify(layoutDraft.value) !== JSON.stringify(cloneLayout(workspace.value.layout))
 })
 function cloneLayout(layout) {
@@ -311,7 +343,9 @@ function cloneLayout(layout) {
   }
 }
 function resetLayoutDraft() {
-  if (workspace.value?.layout) layoutDraft.value = cloneLayout(workspace.value.layout)
+  if (workspace.value?.layout) {
+    layoutDraft.value = cloneLayout(workspace.value.layout)
+  }
 }
 function cloneMarkerArea(area) {
   return {
@@ -364,13 +398,17 @@ function pushMarkerHistory(stack, snapshot) {
   return next.slice(-50)
 }
 function recordMarkerHistory() {
-  if (applyingMarkerHistory.value) return
+  if (applyingMarkerHistory.value) {
+    return
+  }
   markerUndoStack.value = pushMarkerHistory(markerUndoStack.value, markerHistorySnapshot())
   markerRedoStack.value = []
 }
 function performMarkerUndo() {
   const snapshot = markerUndoStack.value.at(-1)
-  if (!snapshot) return
+  if (!snapshot) {
+    return
+  }
   markerUndoStack.value = markerUndoStack.value.slice(0, -1)
   markerRedoStack.value = pushMarkerHistory(markerRedoStack.value, markerHistorySnapshot())
   applyingMarkerHistory.value = true
@@ -379,7 +417,9 @@ function performMarkerUndo() {
 }
 function performMarkerRedo() {
   const snapshot = markerRedoStack.value.at(-1)
-  if (!snapshot) return
+  if (!snapshot) {
+    return
+  }
   markerRedoStack.value = markerRedoStack.value.slice(0, -1)
   markerUndoStack.value = pushMarkerHistory(markerUndoStack.value, markerHistorySnapshot())
   applyingMarkerHistory.value = true
@@ -390,9 +430,13 @@ function activeMarkerAreaDraft() {
   return markerAreaDrafts.value.find((item) => item.id === markerDraft.id)
 }
 function syncActiveMarkerDraft() {
-  if (!markerDraft.id) return
+  if (!markerDraft.id) {
+    return
+  }
   const active = activeMarkerAreaDraft()
-  if (!active) return
+  if (!active) {
+    return
+  }
   Object.assign(active, {
     label: markerDraft.label || '',
     backgroundColor: markerDraft.backgroundColor || defaultMarkerDraft.backgroundColor,
@@ -413,22 +457,36 @@ function toReservedAreaPayload(area) {
   }
 }
 function modeDirty(mode) {
-  if (mode === 'seating') return Boolean(store.dirty)
-  if (mode === 'layout') return Boolean(layoutDirty.value)
-  if (mode === 'marker') return Boolean(markerDirty.value)
+  if (mode === 'seating') {
+    return Boolean(store.dirty)
+  }
+  if (mode === 'layout') {
+    return Boolean(layoutDirty.value)
+  }
+  if (mode === 'marker') {
+    return Boolean(markerDirty.value)
+  }
   return false
 }
 function modeSaving(mode) {
-  if (mode === 'seating') return Boolean(store.saving)
-  if (mode === 'layout') return Boolean(layoutSaving.value)
-  if (mode === 'marker') return Boolean(markerSubmitting.value)
+  if (mode === 'seating') {
+    return Boolean(store.saving)
+  }
+  if (mode === 'layout') {
+    return Boolean(layoutSaving.value)
+  }
+  if (mode === 'marker') {
+    return Boolean(markerSubmitting.value)
+  }
   return false
 }
 function participantBusyAction(participantId) {
   return participantBusyActions.value[participantId] || ''
 }
 async function runParticipantBusyAction(participantId, action, task) {
-  if (!participantId || participantBusyAction(participantId)) return undefined
+  if (!participantId || participantBusyAction(participantId)) {
+    return undefined
+  }
   participantBusyActions.value = {
     ...participantBusyActions.value,
     [participantId]: action,
@@ -442,8 +500,12 @@ async function runParticipantBusyAction(participantId, action, task) {
   }
 }
 async function changeWorkbenchMode(nextMode) {
-  if (readonlyMode.value || workspaceBusy.value || nextMode === workbenchMode.value) return
-  if (!(await confirmUnsavedModeChanges(workbenchMode.value))) return
+  if (readonlyMode.value || workspaceBusy.value || nextMode === workbenchMode.value) {
+    return
+  }
+  if (!(await confirmUnsavedModeChanges(workbenchMode.value))) {
+    return
+  }
   workbenchMode.value = nextMode
 }
 function reservedAreaInputs(excludedId) {
@@ -504,19 +566,27 @@ function validateMarkerAreaDrafts(silent = false) {
     const label = normalizedMarkerLabel(area.label)
     const color = normalizedMarkerColor(area.backgroundColor)
     if (!label || !(area.targetElementIds || []).length) {
-      if (!silent) ElMessage.warning('请完善区域名称并至少选择一个座位')
+      if (!silent) {
+        ElMessage.warning('请完善区域名称并至少选择一个座位')
+      }
       return false
     }
     if (labels.has(label)) {
-      if (!silent) ElMessage.warning('区域名称已存在，请使用其他名称')
+      if (!silent) {
+        ElMessage.warning('区域名称已存在，请使用其他名称')
+      }
       return false
     }
     if (color && colors.has(color)) {
-      if (!silent) ElMessage.warning('区域颜色已被其他区域使用，请选择其他颜色')
+      if (!silent) {
+        ElMessage.warning('区域颜色已被其他区域使用，请选择其他颜色')
+      }
       return false
     }
     labels.set(label, area.id)
-    if (color) colors.set(color, area.id)
+    if (color) {
+      colors.set(color, area.id)
+    }
   }
   return true
 }
@@ -534,7 +604,9 @@ function selectedRegionSeatIdsFromRect(elementIds) {
   return (elementIds || []).filter((id) => !markerBlockingItem(id))
 }
 function openRegionCreateDialog(elementIds) {
-  if (readonlyMode.value || workbenchMode.value !== 'marker') return
+  if (readonlyMode.value || workbenchMode.value !== 'marker') {
+    return
+  }
   const availableIds = selectedRegionSeatIdsFromRect(elementIds)
   if (!availableIds.length) {
     ElMessage.warning('框选范围内没有可用座位')
@@ -545,10 +617,14 @@ function openRegionCreateDialog(elementIds) {
   regionCreateVisible.value = true
 }
 async function createReservedAreaFromDialog(payload) {
-  if (regionCreateSubmitting.value) return
+  if (regionCreateSubmitting.value) {
+    return
+  }
   regionCreateSubmitting.value = true
   try {
-    if (!validateMarkerUniqueness(payload)) return
+    if (!validateMarkerUniqueness(payload)) {
+      return
+    }
     recordMarkerHistory()
     const id = createMarkerTempId()
     Object.assign(markerDraft, {
@@ -575,7 +651,9 @@ async function createReservedAreaFromDialog(payload) {
   }
 }
 async function mergeReservedAreaFromDialog(payload) {
-  if (regionCreateSubmitting.value) return
+  if (regionCreateSubmitting.value) {
+    return
+  }
   regionCreateSubmitting.value = true
   try {
     const target = markerItems.value.find((item) => item.id === payload?.targetMarkerId)
@@ -602,7 +680,9 @@ async function mergeReservedAreaFromDialog(payload) {
   }
 }
 function selectReservedMarker(item) {
-  if (readonlyMode.value || workbenchMode.value !== 'marker' || !item || item.type !== 'RESERVED') return
+  if (readonlyMode.value || workbenchMode.value !== 'marker' || !item || item.type !== 'RESERVED') {
+    return
+  }
   if (markerDraft.id === item.id) {
     resetMarkerDraft()
     return
@@ -620,12 +700,18 @@ function markerBlockingItem(elementId) {
   const item = (canvasWorkspace.value?.items || []).find((value) =>
     (value.targetElementIds || []).includes(elementId),
   )
-  if (!item) return undefined
-  if (item.type === 'RESERVED' && item.id === markerDraft.id) return undefined
+  if (!item) {
+    return undefined
+  }
+  if (item.type === 'RESERVED' && item.id === markerDraft.id) {
+    return undefined
+  }
   return item
 }
 async function toggleMarkerSeat(element) {
-  if (readonlyMode.value || workbenchMode.value !== 'marker' || !element?.id) return
+  if (readonlyMode.value || workbenchMode.value !== 'marker' || !element?.id) {
+    return
+  }
   const blockingItem = markerBlockingItem(element.id)
   if (blockingItem) {
     if (blockingItem.type === 'RESERVED') {
@@ -650,14 +736,22 @@ async function toggleMarkerSeat(element) {
   }
 }
 async function saveReservedAreas(silent = false) {
-  if (!store.workspace || readonlyMode.value || markerSubmitting.value) return false
+  if (!store.workspace || readonlyMode.value || markerSubmitting.value) {
+    return false
+  }
   syncActiveMarkerDraft()
-  if (!markerDirty.value) return true
-  if (!validateMarkerAreaDrafts(silent)) return false
+  if (!markerDirty.value) {
+    return true
+  }
+  if (!validateMarkerAreaDrafts(silent)) {
+    return false
+  }
   const areaPayload = markerAreaDrafts.value.map(toReservedAreaPayload)
   markerSubmitting.value = true
   try {
-    if (!(await saveDraft(true))) return false
+    if (!(await saveDraft(true))) {
+      return false
+    }
     await meetingApi.saveReservedAreas(store.workspace.plan.id, {
       reservedAreas: areaPayload,
     })
@@ -666,7 +760,9 @@ async function saveReservedAreas(silent = false) {
     resetMarkerDraft()
     markerUndoStack.value = []
     markerRedoStack.value = []
-    if (!silent) ElMessage.success('区域已保存')
+    if (!silent) {
+      ElMessage.success('区域已保存')
+    }
     return true
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
@@ -676,7 +772,9 @@ async function saveReservedAreas(silent = false) {
   }
 }
 async function deleteReservedMarker(skipConfirm = false, recordHistory = true) {
-  if (!store.workspace || readonlyMode.value || markerDeleteSubmitting.value) return false
+  if (!store.workspace || readonlyMode.value || markerDeleteSubmitting.value) {
+    return false
+  }
   if (!markerDraft.id) {
     resetMarkerDraft()
     return false
@@ -694,10 +792,14 @@ async function deleteReservedMarker(skipConfirm = false, recordHistory = true) {
         return false
       }
     }
-    if (recordHistory) recordMarkerHistory()
+    if (recordHistory) {
+      recordMarkerHistory()
+    }
     markerAreaDrafts.value = markerAreaDrafts.value.filter((item) => item.id !== markerDraft.id)
     resetMarkerDraft()
-    if (!skipConfirm) ElMessage.success('区域已删除，保存后生效')
+    if (!skipConfirm) {
+      ElMessage.success('区域已删除，保存后生效')
+    }
     return true
   } finally {
     markerDeleteSubmitting.value = false
@@ -715,7 +817,9 @@ function workbenchRoute(meetingId, versionKey = 'draft') {
 onMounted(async () => {
   const meetingId = typeof route.params.meetingId === 'string' ? route.params.meetingId : ''
   const requestedVersionKey = routeVersionKey()
-  if (meetingId) store.rememberMeeting(meetingId, requestedVersionKey || 'draft')
+  if (meetingId) {
+    store.rememberMeeting(meetingId, requestedVersionKey || 'draft')
+  }
   await store.initialize()
   if (store.activeMeetingId && store.activeMeetingId !== meetingId) {
     await router.replace(workbenchRoute(store.activeMeetingId, store.recentVersionKey))
@@ -731,6 +835,9 @@ onMounted(async () => {
     publishedWorkspace.value = undefined
     store.rememberMeeting(store.activeMeetingId, 'draft')
     await router.replace(workbenchRoute(store.activeMeetingId, 'draft'))
+  } else {
+    activeVersionKey.value = 'draft'
+    publishedWorkspace.value = undefined
   }
   await resetFab()
   window.addEventListener('resize', keepFabInViewport)
@@ -743,10 +850,14 @@ onBeforeUnmount(() => {
   stopFabDrag()
 })
 async function switchMeeting(meetingId) {
-  if (!meetingId || switchingMeetingId.value || switchingVersionKey.value || workspaceBusy.value) return
+  if (!meetingId || switchingMeetingId.value || switchingVersionKey.value || workspaceBusy.value) {
+    return
+  }
   switchingMeetingId.value = meetingId
   try {
-    if (!(await confirmAllUnsavedChanges())) return
+    if (!(await confirmAllUnsavedChanges())) {
+      return
+    }
     activeVersionKey.value = 'draft'
     workbenchMode.value = 'seating'
     publishedWorkspace.value = undefined
@@ -760,13 +871,19 @@ async function switchMeeting(meetingId) {
   }
 }
 async function switchVersion(versionKey) {
-  if (switchingVersionKey.value || switchingMeetingId.value || workspaceBusy.value) return
+  if (switchingVersionKey.value || switchingMeetingId.value || workspaceBusy.value) {
+    return
+  }
   switchingVersionKey.value = versionKey || 'draft'
   try {
-    if (!(await confirmAllUnsavedChanges())) return
+    if (!(await confirmAllUnsavedChanges())) {
+      return
+    }
     const meetingId = store.workspace?.meeting?.id || store.activeMeetingId
     activeVersionKey.value = versionKey
-    if (versionKey !== 'draft') workbenchMode.value = 'seating'
+    if (versionKey !== 'draft') {
+      workbenchMode.value = 'seating'
+    }
     store.selectParticipant(undefined)
     draggingParticipantId.value = undefined
     if (versionKey === 'draft') {
@@ -777,7 +894,9 @@ async function switchVersion(versionKey) {
       }
       return
     }
-    if (!store.workspace) return
+    if (!store.workspace) {
+      return
+    }
     loadingVersion.value = true
     try {
       publishedWorkspace.value = await meetingApi.versionSnapshot(store.workspace.plan.id, versionKey)
@@ -801,7 +920,9 @@ async function switchVersion(versionKey) {
   }
 }
 async function publishDraft() {
-  if (!store.workspace || readonlyMode.value || workspaceBusy.value) return
+  if (!store.workspace || readonlyMode.value || workspaceBusy.value) {
+    return
+  }
   if (pendingCount.value > 0) {
     await ElMessageBox.alert(
       `当前还有 ${pendingCount.value} 位参会人员尚未排座。请先完成全部人员排座，再发布只读版本。`,
@@ -817,11 +938,15 @@ async function publishDraft() {
 }
 
 async function confirmPublish(payload) {
-  if (!store.workspace || readonlyMode.value || publishing.value) return
+  if (!store.workspace || readonlyMode.value || publishing.value) {
+    return
+  }
   publishing.value = true
   let publishedVersion
   try {
-    if (!(await confirmAllUnsavedChanges())) return
+    if (!(await confirmAllUnsavedChanges())) {
+      return
+    }
     publishedVersion = await meetingApi.createVersion(store.workspace.plan.id, payload)
     await store.loadWorkspace()
     publishVisible.value = false
@@ -830,12 +955,16 @@ async function confirmPublish(payload) {
   } finally {
     publishing.value = false
   }
-  if (!publishedVersion) return
+  if (!publishedVersion) {
+    return
+  }
   await switchVersion(publishedVersion.id)
   ElMessage.success(`“${publishedVersion.versionName}”已发布，当前进入只读查看`)
 }
 async function overwriteDraftFromVersion() {
-  if (!store.workspace || !activePublishedVersion.value || restoringDraft.value) return
+  if (!store.workspace || !activePublishedVersion.value || restoringDraft.value) {
+    return
+  }
   const versionName = activePublishedVersion.value.versionName
   restoringDraft.value = true
   try {
@@ -859,29 +988,43 @@ async function overwriteDraftFromVersion() {
     redoStack.value = []
     ElMessage.success(`已使用“${versionName}”覆盖草稿`)
   } catch (error) {
-    if (error === 'cancel' || error === 'close') return
+    if (error === 'cancel' || error === 'close') {
+      return
+    }
     ElMessage.error(apiErrorMessage(error))
   } finally {
     restoringDraft.value = false
   }
 }
 async function saveDraft(silent = false) {
-  if (readonlyMode.value || !store.dirty) return true
+  if (readonlyMode.value || !store.dirty) {
+    return true
+  }
   return store.saveAssignments({ silent })
 }
 async function saveCurrentMode(silent = false) {
-  if (activeModeSaving.value) return false
+  if (activeModeSaving.value) {
+    return false
+  }
   return modeSave(workbenchMode.value, silent)
 }
 async function modeSave(mode, silent = false) {
-  if (mode === 'seating') return saveDraft(silent)
-  if (mode === 'layout') return saveMeetingLayout(silent)
-  if (mode === 'marker') return saveReservedAreas(silent)
+  if (mode === 'seating') {
+    return saveDraft(silent)
+  }
+  if (mode === 'layout') {
+    return saveMeetingLayout(silent)
+  }
+  if (mode === 'marker') {
+    return saveReservedAreas(silent)
+  }
   return true
 }
 async function modeDiscard(mode) {
   if (mode === 'seating') {
-    if (store.dirty) await store.loadWorkspace()
+    if (store.dirty) {
+      await store.loadWorkspace()
+    }
     undoStack.value = []
     redoStack.value = []
     return
@@ -896,7 +1039,9 @@ async function modeDiscard(mode) {
   }
 }
 async function confirmUnsavedModeChanges(mode) {
-  if (!modeDirty(mode)) return true
+  if (!modeDirty(mode)) {
+    return true
+  }
   const modeName = {
     seating: '排座模式',
     layout: '布局模式',
@@ -924,13 +1069,19 @@ async function confirmUnsavedModeChanges(mode) {
 }
 async function confirmAllUnsavedChanges() {
   for (const mode of ['seating', 'layout', 'marker']) {
-    if (!(await confirmUnsavedModeChanges(mode))) return false
+    if (!(await confirmUnsavedModeChanges(mode))) {
+      return false
+    }
   }
   return true
 }
 async function goHome() {
-  if (workspaceBusy.value) return
-  if (!(await confirmAllUnsavedChanges())) return
+  if (workspaceBusy.value) {
+    return
+  }
+  if (!(await confirmAllUnsavedChanges())) {
+    return
+  }
   if (store.workspace?.meeting?.id) {
     store.rememberMeeting(store.workspace.meeting.id, activeVersionKey.value)
   }
@@ -939,9 +1090,13 @@ async function goHome() {
 function resetAutoSaveTimer() {
   window.clearInterval(autoSaveTimer)
   autoSaveTimer = undefined
-  if (!autoSaveSeconds.value) return
+  if (!autoSaveSeconds.value) {
+    return
+  }
   autoSaveTimer = window.setInterval(() => {
-    if (readonlyMode.value) return
+    if (readonlyMode.value) {
+      return
+    }
     if (workbenchMode.value === 'layout' && layoutDirty.value && !layoutSaving.value) {
       saveMeetingLayout(true)
       return
@@ -956,7 +1111,9 @@ function resetAutoSaveTimer() {
   }, autoSaveSeconds.value * 1000)
 }
 function warnUnsavedChanges(event) {
-  if (!hasAnyUnsavedChanges.value) return
+  if (!hasAnyUnsavedChanges.value) {
+    return
+  }
   event.preventDefault()
   event.returnValue = ''
 }
@@ -964,7 +1121,9 @@ watch(autoSaveSeconds, resetAutoSaveTimer)
 watch(
   () => workspace.value?.layout,
   (layout) => {
-    if (layout) layoutDraft.value = cloneLayout(layout)
+    if (layout) {
+      layoutDraft.value = cloneLayout(layout)
+    }
   },
   { immediate: true, deep: true },
 )
@@ -976,7 +1135,9 @@ watch(
   { immediate: true, deep: true },
 )
 watch(readonlyMode, (readonly) => {
-  if (readonly) workbenchMode.value = 'seating'
+  if (readonly) {
+    workbenchMode.value = 'seating'
+  }
 })
 watch(colorFieldOptions, (options) => {
   if (
@@ -990,7 +1151,9 @@ watch(groupColorFieldCode, () => {
   groupColorLegendCollapsed.value = false
 })
 watch(workbenchMode, (mode) => {
-  if (mode !== 'marker') resetMarkerDraft()
+  if (mode !== 'marker') {
+    resetMarkerDraft()
+  }
   if (mode !== 'seating') {
     draggingParticipantId.value = undefined
     store.selectParticipant(undefined)
@@ -1000,21 +1163,30 @@ watch(workbenchMode, (mode) => {
 })
 watch(sidePanelCollapsed, queueDefaultFabPosition)
 async function performAssign(participantId, targetElementId) {
-  if (readonlyMode.value || workbenchMode.value !== 'seating') return
+  if (readonlyMode.value || workbenchMode.value !== 'seating') {
+    return
+  }
   if (!store.workspace || applyingHistory.value) {
     await store.assign(participantId, targetElementId)
     return
   }
   const person = store.workspace.participants.find((value) => value.id === participantId)
-  if (!person) return
+  if (!person) {
+    return
+  }
   const originalTarget = person.assignedElementId
   const success = await store.assign(participantId, targetElementId)
-  if (!success) return
+  if (!success) {
+    return
+  }
   undoStack.value.push({
     label: originalTarget ? '移动或交换人员' : '安排人员',
     undo: async () => {
-      if (originalTarget) await store.assign(participantId, originalTarget)
-      else await store.unassign(participantId)
+      if (originalTarget) {
+        await store.assign(participantId, originalTarget)
+      } else {
+        await store.unassign(participantId)
+      }
     },
     redo: async () => {
       await store.assign(participantId, targetElementId)
@@ -1023,12 +1195,18 @@ async function performAssign(participantId, targetElementId) {
   redoStack.value = []
 }
 async function performUnassign(participantId) {
-  if (readonlyMode.value || workbenchMode.value !== 'seating') return
+  if (readonlyMode.value || workbenchMode.value !== 'seating') {
+    return
+  }
   const person = store.workspace?.participants.find((value) => value.id === participantId)
   const originalTarget = person?.assignedElementId
-  if (!originalTarget) return
+  if (!originalTarget) {
+    return
+  }
   const success = await store.unassign(participantId)
-  if (!success) return
+  if (!success) {
+    return
+  }
   ElMessage.success('已移回待排列表')
   if (!applyingHistory.value) {
     undoStack.value.push({
@@ -1044,25 +1222,35 @@ async function performUnassign(participantId) {
   }
 }
 async function undo() {
-  if (readonlyMode.value) return
+  if (readonlyMode.value) {
+    return
+  }
   const action = undoStack.value.pop()
-  if (!action) return
+  if (!action) {
+    return
+  }
   applyingHistory.value = true
   await action.undo()
   applyingHistory.value = false
   redoStack.value.push(action)
 }
 async function redo() {
-  if (readonlyMode.value) return
+  if (readonlyMode.value) {
+    return
+  }
   const action = redoStack.value.pop()
-  if (!action) return
+  if (!action) {
+    return
+  }
   applyingHistory.value = true
   await action.redo()
   applyingHistory.value = false
   undoStack.value.push(action)
 }
 function performToolbarUndo() {
-  if (toolbarUndoDisabled.value) return
+  if (toolbarUndoDisabled.value) {
+    return
+  }
   if (workbenchMode.value === 'layout') {
     layoutEditorRef.value?.undo()
     return
@@ -1074,7 +1262,9 @@ function performToolbarUndo() {
   undo()
 }
 function performToolbarRedo() {
-  if (toolbarRedoDisabled.value) return
+  if (toolbarRedoDisabled.value) {
+    return
+  }
   if (workbenchMode.value === 'layout') {
     layoutEditorRef.value?.redo()
     return
@@ -1093,17 +1283,25 @@ function performToolbarFit() {
   venueCanvasRef.value?.fitCanvas()
 }
 async function onSeatClick(element) {
-  if (readonlyMode.value || workspaceBusy.value || workbenchMode.value !== 'seating' || !element?.id) return
+  if (readonlyMode.value || workspaceBusy.value || workbenchMode.value !== 'seating' || !element?.id) {
+    return
+  }
   const occupied = workspace.value?.participants.find(
     (person) => person.assignedElementId === element.id,
   )
-  if (occupied) return
-  if (!(await saveDraft(true))) return
+  if (occupied) {
+    return
+  }
+  if (!(await saveDraft(true))) {
+    return
+  }
   addTargetElementId.value = element.id
   addVisible.value = true
 }
 function setGroupColorOverride(payload) {
-  if (!groupColorFieldCode.value || !payload?.value || !payload?.color) return
+  if (!groupColorFieldCode.value || !payload?.value || !payload?.color) {
+    return
+  }
   const color = normalizeHexColor(payload.color)
   if (
     color &&
@@ -1134,15 +1332,21 @@ function clearCanvasSelection() {
   resetMarkerDraft()
 }
 async function openParticipantEdit(person) {
-  if (readonlyMode.value || workbenchMode.value !== 'seating' || !person) return
+  if (readonlyMode.value || workbenchMode.value !== 'seating' || !person) {
+    return
+  }
   await runParticipantBusyAction(person.id, 'edit', async () => {
-    if (!(await saveDraft(true))) return
+    if (!(await saveDraft(true))) {
+      return
+    }
     editingParticipant.value = person
     editParticipantVisible.value = true
   })
 }
 async function updateParticipantAttendance(person, attendanceStatus) {
-  if (readonlyMode.value || workbenchMode.value !== 'seating' || !person?.id) return
+  if (readonlyMode.value || workbenchMode.value !== 'seating' || !person?.id) {
+    return
+  }
   await runParticipantBusyAction(person.id, 'attendance', async () => {
     if (attendanceStatus === 'TEMPORARILY_ABSENT' && person.assignedElementId) {
       try {
@@ -1167,7 +1371,9 @@ async function updateParticipantAttendance(person, attendanceStatus) {
   })
 }
 async function removeParticipant(person) {
-  if (readonlyMode.value || workbenchMode.value !== 'seating' || !person?.id) return
+  if (readonlyMode.value || workbenchMode.value !== 'seating' || !person?.id) {
+    return
+  }
   await runParticipantBusyAction(person.id, 'remove', async () => {
     try {
       await ElMessageBox.confirm(
@@ -1182,7 +1388,9 @@ async function removeParticipant(person) {
     } catch {
       return
     }
-    if (!(await saveDraft(true))) return
+    if (!(await saveDraft(true))) {
+      return
+    }
     await store.removeParticipant(person.id)
     undoStack.value = []
     redoStack.value = []
@@ -1200,7 +1408,9 @@ function zoomCurrentCanvas(delta) {
   changeZoom(delta)
 }
 function openExportOptions() {
-  if (exporting.value || workspaceBusy.value) return
+  if (exporting.value || workspaceBusy.value) {
+    return
+  }
   exportOptionsVisible.value = true
 }
 function selectedLayoutColorFieldCodes(options) {
@@ -1208,7 +1418,9 @@ function selectedLayoutColorFieldCodes(options) {
 }
 function buildExportColorRules(options) {
   const colorFieldCodes = selectedLayoutColorFieldCodes(options)
-  if (!colorFieldCodes.length) return []
+  if (!colorFieldCodes.length) {
+    return []
+  }
   let reservedColors = [...layoutReservedColors.value]
   return colorFieldCodes.flatMap((fieldCode) => {
     const entries = buildFieldColorEntries(
@@ -1244,12 +1456,18 @@ function exportOptionsWithColorRules(options) {
   }
 }
 async function exportPlan(options) {
-  if (exporting.value) return
+  if (exporting.value) {
+    return
+  }
   exporting.value = true
   try {
-    if (!readonlyMode.value && !(await confirmAllUnsavedChanges())) return
+    if (!readonlyMode.value && !(await confirmAllUnsavedChanges())) {
+      return
+    }
     const exported = await store.exportPlan(activeVersionId.value, exportOptionsWithColorRules(options))
-    if (exported) exportOptionsVisible.value = false
+    if (exported) {
+      exportOptionsVisible.value = false
+    }
   } finally {
     exporting.value = false
   }
@@ -1271,11 +1489,15 @@ async function confirmDeleteProtectedElement(element) {
   }
 }
 async function saveMeetingLayout(silent = false) {
-  if (!store.workspace || readonlyMode.value || layoutSaving.value) return
+  if (!store.workspace || readonlyMode.value || layoutSaving.value) {
+    return
+  }
   const layoutSnapshot = cloneLayout(layoutDraft.value)
   layoutSaving.value = true
   try {
-    if (!(await saveDraft(true))) return
+    if (!(await saveDraft(true))) {
+      return
+    }
     const updated = await meetingApi.updateMeetingLayout(store.workspace.meeting.id, {
       gridRows: layoutSnapshot.gridRows,
       gridColumns: layoutSnapshot.gridColumns,
@@ -1288,7 +1510,9 @@ async function saveMeetingLayout(silent = false) {
     undoStack.value = []
     redoStack.value = []
     layoutDraft.value = cloneLayout(updated.layout)
-    if (!silent) ElMessage.success('会议布局已保存')
+    if (!silent) {
+      ElMessage.success('会议布局已保存')
+    }
     return true
   } catch (error) {
     ElMessage.error(apiErrorMessage(error))
@@ -1321,7 +1545,9 @@ function positionFabInCanvasShell() {
   fab.y = position.y
 }
 function queueDefaultFabPosition() {
-  if (fabManuallyMoved || fab.dragging) return
+  if (fabManuallyMoved || fab.dragging) {
+    return
+  }
   window.requestAnimationFrame(() => {
     positionFabInCanvasShell()
     window.setTimeout(positionFabInCanvasShell, 220)
@@ -1347,7 +1573,9 @@ function startFabDrag(event) {
   window.addEventListener('pointerup', stopFabDrag)
 }
 function moveFab(event) {
-  if (!fab.dragging) return
+  if (!fab.dragging) {
+    return
+  }
   if (
     !fabMoved &&
     Math.hypot(event.clientX - fabPointerStartX, event.clientY - fabPointerStartY) < 5
@@ -1360,12 +1588,16 @@ function moveFab(event) {
   fab.y = Math.min(Math.max(64, event.clientY - fabOffsetY), window.innerHeight - 50)
 }
 function stopFabDrag() {
-  if (!fab.dragging) return
+  if (!fab.dragging) {
+    return
+  }
   const wasMoved = fabMoved
   fab.dragging = false
   window.removeEventListener('pointermove', moveFab)
   window.removeEventListener('pointerup', stopFabDrag)
-  if (!wasMoved) return
+  if (!wasMoved) {
+    return
+  }
   suppressFabClick = true
   window.setTimeout(() => {
     fabMoved = false
@@ -1373,9 +1605,15 @@ function stopFabDrag() {
   }, 0)
 }
 async function openParticipantEntry() {
-  if (suppressFabClick) return
-  if (workspaceBusy.value) return
-  if (!(await saveDraft(true))) return
+  if (suppressFabClick) {
+    return
+  }
+  if (workspaceBusy.value) {
+    return
+  }
+  if (!(await saveDraft(true))) {
+    return
+  }
   addTargetElementId.value = undefined
   addVisible.value = true
 }
@@ -1387,7 +1625,9 @@ async function onParticipantAdded(participantResult) {
     const result = Array.isArray(participantResult) ? participantResult.at(-1) : participantResult
     if (result) {
       const added = store.workspace?.participants.find((person) => person.id === result.id)
-      if (added) store.selectParticipant(added)
+      if (added) {
+        store.selectParticipant(added)
+      }
     }
   } finally {
     refreshingWorkspace.value = false
@@ -1399,7 +1639,9 @@ async function onParticipantUpdated(participant) {
   try {
     await store.loadWorkspace()
     const updated = store.workspace?.participants.find((person) => person.id === participantId)
-    if (updated) store.selectParticipant(updated)
+    if (updated) {
+      store.selectParticipant(updated)
+    }
   } finally {
     refreshingWorkspace.value = false
   }

@@ -1,7 +1,12 @@
 package com.company.meetinghelper.importing.api.dto.response;
 
 /**
- * 通用人员导入提交的分类统计。
+ * Represents the commit result record.
+ *
+ * @param newParticipants new participants
+ * @param mergedRecords merged records
+ * @param appendedRecords appended records
+ * @param skippedRecords skipped records
  */
 public record CommitResult(
         int newParticipants,

@@ -28,7 +28,9 @@ function updateLayout(value) {
 }
 
 async function loadVenue() {
-  if (loadingVenuePromise) return loadingVenuePromise
+  if (loadingVenuePromise) {
+    return loadingVenuePromise
+  }
   loading.value = true
   loadFailed.value = false
   loadingVenuePromise = (async () => {
@@ -57,7 +59,9 @@ async function loadVenue() {
 }
 
 async function saveLayout() {
-  if (saving.value || loading.value || loadFailed.value) return
+  if (saving.value || loading.value || loadFailed.value) {
+    return
+  }
   saving.value = true
   try {
     const saved = await venueApi.updateLayout(route.params.venueId, {
@@ -66,7 +70,9 @@ async function saveLayout() {
       elements: layout.elements.map(toElementPayload),
       rowVersion: rowVersion.value,
     })
-    if (saved?.rowVersion != null) rowVersion.value = saved.rowVersion
+    if (saved?.rowVersion != null) {
+      rowVersion.value = saved.rowVersion
+    }
     dirty.value = false
     ElMessage.success('场馆布局已保存')
   } catch (error) {
@@ -85,7 +91,9 @@ async function saveLayout() {
 }
 
 function beforeUnload(event) {
-  if (!dirty.value) return
+  if (!dirty.value) {
+    return
+  }
   event.preventDefault()
   event.returnValue = ''
 }
@@ -97,7 +105,9 @@ onMounted(() => {
 onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
 
 onBeforeRouteLeave(() => {
-  if (!dirty.value) return true
+  if (!dirty.value) {
+    return true
+  }
   return window.confirm('当前场馆布局尚未保存，确认离开吗？')
 })
 </script>

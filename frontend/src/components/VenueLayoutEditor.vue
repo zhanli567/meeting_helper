@@ -238,7 +238,9 @@ function closeOverlays() {
 
 function undo() {
   const snapshot = undoStack.value.at(-1)
-  if (!snapshot) return
+  if (!snapshot) {
+    return
+  }
   redoStack.value = appendHistorySnapshot(redoStack.value, currentSnapshot())
   undoStack.value = undoStack.value.slice(0, -1)
   restoreSnapshot(snapshot)
@@ -248,7 +250,9 @@ function undo() {
 
 function redo() {
   const snapshot = redoStack.value.at(-1)
-  if (!snapshot) return
+  if (!snapshot) {
+    return
+  }
   undoStack.value = appendHistorySnapshot(undoStack.value, currentSnapshot())
   redoStack.value = redoStack.value.slice(0, -1)
   restoreSnapshot(snapshot)
@@ -259,7 +263,9 @@ function redo() {
 watch(
   () => props.modelValue,
   (layout) => {
-    if (!layout || comparableLayout(layout) === comparableLayout(currentSnapshot())) return
+    if (!layout || comparableLayout(layout) === comparableLayout(currentSnapshot())) {
+      return
+    }
     restoreSnapshot({
       gridRows: layout.gridRows || DEFAULT_CANVAS.rows,
       gridColumns: layout.gridColumns || DEFAULT_CANVAS.columns,
@@ -327,7 +333,9 @@ const canvasStyle = computed(() => ({
   transform: `scale(${zoom.value})`,
 }))
 const selectionStyle = computed(() => {
-  if (!selectionRect.value) return {}
+  if (!selectionRect.value) {
+    return {}
+  }
   return {
     left: `${(selectionRect.value.column - 1) * CELL_SIZE}px`,
     top: `${(selectionRect.value.row - 1) * CELL_SIZE}px`,
@@ -391,7 +399,9 @@ function isElementConflict(element) {
 
 function gridPointFromEvent(event) {
   const rect = canvasRef.value?.getBoundingClientRect()
-  if (!rect) return
+  if (!rect) {
+    return
+  }
   return {
     row: Math.min(
       displayRows.value,
@@ -405,7 +415,9 @@ function gridPointFromEvent(event) {
 }
 
 function attachGlobalPointerTracking() {
-  if (globalPointerTracking) return
+  if (globalPointerTracking) {
+    return
+  }
   globalPointerTracking = true
   window.addEventListener('pointermove', onGlobalPointerMove)
   window.addEventListener('pointerup', onGlobalPointerUp)
@@ -413,7 +425,9 @@ function attachGlobalPointerTracking() {
 }
 
 function detachGlobalPointerTracking() {
-  if (!globalPointerTracking) return
+  if (!globalPointerTracking) {
+    return
+  }
   globalPointerTracking = false
   window.removeEventListener('pointermove', onGlobalPointerMove)
   window.removeEventListener('pointerup', onGlobalPointerUp)
@@ -428,7 +442,9 @@ function detachGlobalPointerTracking() {
 }
 
 function beginPointerSession(event) {
-  if (activePointerId !== undefined) return false
+  if (activePointerId !== undefined) {
+    return false
+  }
   activePointerId = event.pointerId
   pointerCaptureTarget = event.currentTarget
   try {
@@ -441,7 +457,9 @@ function beginPointerSession(event) {
 }
 
 function startSelection(event) {
-  if (event.button !== 0 || event.target !== event.currentTarget) return
+  if (event.button !== 0 || event.target !== event.currentTarget) {
+    return
+  }
   if (
     shouldDismissDesignerOverlays({
       hasOverlay: pickerVisible.value || Boolean(selectedId.value),
@@ -452,8 +470,12 @@ function startSelection(event) {
     return
   }
   const point = gridPointFromEvent(event)
-  if (!point) return
-  if (!beginPointerSession(event)) return
+  if (!point) {
+    return
+  }
+  if (!beginPointerSession(event)) {
+    return
+  }
   conflictElementIds.value = []
   drawing.value = { start: point, current: point }
   pendingRect.value = undefined
@@ -461,7 +483,9 @@ function startSelection(event) {
 }
 
 function positionPicker() {
-  if (!pendingRect.value || !canvasRef.value || !canvasSurfaceRef.value) return
+  if (!pendingRect.value || !canvasRef.value || !canvasSurfaceRef.value) {
+    return
+  }
   const canvasBounds = canvasRef.value.getBoundingClientRect()
   const surfaceBounds = canvasSurfaceRef.value.getBoundingClientRect()
   const pickerBounds = pickerNode()?.getBoundingClientRect()
@@ -487,7 +511,9 @@ function positionPicker() {
     },
   )
   pickerDocked.value = placement.dock === 'right'
-  if (!pickerDocked.value) pickerPosition.value = placement
+  if (!pickerDocked.value) {
+    pickerPosition.value = placement
+  }
 }
 
 function conflictingIds(candidate, ignoredId) {
@@ -500,7 +526,9 @@ function conflictingIds(candidate, ignoredId) {
 }
 
 function chooseElement(choice) {
-  if (!pendingRect.value) return
+  if (!pendingRect.value) {
+    return
+  }
   let created
   if (choice.kind === ELEMENT_KINDS.SEAT) {
     created = createSeatElements(pendingRect.value, choice.mode || 'merge', choice)
@@ -535,13 +563,19 @@ function chooseElement(choice) {
 
 function openElementPanel(element) {
   closePicker()
-  if (selectedId.value !== element.editorId) editorPreview.value = undefined
+  if (selectedId.value !== element.editorId) {
+    editorPreview.value = undefined
+  }
   selectedId.value = element.editorId
 }
 
 function startElementMove(event, element) {
-  if (event.button !== 0) return
-  if (!beginPointerSession(event)) return
+  if (event.button !== 0) {
+    return
+  }
+  if (!beginPointerSession(event)) {
+    return
+  }
   openElementPanel(element)
   conflictElementIds.value = []
   manipulation.value = {
@@ -557,8 +591,12 @@ function startElementMove(event, element) {
 }
 
 function startElementResize(event, element, handle) {
-  if (event.button !== 0) return
-  if (!beginPointerSession(event)) return
+  if (event.button !== 0) {
+    return
+  }
+  if (!beginPointerSession(event)) {
+    return
+  }
   openElementPanel(element)
   conflictElementIds.value = []
   manipulation.value = {
@@ -576,7 +614,9 @@ function startElementResize(event, element, handle) {
 
 function updateManipulation(event) {
   const session = manipulation.value
-  if (!session) return
+  if (!session) {
+    return
+  }
   const delta = pointerDeltaToGrid(
     event.clientX - session.startX,
     event.clientY - session.startY,
@@ -599,7 +639,9 @@ function updateManipulation(event) {
 
 function finishManipulation() {
   const session = manipulation.value
-  if (!session) return
+  if (!session) {
+    return
+  }
   if (session.valid) {
     const changed = ['row', 'column', 'rowSpan', 'columnSpan'].some(
       (key) => session.origin[key] !== session.candidate[key],
@@ -638,13 +680,17 @@ async function requestDeleteElement(element) {
   const protectedElement = elementIds.some((id) => props.protectedElementIds.includes(id))
   if (protectedElement && props.deleteConfirmMessage) {
     const allowed = await props.deleteConfirmMessage(element)
-    if (!allowed) return
+    if (!allowed) {
+      return
+    }
   }
   deleteElement(element)
 }
 
 function previewElement(changes) {
-  if (!selectedElement.value) return
+  if (!selectedElement.value) {
+    return
+  }
   editorPreview.value = {
     editorId: selectedElement.value.editorId,
     ...changes,
@@ -652,23 +698,31 @@ function previewElement(changes) {
 }
 
 function applyElementChanges(changes, { closePanel = true } = {}) {
-  if (!selectedElement.value) return
+  if (!selectedElement.value) {
+    return
+  }
   const index = elements.value.findIndex(
     (element) => element.editorId === selectedId.value,
   )
-  if (index < 0) return
+  if (index < 0) {
+    return
+  }
   const changed = Object.entries(changes || {}).some(
     ([key, value]) => elements.value[index][key] !== value,
   )
   if (!changed) {
     editorPreview.value = undefined
-    if (closePanel) closeElementPanel()
+    if (closePanel) {
+      closeElementPanel()
+    }
     return
   }
   recordHistory()
   elements.value[index] = { ...elements.value[index], ...changes }
   editorPreview.value = undefined
-  if (closePanel) closeElementPanel()
+  if (closePanel) {
+    closeElementPanel()
+  }
   publishLayout()
 }
 
@@ -681,8 +735,12 @@ function applyElementColor(changes) {
 }
 
 function startCanvasResize(event, direction) {
-  if (event.button !== 0) return
-  if (!beginPointerSession(event)) return
+  if (event.button !== 0) {
+    return
+  }
+  if (!beginPointerSession(event)) {
+    return
+  }
   closeOverlays()
   conflictElementIds.value = []
   canvasResizeSession.value = {
@@ -703,7 +761,9 @@ function maintainCanvasAnchor() {
   const session = canvasResizeSession.value
   const viewport = viewportElement()
   const currentBounds = canvasRef.value?.getBoundingClientRect()
-  if (!session?.anchorBounds || !viewport || !currentBounds) return
+  if (!session?.anchorBounds || !viewport || !currentBounds) {
+    return
+  }
   const adjustment = canvasAnchorAdjustment(
     session.direction,
     session.anchorBounds,
@@ -723,16 +783,18 @@ function maintainCanvasAnchor() {
 
 function updateCanvasResize(event) {
   const session = canvasResizeSession.value
-  if (!session) return
-  const proposed = canvasSizeFromPointer(
-    session.start,
-    session.direction,
-    event.clientX - session.startX,
-    event.clientY - session.startY,
-    CELL_SIZE,
-    zoom.value,
-    MIN_CANVAS_SIZE,
-  )
+  if (!session) {
+    return
+  }
+  const proposed = canvasSizeFromPointer({
+    start: session.start,
+    direction: session.direction,
+    deltaX: event.clientX - session.startX,
+    deltaY: event.clientY - session.startY,
+    cellSize: CELL_SIZE,
+    zoom: zoom.value,
+    minimumSize: MIN_CANVAS_SIZE,
+  })
   const conflicts = canvasResizeConflict(
     elements.value,
     proposed.rows,
@@ -750,7 +812,9 @@ function updateCanvasResize(event) {
 
 function finishCanvasResize() {
   const session = canvasResizeSession.value
-  if (!session) return
+  if (!session) {
+    return
+  }
   if (session.valid) {
     const changed =
       session.start.rows !== session.candidate.rows ||
@@ -771,10 +835,16 @@ function finishCanvasResize() {
 }
 
 function startPan(event) {
-  if (event.button !== 2) return
+  if (event.button !== 2) {
+    return
+  }
   const viewport = viewportElement()
-  if (!viewport) return
-  if (!beginPointerSession(event)) return
+  if (!viewport) {
+    return
+  }
+  if (!beginPointerSession(event)) {
+    return
+  }
   panSession = {
     startX: event.clientX,
     startY: event.clientY,
@@ -787,7 +857,9 @@ function startPan(event) {
 
 function updatePan(event) {
   const viewport = viewportElement()
-  if (!panSession || !viewport) return
+  if (!panSession || !viewport) {
+    return
+  }
   viewport.scrollLeft =
     panSession.scrollLeft - (event.clientX - panSession.startX)
   viewport.scrollTop =
@@ -800,10 +872,14 @@ function finishPan() {
 }
 
 function onGlobalPointerMove(event) {
-  if (event.pointerId !== activePointerId) return
+  if (event.pointerId !== activePointerId) {
+    return
+  }
   if (drawing.value) {
     const point = gridPointFromEvent(event)
-    if (point) drawing.value.current = point
+    if (point) {
+      drawing.value.current = point
+    }
     return
   }
   if (manipulation.value) {
@@ -814,14 +890,20 @@ function onGlobalPointerMove(event) {
     updateCanvasResize(event)
     return
   }
-  if (isPanning.value) updatePan(event)
+  if (isPanning.value) {
+    updatePan(event)
+  }
 }
 
 function onGlobalPointerUp(event) {
-  if (event.pointerId !== activePointerId) return
+  if (event.pointerId !== activePointerId) {
+    return
+  }
   if (drawing.value) {
     const point = gridPointFromEvent(event)
-    if (point) drawing.value.current = point
+    if (point) {
+      drawing.value.current = point
+    }
     pendingRect.value = normalizeGridRect(
       drawing.value.start,
       drawing.value.current,
@@ -835,12 +917,16 @@ function onGlobalPointerUp(event) {
     finishCanvasResize()
   } else if (isPanning.value) {
     finishPan()
+  } else {
+    // Pointer tracking may be attached after a cancelled or already-finished session.
   }
   detachGlobalPointerTracking()
 }
 
 function cancelPointerSession(event) {
-  if (event && event.pointerId !== activePointerId) return
+  if (event && event.pointerId !== activePointerId) {
+    return
+  }
   if (canvasResizeSession.value) {
     canvasOffsetX.value = canvasResizeSession.value.startOffsetX
     canvasOffsetY.value = canvasResizeSession.value.startOffsetY
@@ -856,10 +942,14 @@ function cancelPointerSession(event) {
 function onWheel(event) {
   event.preventDefault()
   const viewport = viewportElement()
-  if (!viewport) return
+  if (!viewport) {
+    return
+  }
   const oldZoom = zoom.value
   const nextZoom = Math.min(2.5, Math.max(0.25, oldZoom + (event.deltaY < 0 ? 0.1 : -0.1)))
-  if (nextZoom === oldZoom) return
+  if (nextZoom === oldZoom) {
+    return
+  }
   const bounds = viewport.getBoundingClientRect()
   const pointerX = event.clientX - bounds.left + viewport.scrollLeft
   const pointerY = event.clientY - bounds.top + viewport.scrollTop
@@ -867,7 +957,9 @@ function onWheel(event) {
   nextTick(() => {
     viewport.scrollLeft = (pointerX / oldZoom) * zoom.value - (event.clientX - bounds.left)
     viewport.scrollTop = (pointerY / oldZoom) * zoom.value - (event.clientY - bounds.top)
-    if (pickerVisible.value) positionPicker()
+    if (pickerVisible.value) {
+      positionPicker()
+    }
   })
 }
 
@@ -875,7 +967,9 @@ function setZoom(value) {
   zoom.value = Number(Math.min(2.5, Math.max(0.25, value)).toFixed(2))
   nextTick(() => {
     centerCanvas()
-    if (pickerVisible.value) positionPicker()
+    if (pickerVisible.value) {
+      positionPicker()
+    }
   })
 }
 
@@ -902,7 +996,9 @@ function scheduleCenterCanvas() {
 }
 
 function centerLayout() {
-  if (!elements.value.length) return
+  if (!elements.value.length) {
+    return
+  }
   const centered = centerLayoutElements(elements.value, {
     rows: gridRows.value,
     columns: gridColumns.value,
@@ -912,7 +1008,9 @@ function centerLayout() {
       Number(element.row) !== Number(elements.value[index].row) ||
       Number(element.column) !== Number(elements.value[index].column),
   )
-  if (!changed) return
+  if (!changed) {
+    return
+  }
   recordHistory()
   elements.value = centered
   editorPreview.value = undefined
@@ -923,7 +1021,9 @@ function centerLayout() {
 
 function fitCanvas() {
   const viewport = viewportElement()
-  if (!viewport) return
+  if (!viewport) {
+    return
+  }
   canvasOffsetX.value = 0
   canvasOffsetY.value = 0
   const fitted = Math.min(
@@ -952,7 +1052,9 @@ function elementFromTarget(target) {
 }
 
 function isDesignerFloatingControlTarget(target) {
-  if (!(target instanceof Element)) return false
+  if (!(target instanceof Element)) {
+    return false
+  }
   return [
     '.el-popper',
     '.el-select-dropdown',
@@ -972,8 +1074,12 @@ function pickerNode() {
 
 function closeOnOutsidePointer(event) {
   const target = event.target
-  if (isDesignerFloatingControlTarget(target)) return
-  if (pickerVisible.value && !pickerNode()?.contains(target)) closePicker()
+  if (isDesignerFloatingControlTarget(target)) {
+    return
+  }
+  if (pickerVisible.value && !pickerNode()?.contains(target)) {
+    closePicker()
+  }
   if (
     selectedId.value &&
     !panelNode()?.contains(target) &&
@@ -984,7 +1090,9 @@ function closeOnOutsidePointer(event) {
 }
 
 function requestSave() {
-  if (props.saving) return
+  if (props.saving) {
+    return
+  }
   emit('save')
 }
 

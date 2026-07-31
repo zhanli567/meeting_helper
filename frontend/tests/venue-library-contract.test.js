@@ -192,7 +192,7 @@ test('场馆预览只读并支持初始适配、滚轮缩放和右键平移', as
 test('会议创建防止重复提交且 Enter 只保留单一触发路径', async () => {
   const source = await readSource('src/views/VenueLibraryView.vue')
 
-  assert.match(source, /if \(submitting\.value\) return/)
+  assert.match(source, /if \(submitting\.value\)\s*\{\s*return\s*\}/)
   assert.match(source, /@submit\.prevent="createMeeting"/)
   assert.doesNotMatch(source, /@keyup\.enter="createMeeting"/)
 })
@@ -200,7 +200,7 @@ test('会议创建防止重复提交且 Enter 只保留单一触发路径', asyn
 test('选择有座位模板后填写会议名称并进入独立会议工作台', async () => {
   const source = await readSource('src/views/VenueLibraryView.vue')
 
-  assert.match(source, /if \(venue\.seatCount === 0\) return/)
+  assert.match(source, /if \(venue\.seatCount === 0\)\s*\{\s*return\s*\}/)
   assert.match(source, /meetingForm\.venueTemplateId = venue\.id/)
   assert.match(source, /meetingVisible\.value = true/)
   assert.match(source, /meetingApi\.createMeeting\(name, meetingForm\.venueTemplateId\)/)
@@ -214,8 +214,8 @@ test('场馆列表只接收最后一次查询响应', async () => {
 
   assert.match(source, /let latestLoadId/)
   assert.match(source, /const loadId = \+\+latestLoadId/)
-  assert.match(source, /if \(loadId !== latestLoadId\) return/)
-  assert.match(source, /if \(loadId === latestLoadId\) loading\.value = false/)
+  assert.match(source, /if \(loadId !== latestLoadId\)\s*\{\s*return\s*\}/)
+  assert.match(source, /if \(loadId === latestLoadId\)\s*\{\s*loading\.value = false\s*\}/)
 })
 
 test('场馆模板页首页入口样式和会议编辑页保持一致', async () => {

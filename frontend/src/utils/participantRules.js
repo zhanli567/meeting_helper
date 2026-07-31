@@ -7,7 +7,9 @@ export function isValidEmployeeNo(value) {
 
 export function hasDuplicateEmployeeNo(value, participants = []) {
   const normalized = value?.trim().toLocaleLowerCase()
-  if (!normalized) return false
+  if (!normalized) {
+    return false
+  }
   return participants.some(
     (participant) => participant.employeeNo?.trim().toLocaleLowerCase() === normalized,
   )

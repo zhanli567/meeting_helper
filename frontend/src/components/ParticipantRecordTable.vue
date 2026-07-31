@@ -53,7 +53,9 @@ function addRecord() {
 }
 
 function removeRecord(index) {
-  if (!props.allowRemoveRows || records.value.length <= props.minRows) return
+  if (!props.allowRemoveRows || records.value.length <= props.minRows) {
+    return
+  }
   records.value.splice(index, 1)
 }
 
@@ -77,6 +79,8 @@ function addColumn(label = '') {
       label: '',
       custom: true,
     })
+  } else {
+    // Existing fields only need the record attribute backfill below.
   }
   records.value.forEach((record) => {
     if (!Object.prototype.hasOwnProperty.call(record.attributes, id)) {
@@ -102,7 +106,9 @@ function scrollToNewestColumn() {
       return
     }
     const scrollWrap = table?.$el?.querySelector?.('.el-scrollbar__wrap')
-    if (scrollWrap) scrollWrap.scrollLeft = scrollWrap.scrollWidth
+    if (scrollWrap) {
+      scrollWrap.scrollLeft = scrollWrap.scrollWidth
+    }
   })
 }
 
@@ -114,7 +120,9 @@ function scrollToNewestRecord() {
       return
     }
     const scrollWrap = table?.$el?.querySelector?.('.el-scrollbar__wrap')
-    if (scrollWrap) scrollWrap.scrollTop = scrollWrap.scrollHeight
+    if (scrollWrap) {
+      scrollWrap.scrollTop = scrollWrap.scrollHeight
+    }
   })
 }
 
@@ -147,7 +155,9 @@ function validateCustomFields() {
 }
 
 function validateRecords() {
-  if (!props.includeFixedFields) return true
+  if (!props.includeFixedFields) {
+    return true
+  }
   for (const [index, record] of records.value.entries()) {
     if (!String(record.employeeNo || '').trim()) {
       ElMessage.warning(`第 ${index + 1} 行工号不能为空`)

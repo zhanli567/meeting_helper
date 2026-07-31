@@ -48,6 +48,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Represents the plan version service class.
+ */
 @Service
 public class PlanVersionService {
     private final SeatingPlanRepository planRepository;
@@ -175,34 +178,58 @@ public class PlanVersionService {
         PlanVersionEntity version = versionRepository.findById(versionId)
                 .filter(value -> value.getPlanId().equals(planId))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "方案版本不存在"));
-
-        WorkspaceResponse snapshot = readSnapshot(version);
-        if (!snapshot.meeting().id().equals(plan.getMeetingId())) {
-            throw new ApiException(HttpStatus.CONFLICT, "方案版本不属于当前会议");
-        }
+        WorkspaceResponse snapshot = validatedSnapshot(plan, version);
 
         fieldRegistrationService.lockMeeting(plan.getMeetingId());
         List<ParticipantEntity> currentParticipants = participantRepository
                 .findAllByMeetingIdOrderByNameAsc(plan.getMeetingId());
-        Set<String> elementIds = elementRepository
-                .findAllByMeetingIdOrderByStartRowAscStartColumnAsc(plan.getMeetingId())
-                .stream()
-                .map(value -> value.getId())
-                .collect(Collectors.toSet());
-
-        List<PlanItemEntity> currentItems = itemRepository.findAllByPlanIdOrderByCreatedAtAsc(planId);
-        currentItems.forEach(item -> targetRepository.deleteAllByPlanItemId(item.getId()));
-        targetRepository.flush();
-        itemRepository.deleteAll(currentItems);
-        itemRepository.flush();
-
+        Set<String> elementIds = currentElementIds(plan.getMeetingId());
+        clearPlanItems(planId);
         restoreFieldDefinitions(plan.getMeetingId(), snapshot, currentParticipants);
         LinkedHashMap<String,String> participantIdsBySnapshotId = restoreParticipants(
                 plan.getMeetingId(),
                 currentParticipants,
                 snapshot
         );
+        int restoredItems = restorePlanItems(planId, snapshot, participantIdsBySnapshotId, elementIds);
+        touchPlan(plan);
+        return new RestoreVersionResult(
+                version.getId(), version.getVersionNo(), version.getVersionName(), restoredItems);
+    }
 
+    private WorkspaceResponse validatedSnapshot(
+            SeatingPlanEntity plan,
+            PlanVersionEntity version
+    ) {
+        WorkspaceResponse snapshot = readSnapshot(version);
+        if (!snapshot.meeting().id().equals(plan.getMeetingId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "方案版本不属于当前会议");
+        }
+        return snapshot;
+    }
+
+    private Set<String> currentElementIds(String meetingId) {
+        return elementRepository
+                .findAllByMeetingIdOrderByStartRowAscStartColumnAsc(meetingId)
+                .stream()
+                .map(value -> value.getId())
+                .collect(Collectors.toSet());
+    }
+
+    private void clearPlanItems(String planId) {
+        List<PlanItemEntity> currentItems = itemRepository.findAllByPlanIdOrderByCreatedAtAsc(planId);
+        currentItems.forEach(item -> targetRepository.deleteAllByPlanItemId(item.getId()));
+        targetRepository.flush();
+        itemRepository.deleteAll(currentItems);
+        itemRepository.flush();
+    }
+
+    private int restorePlanItems(
+            String planId,
+            WorkspaceResponse snapshot,
+            Map<String, String> participantIdsBySnapshotId,
+            Set<String> elementIds
+    ) {
         int restoredItems = 0;
         for (PlanItemView source : snapshot.items()) {
             String participantId = source.participantId() == null
@@ -233,12 +260,13 @@ public class PlanVersionService {
             }
             restoredItems++;
         }
+        return restoredItems;
+    }
 
+    private void touchPlan(SeatingPlanEntity plan) {
         plan.setUpdatedById("demo-secretary");
         plan.setUpdatedByName("演示秘书");
         planRepository.save(plan);
-        return new RestoreVersionResult(
-                version.getId(), version.getVersionNo(), version.getVersionName(), restoredItems);
     }
 
     /**

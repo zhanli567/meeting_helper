@@ -36,7 +36,9 @@ function resetForm() {
 
 function patchColor(value) {
   const color = normalizeHexColor(value)
-  if (!color) return
+  if (!color) {
+    return
+  }
   form.backgroundColor = color
   form.textColor = textColorForBackground(color)
 }
@@ -75,7 +77,9 @@ function handleVisibleChange(value) {
 }
 
 function submit() {
-  if (props.submitting) return
+  if (props.submitting) {
+    return
+  }
   if (!props.selectedSeatCount) {
     ElMessage.warning('请先框选座位')
     return
@@ -112,15 +116,21 @@ function submit() {
 watch(
   () => props.modelValue,
   (visible) => {
-    if (visible) resetForm()
+    if (visible) {
+      resetForm()
+    }
   },
 )
 
 watch(
   () => [mode.value, props.markers],
   () => {
-    if (mode.value !== 'merge') return
-    if (props.markers.some((marker) => marker.id === mergeTargetId.value)) return
+    if (mode.value !== 'merge') {
+      return
+    }
+    if (props.markers.some((marker) => marker.id === mergeTargetId.value)) {
+      return
+    }
     mergeTargetId.value = props.markers[0]?.id || ''
   },
   { deep: true },

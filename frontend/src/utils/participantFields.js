@@ -1,7 +1,9 @@
 const fixedFieldCodes = new Set(['employeeNo', 'name'])
 
 function nonEmptyValue(value) {
-  if (value === undefined || value === null) return ''
+  if (value === undefined || value === null) {
+    return ''
+  }
   return String(value).trim()
 }
 
@@ -15,7 +17,9 @@ export function primaryFieldValue(participant, fieldName) {
 
 export function matchesParticipant(participant, keyword) {
   const normalizedKeyword = nonEmptyValue(keyword).toLocaleLowerCase()
-  if (!normalizedKeyword) return true
+  if (!normalizedKeyword) {
+    return true
+  }
 
   const values = [
     participant?.employeeNo,
@@ -27,7 +31,9 @@ export function matchesParticipant(participant, keyword) {
 
 export function filteredParticipants(participants, tab, keyword) {
   return (participants || []).filter((participant) => {
-    if (tab === 'pending' && participant.assignedElementId) return false
+    if (tab === 'pending' && participant.assignedElementId) {
+      return false
+    }
     return matchesParticipant(participant, keyword)
   })
 }
@@ -56,7 +62,9 @@ export function groupableFields(fieldDefinitions) {
 
 export function participantSummary(participant, fieldDefinitions, limit = 2) {
   const maximum = Math.max(0, limit)
-  if (!maximum) return []
+  if (!maximum) {
+    return []
+  }
 
   return (fieldDefinitions || [])
     .filter((field) => !fixedFieldCodes.has(field.code))
@@ -102,7 +110,9 @@ export function mergePreviewRowsIntoParticipantDraft({
     Object.keys(row?.attributes || {}).forEach((fieldName) => {
       const label = nonEmptyValue(fieldName)
       const key = normalizeFieldName(label)
-      if (!label || fieldKeys.has(key)) return
+      if (!label || fieldKeys.has(key)) {
+        return
+      }
       nextCustomFields.push({
         id: label,
         code: label,
@@ -150,10 +160,16 @@ export function normalizeExtraFields(extraFields = [], existingFields = []) {
   for (const row of extraFields || []) {
     const name = nonEmptyValue(row?.name)
     const value = nonEmptyValue(row?.value)
-    if (!name) throw new Error('请输入列名')
+    if (!name) {
+      throw new Error('请输入列名')
+    }
     const key = normalizeFieldName(name)
-    if (existing.has(key) || seen.has(key)) throw new Error('该字段已存在，请使用其他列名')
-    if (!value) throw new Error('请填写该人员在新增列中的值')
+    if (existing.has(key) || seen.has(key)) {
+      throw new Error('该字段已存在，请使用其他列名')
+    }
+    if (!value) {
+      throw new Error('请填写该人员在新增列中的值')
+    }
     seen.add(key)
     attributes[name] = value
   }
@@ -174,7 +190,9 @@ export function createParticipantUpdatePayload(form) {
     name: nonEmptyValue(form.name),
     records,
   }
-  if (fieldNames.length) payload.fieldNames = fieldNames
+  if (fieldNames.length) {
+    payload.fieldNames = fieldNames
+  }
   return payload
 }
 
@@ -245,9 +263,15 @@ function customFieldNameMap(fields = []) {
   const names = new Map()
   for (const field of fields || []) {
     const name = nonEmptyValue(field?.label)
-    if (!field?.custom || !name) continue
-    if (field.code) names.set(field.code, name)
-    if (field.id) names.set(field.id, name)
+    if (!field?.custom || !name) {
+      continue
+    }
+    if (field.code) {
+      names.set(field.code, name)
+    }
+    if (field.id) {
+      names.set(field.id, name)
+    }
   }
   return names
 }
@@ -257,7 +281,9 @@ function normalizeRecordAttributes(attributes = {}, fieldNameByCode = new Map())
   Object.entries(attributes || {}).forEach(([key, value]) => {
     const fieldName = nonEmptyValue(fieldNameByCode.get(key) || key)
     const fieldValue = nonEmptyValue(value)
-    if (fieldName && fieldValue) normalized[fieldName] = fieldValue
+    if (fieldName && fieldValue) {
+      normalized[fieldName] = fieldValue
+    }
   })
   return normalized
 }

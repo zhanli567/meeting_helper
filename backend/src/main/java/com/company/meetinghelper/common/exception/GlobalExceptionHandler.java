@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
+/**
+ * Represents the global exception handler class.
+ */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 

@@ -11,6 +11,9 @@ import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
+/**
+ * Represents the venue layout validator class.
+ */
 @Component
 public class VenueLayoutValidator {
     private static final Pattern COLOR_PATTERN = Pattern.compile("^#[0-9a-fA-F]{6}$");
@@ -30,54 +33,93 @@ public class VenueLayoutValidator {
         if (elements == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "布局元素不能为空");
         }
+        ValidationResult result = normalizedLayout(gridRows, gridColumns, elements);
+        validateGenericFillColorUniqueness(result.elements());
+        return result;
+    }
+
+    private ValidationResult normalizedLayout(
+            int gridRows,
+            int gridColumns,
+            List<ElementInput> elements
+    ) {
         List<OccupiedRectangle> occupiedRectangles = new ArrayList<>(elements.size());
         List<ElementInput> normalizedElements = new ArrayList<>(elements.size());
         int seatCount = 0;
         for (ElementInput source : elements) {
-            if (source == null) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "布局元素不能为空");
-            }
-            String name = source.name() == null ? "" : source.name().trim();
-            if (name.isEmpty()) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "元素名称不能为空");
-            }
-            ElementKind kind;
-            try {
-                kind = ElementKind.valueOf(source.kind().trim().toUpperCase(Locale.ROOT));
-            } catch (NullPointerException | IllegalArgumentException exception) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "元素“" + name + "”的种类无效");
-            }
-            String fillColor = normalizeColor(source.fillColor(), name);
-            long endRow = (long) source.row() + source.rowSpan() - 1L;
-            long endColumn = (long) source.column() + source.columnSpan() - 1L;
-            if (source.row() < 1 || source.column() < 1
-                    || source.rowSpan() < 1 || source.columnSpan() < 1
-                    || endRow > gridRows
-                    || endColumn > gridColumns) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "元素“" + name + "”超出布局边界");
-            }
-            OccupiedRectangle rectangle = new OccupiedRectangle(
-                    source.row(), endRow, source.column(), endColumn
-            );
-            for (OccupiedRectangle occupied : occupiedRectangles) {
-                if (rectangle.overlaps(occupied)) {
-                    throw new ApiException(
-                            HttpStatus.BAD_REQUEST,
-                            "元素“" + name + "”与其他元素发生重叠"
-                    );
-                }
-            }
-            occupiedRectangles.add(rectangle);
-            normalizedElements.add(new ElementInput(
-                    kind.name(), name, source.row(), source.column(), source.rowSpan(),
-                    source.columnSpan(), fillColor
-            ));
-            if (kind == ElementKind.SEAT) {
+            NormalizedElement element = normalizeElement(source, gridRows, gridColumns);
+            assertNotOverlapping(element, occupiedRectangles);
+            occupiedRectangles.add(element.rectangle());
+            normalizedElements.add(element.input());
+            if (element.kind() == ElementKind.SEAT) {
                 seatCount++;
             }
         }
-        validateGenericFillColorUniqueness(normalizedElements);
         return new ValidationResult(List.copyOf(normalizedElements), seatCount);
+    }
+
+    private NormalizedElement normalizeElement(
+            ElementInput source,
+            int gridRows,
+            int gridColumns
+    ) {
+        if (source == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "布局元素不能为空");
+        }
+        String name = source.name() == null ? "" : source.name().trim();
+        if (name.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "元素名称不能为空");
+        }
+        ElementKind kind = parseKind(source.kind(), name);
+        String fillColor = normalizeColor(source.fillColor(), name);
+        long endRow = (long) source.row() + source.rowSpan() - 1L;
+        long endColumn = (long) source.column() + source.columnSpan() - 1L;
+        validateBounds(source, gridRows, gridColumns, name, endRow, endColumn);
+        ElementInput input = new ElementInput(
+                kind.name(), name, source.row(), source.column(), source.rowSpan(),
+                source.columnSpan(), fillColor
+        );
+        return new NormalizedElement(input, kind, new OccupiedRectangle(
+                source.row(), endRow, source.column(), endColumn
+        ));
+    }
+
+    private ElementKind parseKind(String value, String name) {
+        try {
+            return ElementKind.valueOf(value.trim().toUpperCase(Locale.ROOT));
+        } catch (NullPointerException | IllegalArgumentException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "元素“" + name + "”的种类无效");
+        }
+    }
+
+    private void validateBounds(
+            ElementInput source,
+            int gridRows,
+            int gridColumns,
+            String name,
+            long endRow,
+            long endColumn
+    ) {
+        if (source.row() < 1 || source.column() < 1
+                || source.rowSpan() < 1 || source.columnSpan() < 1
+                || endRow > gridRows
+                || endColumn > gridColumns) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "元素“" + name + "”超出布局边界");
+        }
+    }
+
+    private void assertNotOverlapping(
+            NormalizedElement element,
+            List<OccupiedRectangle> occupiedRectangles
+    ) {
+        for (OccupiedRectangle occupied : occupiedRectangles) {
+            if (element.rectangle().overlaps(occupied)) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "元素“" + element.input().name() + "”与其他元素发生重叠"
+                );
+            }
+        }
     }
 
     private void validateGenericFillColorUniqueness(List<ElementInput> elements) {
@@ -118,6 +160,19 @@ public class VenueLayoutValidator {
         }
     }
 
+    private record NormalizedElement(
+            ElementInput input,
+            ElementKind kind,
+            OccupiedRectangle rectangle
+    ) {
+    }
+
+/**
+ * Represents the validation result record.
+ *
+ * @param elements elements
+ * @param seatCount seat count
+ */
     public record ValidationResult(List<ElementInput> elements, int seatCount) {
     }
 }

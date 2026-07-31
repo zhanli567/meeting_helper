@@ -3,7 +3,14 @@ package com.company.meetinghelper.importing.service.model;
 import java.util.List;
 
 /**
- * 通用人员工作簿的解析结果及结构化冲突标记。
+ * Represents the parsed participant workbook record.
+ *
+ * @param fieldNames field names
+ * @param rows rows
+ * @param totalRows total rows
+ * @param ignoredDuplicateRows ignored duplicate rows
+ * @param errors errors
+ * @param employeeNameConflict employee name conflict
  */
 public record ParsedParticipantWorkbook(
         List<String> fieldNames,

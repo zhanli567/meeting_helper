@@ -43,7 +43,9 @@ watch(
 )
 
 watch(open, (visible) => {
-  if (!visible) return
+  if (!visible) {
+    return
+  }
   refreshColors()
   pendingColor.value = currentColor.value
   customPreview.value = currentColor.value
@@ -54,27 +56,35 @@ function refreshColors() {
 }
 
 function toggleOpen() {
-  if (props.disabled) return
+  if (props.disabled) {
+    return
+  }
   refreshColors()
 }
 
 function chooseColor(value) {
   const color = normalizeHexColor(value)
-  if (!color || isColorUnavailable(color)) return
+  if (!color || isColorUnavailable(color)) {
+    return
+  }
   pendingColor.value = color
   customPreview.value = color
 }
 
 function updateCustomPreview(value) {
   const color = normalizeHexColor(value)
-  if (!color) return
+  if (!color) {
+    return
+  }
   customPreview.value = color
   pendingColor.value = color
 }
 
 function confirmSelectedColor() {
   const color = normalizeHexColor(pendingColor.value)
-  if (!color || isColorUnavailable(color)) return
+  if (!color || isColorUnavailable(color)) {
+    return
+  }
   saveCustomColor(pendingColor.value)
   refreshColors()
   emit('update:modelValue', color)

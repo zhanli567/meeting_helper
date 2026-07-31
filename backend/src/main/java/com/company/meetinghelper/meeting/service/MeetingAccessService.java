@@ -10,6 +10,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Represents the meeting access service class.
+ */
 @Service
 public class MeetingAccessService {
     private final CurrentUserProvider currentUserProvider;

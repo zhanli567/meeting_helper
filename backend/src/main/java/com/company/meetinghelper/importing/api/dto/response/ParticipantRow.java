@@ -3,7 +3,13 @@ package com.company.meetinghelper.importing.api.dto.response;
 import java.util.Map;
 
 /**
- * 单条人员动态记录的导入预览。
+ * Represents the participant row record.
+ *
+ * @param sourceRow source row
+ * @param employeeNo employee no
+ * @param name name
+ * @param attributes attributes
+ * @param expectedAction expected action
  */
 public record ParticipantRow(
         int sourceRow,

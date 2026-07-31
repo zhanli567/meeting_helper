@@ -103,10 +103,20 @@ public abstract class AbstractMyBatisRepository<T extends AuditedEntity> {
         // MyBatis does not keep a JPA-style persistence context.
     }
 
+/**
+ * Handles mapper.
+ *
+ * @return result
+ */
     protected BaseMapper<T> mapper() {
         return mapper;
     }
 
+/**
+ * Handles prepare insert.
+ *
+ * @param entity entity
+ */
     protected void prepareInsert(T entity) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         String userId = currentUserId();
@@ -129,6 +139,11 @@ public abstract class AbstractMyBatisRepository<T extends AuditedEntity> {
         entity.setRowVersion(0L);
     }
 
+/**
+ * Handles prepare update.
+ *
+ * @param entity entity
+ */
     protected void prepareUpdate(T entity) {
         entity.setUpdatedById(currentUserId());
         entity.setUpdatedByName(currentUserName());

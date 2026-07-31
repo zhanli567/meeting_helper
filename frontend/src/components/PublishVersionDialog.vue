@@ -22,7 +22,9 @@ watch(visible, (isVisible) => {
 })
 
 function submit() {
-  if (props.submitting) return
+  if (props.submitting) {
+    return
+  }
   const versionName = normalizeVersionName(form.versionName)
   if (!versionName) {
     ElMessage.warning('请填写版本名称')

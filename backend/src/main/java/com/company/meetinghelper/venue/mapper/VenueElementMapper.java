@@ -6,6 +6,9 @@ import java.util.List;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 
+/**
+ * Represents the venue element mapper interface.
+ */
 public interface VenueElementMapper extends BaseMapper<VenueElementEntity> {
     @Insert({
             "<script>",

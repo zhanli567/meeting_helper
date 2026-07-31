@@ -79,7 +79,9 @@ const rowLabelColumnBounds = computed(() =>
 )
 const unit = computed(() => displayCellUnit(props.zoom))
 const markerSelectionRect = computed(() => {
-  if (!markerDrawing.value || !markerRectStart.value || !markerRectCurrent.value) return undefined
+  if (!markerDrawing.value || !markerRectStart.value || !markerRectCurrent.value) {
+    return undefined
+  }
   return normalizeMarkerRect(markerRectStart.value, markerRectCurrent.value)
 })
 const canvasStyle = computed(() => ({
@@ -155,7 +157,9 @@ function regionAnchorStyle(anchor) {
 }
 function canvasPointFromEvent(event) {
   const canvas = canvasRef.value
-  if (!canvas) return undefined
+  if (!canvas) {
+    return undefined
+  }
   const rect = canvas.getBoundingClientRect()
   return {
     x: Math.min(Math.max(event.clientX - rect.left, 0), rect.width),
@@ -190,7 +194,9 @@ function elementOverlapsRect(element, rect) {
   )
 }
 function seatIdsInMarkerRect(rect) {
-  if (!rect || (rect.width < 2 && rect.height < 2)) return []
+  if (!rect || (rect.width < 2 && rect.height < 2)) {
+    return []
+  }
   return (props.workspace.layout.elements || [])
     .filter((element) => isSeat(element) && elementOverlapsRect(element, rect))
     .map((element) => element.id)
@@ -205,9 +211,13 @@ function canStartMarkerRectSelection(event) {
   )
 }
 function startMarkerRectSelection(event) {
-  if (!canStartMarkerRectSelection(event)) return
+  if (!canStartMarkerRectSelection(event)) {
+    return
+  }
   const point = canvasPointFromEvent(event)
-  if (!point) return
+  if (!point) {
+    return
+  }
   markerDrawing.value = true
   markerMoved = false
   markerRectStart.value = point
@@ -218,9 +228,13 @@ function startMarkerRectSelection(event) {
   event.preventDefault()
 }
 function moveMarkerRectSelection(event) {
-  if (!markerDrawing.value) return
+  if (!markerDrawing.value) {
+    return
+  }
   const point = canvasPointFromEvent(event)
-  if (!point) return
+  if (!point) {
+    return
+  }
   markerRectCurrent.value = point
   if (
     !markerMoved &&
@@ -239,14 +253,20 @@ function cleanupMarkerRectSelection() {
   window.removeEventListener('pointercancel', cancelMarkerRectSelection)
 }
 function finishMarkerRectSelection(event) {
-  if (!markerDrawing.value) return
+  if (!markerDrawing.value) {
+    return
+  }
   const point = canvasPointFromEvent(event)
-  if (point) markerRectCurrent.value = point
+  if (point) {
+    markerRectCurrent.value = point
+  }
   const rect = markerSelectionRect.value
   const shouldEmit = markerMoved && rect
   const elementIds = shouldEmit ? seatIdsInMarkerRect(rect) : []
   cleanupMarkerRectSelection()
-  if (!shouldEmit) return
+  if (!shouldEmit) {
+    return
+  }
   markerSuppressClick = true
   emit('marker-rect-select', elementIds)
   window.setTimeout(() => {
@@ -283,12 +303,18 @@ function onDragOver(event, element) {
     return
   }
   event.preventDefault()
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
   dragTargetId.value = element.id
 }
 function onDragLeave(event, element) {
-  if (event.currentTarget.contains(event.relatedTarget)) return
-  if (dragTargetId.value === element.id) dragTargetId.value = undefined
+  if (event.currentTarget.contains(event.relatedTarget)) {
+    return
+  }
+  if (dragTargetId.value === element.id) {
+    dragTargetId.value = undefined
+  }
 }
 function onDrop(event, element) {
   if (props.readonly || props.markerMode || !isSeat(element) || reservedItemByElementId.value.has(element.id)) {
@@ -296,12 +322,16 @@ function onDrop(event, element) {
   }
   event.preventDefault()
   const participantId = event.dataTransfer?.getData('text/participant-id')
-  if (participantId) emit('assign', participantId, element.id)
+  if (participantId) {
+    emit('assign', participantId, element.id)
+  }
   dragTargetId.value = undefined
   emit('dragState', undefined)
 }
 function onSeatClick(element) {
-  if (panMoved || !isSeat(element)) return
+  if (panMoved || !isSeat(element)) {
+    return
+  }
   if (props.markerMode) {
     selectReservedRegionFromSeat(element)
     return
@@ -312,33 +342,54 @@ function onSeatClick(element) {
     emit('select', person)
     emit('seatClick', element)
   }
-  else if (!item) emit('seatClick', element)
+  else if (!item) {
+    emit('seatClick', element)
+  }
+  else {
+    // Assigned plan items without a participant do not open seat actions.
+  }
 }
 function selectReservedRegionFromSeat(element) {
   const reservedItem = reservedItemByElementId.value.get(element.id)
-  if (reservedItem && reservedItem.id !== props.activeMarkerId) emit('marker-select', reservedItem)
+  if (reservedItem && reservedItem.id !== props.activeMarkerId) {
+    emit('marker-select', reservedItem)
+  }
 }
 function onCanvasClear() {
-  if (panMoved || markerSuppressClick) return
+  if (panMoved || markerSuppressClick) {
+    return
+  }
   emit('canvas-clear')
 }
 function onMarkerSeatToggle(element) {
   if (props.markerMode) {
-    if (props.readonly || !isSeat(element)) return
+    if (props.readonly || !isSeat(element)) {
+      return
+    }
     const item = itemFor(element.id)
-    if (item && item.type !== 'RESERVED') return
+    if (item && item.type !== 'RESERVED') {
+      return
+    }
     emit('marker-seat-toggle', element)
     return
   }
-  if (props.readonly || !isSeat(element)) return
+  if (props.readonly || !isSeat(element)) {
+    return
+  }
   const item = itemFor(element.id)
   const person = participantFor(element.id)
-  if (person && !item?.locked) emit('unassign', person.id)
+  if (person && !item?.locked) {
+    emit('unassign', person.id)
+  }
 }
 function startPan(event) {
-  if (event.button !== 2) return
+  if (event.button !== 2) {
+    return
+  }
   const container = viewportElement()
-  if (!container) return
+  if (!container) {
+    return
+  }
   isPanning.value = true
   panStartX = event.clientX
   panStartY = event.clientY
@@ -351,7 +402,9 @@ function startPan(event) {
 }
 function movePan(event) {
   const container = viewportElement()
-  if (!isPanning.value || !container) return
+  if (!isPanning.value || !container) {
+    return
+  }
   if (Math.abs(event.clientX - panStartX) > 3 || Math.abs(event.clientY - panStartY) > 3) {
     panMoved = true
   }
@@ -369,7 +422,9 @@ function endPan() {
 function onWheel(event) {
   event.preventDefault()
   const container = viewportElement()
-  if (!container) return
+  if (!container) {
+    return
+  }
   const oldZoom = props.zoom
   const rect = container.getBoundingClientRect()
   const pointerX = event.clientX - rect.left + container.scrollLeft
@@ -377,7 +432,9 @@ function onWheel(event) {
   emit('zoomChange', event.deltaY < 0 ? 0.08 : -0.08, event)
   nextTick(() => {
     const current = viewportElement()
-    if (!current || props.zoom === oldZoom) return
+    if (!current || props.zoom === oldZoom) {
+      return
+    }
     current.scrollLeft = (pointerX / oldZoom) * props.zoom - (event.clientX - rect.left)
     current.scrollTop = (pointerY / oldZoom) * props.zoom - (event.clientY - rect.top)
   })
@@ -387,7 +444,9 @@ function centerCanvas() {
 }
 function fitCanvas() {
   const container = viewportElement()
-  if (!container) return
+  if (!container) {
+    return
+  }
   const nextZoom = previewFitZoom({
     gridRows: props.workspace.layout.gridRows,
     gridColumns: props.workspace.layout.gridColumns,

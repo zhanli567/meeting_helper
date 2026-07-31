@@ -177,7 +177,7 @@ test('排座工作台仅允许通用座位元素接收人员且保留只读与�
   assert.match(workbench, /@unassign="performUnassign"/)
   assert.match(workbench, /meetingApi\.versionSnapshot/)
   assert.match(workbench, /meetingApi\.updateMeetingLayout/)
-  assert.match(workbench, /if \(readonlyMode\.value\) return/)
+  assert.match(workbench, /if \(readonlyMode\.value\) \{ return \}/)
   assert.match(workbench, /resetAutoSaveTimer/)
   assert.match(workbench, /<h1>\{\{ workspace\.meeting\.layoutName \}\}<\/h1>/)
   assert.doesNotMatch(workbench, /venueApi/)

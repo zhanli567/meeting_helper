@@ -29,6 +29,9 @@ import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 
+/**
+ * Represents the layout sheet writer class.
+ */
 @Component
 public class LayoutSheetWriter {
     private static final int TOP_OFFSET = 2;
@@ -42,6 +45,13 @@ public class LayoutSheetWriter {
         this.seatLabelService = seatLabelService;
     }
 
+/**
+ * Handles write.
+ *
+ * @param workbook workbook
+ * @param workspace workspace
+ * @param options options
+ */
     public void write(
             XSSFWorkbook workbook,
             WorkspaceResponse workspace,
@@ -49,14 +59,49 @@ public class LayoutSheetWriter {
     ) {
         XSSFSheet sheet = workbook.createSheet("排座图");
         sheet.setDisplayGridlines(false);
-        List<WorkspaceResponse.ElementView> elements = workspace.layout().elements() == null
-                ? List.of()
-                : workspace.layout().elements();
+        List<WorkspaceResponse.ElementView> elements = layoutElements(workspace);
         if (elements.isEmpty()) {
             sheet.createRow(TOP_OFFSET).createCell(LEFT_OFFSET).setCellValue("暂无排座图");
             return;
         }
 
+        LayoutRenderContext context = layoutRenderContext(workbook, workspace, options, elements);
+        configureDimensions(sheet, context.measured());
+        renderRowAndFieldLabels(
+                sheet,
+                context.measured(),
+                elements,
+                context.selectedFields(),
+                context.blockByElement(),
+                context.displayRowByCanvasRow(),
+                context.styles()
+        );
+        renderSeats(
+                sheet,
+                context.measured(),
+                elements,
+                context.selectedFields(),
+                context.blockByElement(),
+                context.itemByElement(),
+                context.participantById(),
+                context.seatLabels(),
+                options,
+                context.colorsByFieldValue(),
+                context.styles()
+        );
+        renderNonSeatElements(sheet, context.measured(), elements, context.styles());
+    }
+
+    private List<WorkspaceResponse.ElementView> layoutElements(WorkspaceResponse workspace) {
+        return workspace.layout().elements() == null ? List.of() : workspace.layout().elements();
+    }
+
+    private LayoutRenderContext layoutRenderContext(
+            XSSFWorkbook workbook,
+            WorkspaceResponse workspace,
+            ExportExcelRequest.LayoutSheet options,
+            List<WorkspaceResponse.ElementView> elements
+    ) {
         List<WorkspaceResponse.FieldDefinitionView> selectedFields = selectedFields(workspace, options);
         Map<String, WorkspaceResponse.ParticipantView> participantById = workspace.participants().stream()
                 .collect(Collectors.toMap(WorkspaceResponse.ParticipantView::id, Function.identity()));
@@ -82,31 +127,30 @@ public class LayoutSheetWriter {
                         SeatLabelService.RowLabel::sourceRow,
                         SeatLabelService.RowLabel::displayRow
                 ));
-
-        configureDimensions(sheet, measured);
-        renderRowAndFieldLabels(
-                sheet,
-                measured,
-                elements,
+        return new LayoutRenderContext(
                 selectedFields,
-                blockByElement,
-                displayRowByCanvasRow,
-                styles
-        );
-        renderSeats(
-                sheet,
-                measured,
-                elements,
-                selectedFields,
-                blockByElement,
-                itemByElement,
                 participantById,
-                seatLabels,
-                options,
+                itemByElement,
+                blockByElement,
+                measured,
+                styles,
                 colorsByFieldValue,
-                styles
+                seatLabels,
+                displayRowByCanvasRow
         );
-        renderNonSeatElements(sheet, measured, elements, styles);
+    }
+
+    private record LayoutRenderContext(
+            List<WorkspaceResponse.FieldDefinitionView> selectedFields,
+            Map<String, WorkspaceResponse.ParticipantView> participantById,
+            Map<String, WorkspaceResponse.PlanItemView> itemByElement,
+            Map<String, SeatBlock> blockByElement,
+            MeasuredLayout measured,
+            StyleCache styles,
+            Map<String, Map<String, String>> colorsByFieldValue,
+            Map<String, String> seatLabels,
+            Map<Integer, Integer> displayRowByCanvasRow
+    ) {
     }
 
     private List<WorkspaceResponse.FieldDefinitionView> selectedFields(

@@ -16,10 +16,18 @@ export function resizeRect(rect, handle, deltaRows, deltaColumns, bounds) {
   let left = rect.column
   let right = rect.column + rect.columnSpan - 1
 
-  if (handle.includes('n')) top = clamp(top + deltaRows, 1, bottom)
-  if (handle.includes('s')) bottom = clamp(bottom + deltaRows, top, bounds.rows)
-  if (handle.includes('w')) left = clamp(left + deltaColumns, 1, right)
-  if (handle.includes('e')) right = clamp(right + deltaColumns, left, bounds.columns)
+  if (handle.includes('n')) {
+    top = clamp(top + deltaRows, 1, bottom)
+  }
+  if (handle.includes('s')) {
+    bottom = clamp(bottom + deltaRows, top, bounds.rows)
+  }
+  if (handle.includes('w')) {
+    left = clamp(left + deltaColumns, 1, right)
+  }
+  if (handle.includes('e')) {
+    right = clamp(right + deltaColumns, left, bounds.columns)
+  }
 
   return {
     row: top,
@@ -53,10 +61,14 @@ export function canPlaceRect(elements, candidate, ignoredId) {
 }
 
 export function centerLayoutElements(elements = [], bounds) {
-  if (!elements.length) return []
+  if (!elements.length) {
+    return []
+  }
   const rows = Number(bounds?.rows || 0)
   const columns = Number(bounds?.columns || 0)
-  if (!rows || !columns) return elements.map((element) => ({ ...element }))
+  if (!rows || !columns) {
+    return elements.map((element) => ({ ...element }))
+  }
 
   const layoutBounds = elements.reduce(
     (current, element) => ({
@@ -100,7 +112,9 @@ export function createSeatElements(rect, mode, defaults = {}) {
     name: defaults.name || '座位',
     fillColor: defaults.fillColor || '#ffffff',
   }
-  if (mode === 'merge') return [{ ...base, ...rect }]
+  if (mode === 'merge') {
+    return [{ ...base, ...rect }]
+  }
 
   const seats = []
   for (let row = rect.row; row < rect.row + rect.rowSpan; row += 1) {
@@ -130,7 +144,7 @@ export function normalizeGridRect(start, current) {
   }
 }
 
-export function canvasSizeFromPointer(
+export function canvasSizeFromPointer({
   start,
   direction,
   deltaX,
@@ -138,15 +152,23 @@ export function canvasSizeFromPointer(
   cellSize,
   zoom,
   minimumSize,
-) {
+}) {
   const delta = pointerDeltaToGrid(deltaX, deltaY, cellSize, zoom)
   let rows = start.rows
   let columns = start.columns
 
-  if (direction.includes('east')) columns += delta.columns
-  if (direction.includes('west')) columns -= delta.columns
-  if (direction.includes('south')) rows += delta.rows
-  if (direction.includes('north')) rows -= delta.rows
+  if (direction.includes('east')) {
+    columns += delta.columns
+  }
+  if (direction.includes('west')) {
+    columns -= delta.columns
+  }
+  if (direction.includes('south')) {
+    rows += delta.rows
+  }
+  if (direction.includes('north')) {
+    rows -= delta.rows
+  }
 
   return {
     rows: Math.max(minimumSize, rows),
@@ -191,7 +213,9 @@ export function placePanelBesideRect(rect, viewport, panel, gap = 12) {
   const available = candidates.find(
     (candidate) => withinViewport(candidate) && !coversSelection(candidate),
   )
-  if (available) return available
+  if (available) {
+    return available
+  }
 
   return { dock: 'right' }
 }
@@ -208,10 +232,24 @@ export function appendHistorySnapshot(history, snapshot, limit = 50) {
 export function canvasAnchorCorrection(direction, startBounds, currentBounds) {
   let x = 0
   let y = 0
-  if (direction.includes('west')) x = currentBounds.right - startBounds.right
-  else if (direction.includes('east')) x = currentBounds.left - startBounds.left
-  if (direction.includes('north')) y = currentBounds.bottom - startBounds.bottom
-  else if (direction.includes('south')) y = currentBounds.top - startBounds.top
+  if (direction.includes('west')) {
+    x = currentBounds.right - startBounds.right
+  }
+  else if (direction.includes('east')) {
+    x = currentBounds.left - startBounds.left
+  }
+  else {
+    x = 0
+  }
+  if (direction.includes('north')) {
+    y = currentBounds.bottom - startBounds.bottom
+  }
+  else if (direction.includes('south')) {
+    y = currentBounds.top - startBounds.top
+  }
+  else {
+    y = 0
+  }
   return { x, y }
 }
 

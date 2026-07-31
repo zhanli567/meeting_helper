@@ -54,13 +54,22 @@ function normalizedFillColor(value) {
 
 export function safeHttpUrl(value) {
   const source = String(value ?? '')
-  if (/[\u0000-\u001f\u007f-\u009f]/u.test(source)) return null
+  if (/[\u0000-\u001f\u007f-\u009f]/u.test(source)) {
+    return null
+  }
   const normalized = source.trim()
-  if (!normalized) return null
-  if (!/^https?:\/\//iu.test(normalized)) return null
+  if (!normalized) {
+    return null
+  }
+  const lowerCaseUrl = normalized.toLowerCase()
+  if (!lowerCaseUrl.startsWith('http://') && !lowerCaseUrl.startsWith('https://')) {
+    return null
+  }
   try {
     const url = new URL(normalized)
-    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) return null
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) {
+      return null
+    }
     return normalized
   } catch {
     return null

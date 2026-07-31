@@ -19,6 +19,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Represents the seating controller class.
+ */
 @RestController
 @RequestMapping("/plans")
 public class SeatingController {

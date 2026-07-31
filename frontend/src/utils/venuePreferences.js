@@ -43,7 +43,9 @@ function browserStorage() {
 }
 
 function readArray(key, storage = browserStorage()) {
-  if (!storage) return []
+  if (!storage) {
+    return []
+  }
   try {
     const parsed = JSON.parse(storage.getItem(key) || '[]')
     return Array.isArray(parsed) ? parsed.filter((value) => typeof value === 'string') : []
@@ -53,7 +55,9 @@ function readArray(key, storage = browserStorage()) {
 }
 
 function writeArray(key, values, storage = browserStorage()) {
-  if (!storage) return
+  if (!storage) {
+    return
+  }
   try {
     storage.setItem(key, JSON.stringify(values))
   } catch {
@@ -84,7 +88,9 @@ export function customElementNames(storage = browserStorage()) {
   for (const value of readArray(CUSTOM_ELEMENT_STORAGE_KEY, storage)) {
     const name = normalizeName(value)
     const key = nameKey(name)
-    if (!name || seen.has(key)) continue
+    if (!name || seen.has(key)) {
+      continue
+    }
     seen.add(key)
     names.push(name)
   }
@@ -118,7 +124,9 @@ export function availableElementSuggestions(storage = browserStorage(), elements
 
 export function saveCustomElementName(value, storage = browserStorage()) {
   const name = normalizeName(value)
-  if (!name || isCommonElementName(name)) return ''
+  if (!name || isCommonElementName(name)) {
+    return ''
+  }
   const names = customElementNames(storage)
   if (!names.some((current) => nameKey(current) === nameKey(name))) {
     names.push(name)
@@ -141,7 +149,9 @@ export function normalizeHexColor(value) {
 
 export function textColorForBackground(value) {
   const color = normalizeHexColor(value)
-  if (!color) return '#172033'
+  if (!color) {
+    return '#172033'
+  }
   const red = Number.parseInt(color.slice(1, 3), 16)
   const green = Number.parseInt(color.slice(3, 5), 16)
   const blue = Number.parseInt(color.slice(5, 7), 16)
@@ -156,12 +166,16 @@ export function semanticColorValues() {
 export function nextAvailableSemanticColor(usedColors = []) {
   const used = new Set((usedColors || []).map(normalizeHexColor).filter(Boolean))
   const semanticColor = SEMANTIC_COLOR_SWATCHES.find((color) => !used.has(color.value))?.value
-  if (semanticColor) return semanticColor
+  if (semanticColor) {
+    return semanticColor
+  }
 
   for (let index = 0; index <= 0xffffff; index += 1) {
     const value = (0x345678 + index * 0x9e3779) & 0xffffff
     const color = `#${value.toString(16).padStart(6, '0')}`
-    if (color !== '#ffffff' && color !== SYSTEM_LAYOUT_COLOR && !used.has(color)) return color
+    if (color !== '#ffffff' && color !== SYSTEM_LAYOUT_COLOR && !used.has(color)) {
+      return color
+    }
   }
   return '#000000'
 }
@@ -169,10 +183,14 @@ export function nextAvailableSemanticColor(usedColors = []) {
 export function genericElementColorMap(elements = []) {
   const colorsByName = new Map()
   for (const element of elements || []) {
-    if (element?.kind !== ELEMENT_KINDS.GENERIC) continue
+    if (element?.kind !== ELEMENT_KINDS.GENERIC) {
+      continue
+    }
     const name = normalizeName(element.name)
     const color = normalizeHexColor(element.fillColor)
-    if (!name || !color || colorsByName.has(name)) continue
+    if (!name || !color || colorsByName.has(name)) {
+      continue
+    }
     colorsByName.set(name, color)
   }
   return colorsByName
@@ -202,7 +220,9 @@ function normalizedCustomColorList(values) {
   const colors = []
   for (const value of values) {
     const color = normalizeHexColor(value)
-    if (!color || seen.has(color)) continue
+    if (!color || seen.has(color)) {
+      continue
+    }
     seen.add(color)
     colors.push(color)
   }
@@ -227,7 +247,9 @@ export function availableColorSwatches(storage = browserStorage()) {
 
 export function saveCustomColor(value, storage = browserStorage()) {
   const color = normalizeHexColor(value)
-  if (!color || SEMANTIC_COLOR_VALUES.has(color)) return ''
+  if (!color || SEMANTIC_COLOR_VALUES.has(color)) {
+    return ''
+  }
   const colors = customColorValues(isStorageLike(storage) ? storage : browserStorage())
     .filter((current) => current !== color)
   writeArray(CUSTOM_COLOR_STORAGE_KEY, [color, ...colors].slice(0, RECENT_CUSTOM_COLOR_LIMIT), storage)

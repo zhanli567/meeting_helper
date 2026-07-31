@@ -7,6 +7,9 @@ import com.company.meetinghelper.venue.mapper.VenueElementMapper;
 import java.util.List;
 import org.springframework.stereotype.Repository;
 
+/**
+ * Represents the venue element repository class.
+ */
 @Repository
 public class VenueElementRepository extends AbstractMyBatisRepository<VenueElementEntity> {
     private final VenueElementMapper elementMapper;

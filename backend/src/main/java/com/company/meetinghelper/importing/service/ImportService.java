@@ -38,6 +38,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+/**
+ * Represents the import service class.
+ */
 @Service
 public class ImportService {
     private final ParticipantWorkbookParser workbookParser;
@@ -109,62 +112,16 @@ public class ImportService {
      */
     public ImportPreview preview(String meetingId, MultipartFile file) {
         meetingAccessService.requireOwnedMeeting(meetingId);
-        ParsedParticipantWorkbook parsed;
-        try (XSSFWorkbook workbook = new XSSFWorkbook(file.getInputStream())) {
-            parsed = workbookParser.parse(workbook);
-        } catch (IOException exception) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Excel文件无法读取，请使用系统下载的模板");
-        }
-
-        List<MeetingParticipantFieldEntity> registeredFields = fieldRepository
-                .findAllByMeetingIdOrderBySortOrderAsc(meetingId);
-        LinkedHashMap<String,String> canonicalFieldNames = new LinkedHashMap<String, String>();
-        registeredFields.forEach(field -> canonicalFieldNames.put(
-                normalize(field.getFieldName()),
-                field.getFieldName()
-        ));
-        List<String> newFields = parsed.fieldNames().stream()
-                .filter(field -> !canonicalFieldNames.containsKey(normalize(field)))
-                .toList();
-        List<String> existingFields = parsed.fieldNames().stream()
-                .filter(field -> canonicalFieldNames.containsKey(normalize(field)))
-                .map(field -> canonicalFieldNames.get(normalize(field)))
-                .toList();
-        parsed.fieldNames().forEach(field -> canonicalFieldNames.putIfAbsent(
-                normalize(field),
-                field
-        ));
+        ParsedParticipantWorkbook parsed = parsePreviewWorkbook(file);
+        PreviewFields fields = previewFields(meetingId, parsed);
         ArrayList<String> previewErrors = new ArrayList<>(parsed.errors());
         List<ParticipantRow> rows = previewRows(
                 meetingId,
                 parsed.rows(),
-                canonicalFieldNames,
+                fields.canonicalFieldNames(),
                 previewErrors
         );
-        int participantCount = (int) parsed.rows().stream()
-                .map(row -> normalize(row.employeeNo()))
-                .distinct()
-                .count();
-        String token = UUID.randomUUID().toString();
-        ImportPreview preview = new ImportPreview(
-                token,
-                parsed.totalRows(),
-                parsed.rows().size(),
-                parsed.ignoredDuplicateRows(),
-                participantCount,
-                parsed.rows().size(),
-                newFields,
-                existingFields,
-                rows,
-                List.copyOf(previewErrors)
-        );
-        previewStore.put(token, new ImportPreviewStore.StoredPreview(
-                meetingId,
-                parsed,
-                preview,
-                OffsetDateTime.now(ZoneOffset.UTC)
-        ));
-        return preview;
+        return storePreview(meetingId, parsed, fields, rows, previewErrors);
     }
 
     /**
@@ -177,25 +134,116 @@ public class ImportService {
     @Transactional
     public CommitResult commit(String meetingId, String token) {
         meetingAccessService.requireOwnedMeeting(meetingId);
+        StoredPreview stored = requireStoredPreview(meetingId, token);
+        validateStoredPreview(stored);
+        Map<String,String> canonicalFieldNames = fieldRegistrationService.registerFields(
+                meetingId,
+                stored.workbook().fieldNames()
+        );
+        validateParticipantNames(meetingId, stored.workbook().rows());
+        ParticipantUpsertResult participants = upsertParticipants(meetingId, stored.workbook().rows());
+        RecordCommitStats records = commitParticipantRecords(
+                stored.workbook().rows(),
+                canonicalFieldNames,
+                participants.participantByEmployeeNo()
+        );
+        return new CommitResult(
+                participants.newParticipants(),
+                records.mergedRecords(),
+                records.appendedRecords(),
+                records.skippedRecords()
+        );
+    }
+
+    private ParsedParticipantWorkbook parsePreviewWorkbook(MultipartFile file) {
+        try (XSSFWorkbook workbook = new XSSFWorkbook(file.getInputStream())) {
+            return workbookParser.parse(workbook);
+        } catch (IOException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Excel文件无法读取，请使用系统下载的模板");
+        }
+    }
+
+    private PreviewFields previewFields(String meetingId, ParsedParticipantWorkbook parsed) {
+        LinkedHashMap<String,String> canonicalFieldNames = registeredFieldNames(meetingId);
+        List<String> newFields = parsed.fieldNames().stream()
+                .filter(field -> !canonicalFieldNames.containsKey(normalize(field)))
+                .toList();
+        List<String> existingFields = parsed.fieldNames().stream()
+                .filter(field -> canonicalFieldNames.containsKey(normalize(field)))
+                .map(field -> canonicalFieldNames.get(normalize(field)))
+                .toList();
+        parsed.fieldNames().forEach(field -> canonicalFieldNames.putIfAbsent(normalize(field), field));
+        return new PreviewFields(newFields, existingFields, canonicalFieldNames);
+    }
+
+    private LinkedHashMap<String, String> registeredFieldNames(String meetingId) {
+        List<MeetingParticipantFieldEntity> registeredFields = fieldRepository
+                .findAllByMeetingIdOrderBySortOrderAsc(meetingId);
+        LinkedHashMap<String,String> canonicalFieldNames = new LinkedHashMap<String, String>();
+        registeredFields.forEach(field -> canonicalFieldNames.put(
+                normalize(field.getFieldName()),
+                field.getFieldName()
+        ));
+        return canonicalFieldNames;
+    }
+
+    private ImportPreview storePreview(
+            String meetingId,
+            ParsedParticipantWorkbook parsed,
+            PreviewFields fields,
+            List<ParticipantRow> rows,
+            List<String> previewErrors
+    ) {
+        String token = UUID.randomUUID().toString();
+        ImportPreview preview = new ImportPreview(
+                token,
+                parsed.totalRows(),
+                parsed.rows().size(),
+                parsed.ignoredDuplicateRows(),
+                participantCount(parsed.rows()),
+                parsed.rows().size(),
+                fields.newFields(),
+                fields.existingFields(),
+                rows,
+                List.copyOf(previewErrors)
+        );
+        previewStore.put(token, new ImportPreviewStore.StoredPreview(
+                meetingId,
+                parsed,
+                preview,
+                OffsetDateTime.now(ZoneOffset.UTC)
+        ));
+        return preview;
+    }
+
+    private int participantCount(List<ParsedParticipantRow> rows) {
+        return (int) rows.stream().map(row -> normalize(row.employeeNo())).distinct().count();
+    }
+
+    private StoredPreview requireStoredPreview(String meetingId, String token) {
         StoredPreview stored = previewStore.remove(token, meetingId);
         if (stored == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "导入预览已过期，请重新上传");
         }
+        return stored;
+    }
+
+    private void validateStoredPreview(StoredPreview stored) {
         if (stored.workbook().employeeNameConflict()) {
             throw new ApiException(HttpStatus.CONFLICT, "同一工号存在不同姓名，无法提交");
         }
         if (!stored.workbook().errors().isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "导入预览包含错误，无法提交");
         }
-        Map<String,String> canonicalFieldNames = fieldRegistrationService.registerFields(
-                meetingId,
-                stored.workbook().fieldNames()
-        );
-        validateParticipantNames(meetingId, stored.workbook().rows());
+    }
 
+    private ParticipantUpsertResult upsertParticipants(
+            String meetingId,
+            List<ParsedParticipantRow> rows
+    ) {
         LinkedHashMap<String,ParticipantEntity> participantByEmployeeNo = new LinkedHashMap<String, ParticipantEntity>();
         int newParticipants = 0;
-        for (ParsedParticipantRow row : stored.workbook().rows()) {
+        for (ParsedParticipantRow row : rows) {
             String employeeKey = normalize(row.employeeNo());
             if (participantByEmployeeNo.containsKey(employeeKey)) {
                 continue;
@@ -220,14 +268,21 @@ public class ImportService {
             }
             participantByEmployeeNo.put(employeeKey, participant);
         }
+        return new ParticipantUpsertResult(participantByEmployeeNo, newParticipants);
+    }
 
+    private RecordCommitStats commitParticipantRecords(
+            List<ParsedParticipantRow> rows,
+            Map<String, String> canonicalFieldNames,
+            Map<String, ParticipantEntity> participantByEmployeeNo
+    ) {
         Map<String,List<ParticipantRecordEntity>> recordsByParticipant = loadRecords(participantByEmployeeNo.values().stream()
                 .map(ParticipantEntity::getId)
                 .toList());
         int mergedRecords = 0;
         int appendedRecords = 0;
         int skippedRecords = 0;
-        for (ParsedParticipantRow row : stored.workbook().rows()) {
+        for (ParsedParticipantRow row : rows) {
             ParticipantEntity participant = participantByEmployeeNo.get(normalize(row.employeeNo()));
             Map<String,String> incomingAttributes = canonicalAttributes(
                     row.attributes(),
@@ -264,14 +319,10 @@ public class ImportService {
                     records.add(record);
                     appendedRecords++;
                 }
+                default -> throw new IllegalStateException("Unsupported merge action: " + decision.action());
             }
         }
-        return new CommitResult(
-                newParticipants,
-                mergedRecords,
-                appendedRecords,
-                skippedRecords
-        );
+        return new RecordCommitStats(mergedRecords, appendedRecords, skippedRecords);
     }
 
     private List<ParticipantRow> previewRows(
@@ -379,6 +430,7 @@ public class ImportService {
             case SKIP -> "跳过相同记录";
             case MERGE -> "合并至已有记录";
             case APPEND -> "追加冲突记录";
+            default -> throw new IllegalStateException("Unsupported merge action: " + action);
         };
     }
 
@@ -419,6 +471,7 @@ public class ImportService {
                         decision.mergedAttributes()
                 ));
             }
+            default -> throw new IllegalStateException("Unsupported merge action: " + decision.action());
         }
     }
 
@@ -484,6 +537,26 @@ public class ImportService {
 
     private String normalize(String value) {
         return value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private record PreviewFields(
+            List<String> newFields,
+            List<String> existingFields,
+            Map<String, String> canonicalFieldNames
+    ) {
+    }
+
+    private record ParticipantUpsertResult(
+            Map<String, ParticipantEntity> participantByEmployeeNo,
+            int newParticipants
+    ) {
+    }
+
+    private record RecordCommitStats(
+            int mergedRecords,
+            int appendedRecords,
+            int skippedRecords
+    ) {
     }
 
     private record PreviewParticipant(

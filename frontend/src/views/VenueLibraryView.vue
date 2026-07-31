@@ -45,11 +45,15 @@ let searchTimer
 let latestLoadId = 0
 
 const tableRows = computed(() => {
-  if (!query.groupByCampus) return records.value
+  if (!query.groupByCampus) {
+    return records.value
+  }
   const groups = new Map()
   for (const venue of records.value) {
     const label = venue.campus?.trim() || '未填写园区'
-    if (!groups.has(label)) groups.set(label, [])
+    if (!groups.has(label)) {
+      groups.set(label, [])
+    }
     groups.get(label).push(venue)
   }
   return [...groups.entries()].flatMap(([campus, venues]) => [
@@ -97,7 +101,9 @@ async function load() {
       pageNum: query.pageNum,
       pageSize: query.pageSize,
     })
-    if (loadId !== latestLoadId) return
+    if (loadId !== latestLoadId) {
+      return
+    }
     records.value = page.records || []
     total.value = page.total || 0
     query.pageNum = page.pageNum || query.pageNum
@@ -108,10 +114,14 @@ async function load() {
       ].sort((left, right) => left.localeCompare(right, 'zh-CN'))
     }
   } catch (error) {
-    if (loadId !== latestLoadId) return
+    if (loadId !== latestLoadId) {
+      return
+    }
     ElMessage.error(apiErrorMessage(error))
   } finally {
-    if (loadId === latestLoadId) loading.value = false
+    if (loadId === latestLoadId) {
+      loading.value = false
+    }
   }
 }
 
@@ -127,7 +137,9 @@ function changePageSize(pageSize) {
 }
 
 function groupSpan({ row, columnIndex }) {
-  if (!row.__group) return undefined
+  if (!row.__group) {
+    return undefined
+  }
   return columnIndex === 0 ? [1, 7] : [0, 0]
 }
 
@@ -140,7 +152,9 @@ function venueRowAction(venueId) {
 }
 
 async function runVenueRowAction(venueId, action, task) {
-  if (!venueId || venueRowAction(venueId)) return undefined
+  if (!venueId || venueRowAction(venueId)) {
+    return undefined
+  }
   venueRowActions.value = {
     ...venueRowActions.value,
     [venueId]: action,
@@ -158,12 +172,18 @@ async function loadDetail(venue, mode) {
   await runVenueRowAction(venue.id, mode === 'edit' ? 'edit' : 'detail', async () => {
     selectedVenue.value = venue
     detailLoading.value = true
-    if (mode === 'detail') detailVisible.value = true
+    if (mode === 'detail') {
+      detailVisible.value = true
+    }
     try {
       selectedVenue.value = await venueApi.detail(venue.id)
-      if (mode === 'edit') infoVisible.value = true
+      if (mode === 'edit') {
+        infoVisible.value = true
+      }
     } catch (error) {
-      if (mode === 'detail') detailVisible.value = false
+      if (mode === 'detail') {
+        detailVisible.value = false
+      }
       ElMessage.error(apiErrorMessage(error))
     } finally {
       detailLoading.value = false
@@ -177,15 +197,21 @@ function previewVenue(venue) {
 }
 
 function startMeeting(venue) {
-  if (venue.seatCount === 0) return
-  if (venueRowAction(venue.id)) return
+  if (venue.seatCount === 0) {
+    return
+  }
+  if (venueRowAction(venue.id)) {
+    return
+  }
   meetingForm.name = ''
   meetingForm.venueTemplateId = venue.id
   meetingVisible.value = true
 }
 
 async function createMeeting() {
-  if (submitting.value) return
+  if (submitting.value) {
+    return
+  }
   const name = meetingForm.name.trim()
   if (!name) {
     ElMessage.warning('请输入会议名称')
@@ -222,11 +248,15 @@ async function deleteVenue(venue) {
         },
       )
       await venueApi.remove(venue.id)
-      if (records.value.length === 1 && query.pageNum > 1) query.pageNum -= 1
+      if (records.value.length === 1 && query.pageNum > 1) {
+        query.pageNum -= 1
+      }
       ElMessage.success('场馆模板已删除')
       await load()
     } catch (error) {
-      if (error === 'cancel' || error === 'close') return
+      if (error === 'cancel' || error === 'close') {
+        return
+      }
       ElMessage.error(apiErrorMessage(error))
     }
   })
@@ -238,9 +268,13 @@ async function handleSaved(updated) {
 }
 
 function formatTime(value) {
-  if (!value) return '-'
+  if (!value) {
+    return '-'
+  }
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
+  if (Number.isNaN(date.getTime())) {
+    return '-'
+  }
   const hours = String(date.getHours()).padStart(2, '0')
   const minutes = String(date.getMinutes()).padStart(2, '0')
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${hours}:${minutes}`
@@ -248,7 +282,9 @@ function formatTime(value) {
 
 function displayText(value) {
   const text = String(value ?? '').trim()
-  if (!text) return '-'
+  if (!text) {
+    return '-'
+  }
   return text
 }
 </script>

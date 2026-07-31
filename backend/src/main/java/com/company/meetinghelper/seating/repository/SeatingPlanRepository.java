@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
+/**
+ * Represents the seating plan repository class.
+ */
 @Repository
 public class SeatingPlanRepository extends AbstractMyBatisRepository<SeatingPlanEntity> {
     private final SeatingPlanMapper planMapper;

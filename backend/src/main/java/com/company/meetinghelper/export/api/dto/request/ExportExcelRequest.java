@@ -2,14 +2,32 @@ package com.company.meetinghelper.export.api.dto.request;
 
 import java.util.List;
 
+/**
+ * Represents the export excel request record.
+ *
+ * @param versionId version id
+ * @param sheets sheets
+ */
 public record ExportExcelRequest(
         String versionId,
         SheetSelection sheets
 ) {
+/**
+ * Handles normalized sheets.
+ *
+ * @return result
+ */
     public SheetSelection normalizedSheets() {
         return sheets == null ? SheetSelection.defaults() : sheets.withDefaults();
     }
 
+/**
+ * Represents the sheet selection record.
+ *
+ * @param participants participants
+ * @param layout layout
+ * @param seatDetails seat details
+ */
     public record SheetSelection(
             ParticipantSheet participants,
             LayoutSheet layout,
@@ -32,6 +50,14 @@ public record ExportExcelRequest(
         }
     }
 
+/**
+ * Represents the participant sheet record.
+ *
+ * @param enabled enabled
+ * @param fieldCodes field codes
+ * @param includeAttendance include attendance
+ * @param includeSeatLabel include seat label
+ */
     public record ParticipantSheet(
             Boolean enabled,
             List<String> fieldCodes,
@@ -52,6 +78,14 @@ public record ExportExcelRequest(
         }
     }
 
+/**
+ * Represents the layout sheet record.
+ *
+ * @param enabled enabled
+ * @param fieldCodes field codes
+ * @param colorFieldCodes color field codes
+ * @param styleRules style rules
+ */
     public record LayoutSheet(
             Boolean enabled,
             List<String> fieldCodes,
@@ -76,9 +110,26 @@ public record ExportExcelRequest(
         }
     }
 
+/**
+ * Represents the style rule record.
+ *
+ * @param fieldCode field code
+ * @param value value
+ * @param backgroundColor background color
+ * @param textColor text color
+ */
     public record StyleRule(String fieldCode, String value, String backgroundColor, String textColor) {
     }
 
+/**
+ * Represents the seat detail sheet record.
+ *
+ * @param enabled enabled
+ * @param fieldCodes field codes
+ * @param includeOccupancyType include occupancy type
+ * @param includeRegionName include region name
+ * @param includeParticipant include participant
+ */
     public record SeatDetailSheet(
             Boolean enabled,
             List<String> fieldCodes,
