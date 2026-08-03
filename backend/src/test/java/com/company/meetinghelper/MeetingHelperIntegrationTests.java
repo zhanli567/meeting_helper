@@ -2181,6 +2181,88 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
+    void layoutSheetUpwardMergesSharedSingleFieldValuesWhenOffsetIsLower() throws Exception {
+        MeetingSummary meeting = createUpwardMergeExportMeeting();
+        importUpwardMergeParticipants(meeting.id());
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        assignSequentialParticipants(workspace);
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {
+                      "enabled": true,
+                      "fieldCodes": ["获奖批次"],
+                      "colorFieldCodes": ["获奖批次"]
+                    },
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            assertUpwardMergedSharedBatch(workbook);
+        }
+    }
+
+    private MeetingSummary createUpwardMergeExportMeeting() {
+        VenueDetail venue = createVenueWithElements(
+                "单值字段向上合并排座图场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(
+                        seat("座位-1-1", 1, 1, 1, 1),
+                        seat("座位-1-2", 1, 2, 1, 1),
+                        seat("座位-1-3", 1, 3, 1, 1),
+                        seat("座位-1-4", 1, 4, 1, 1),
+                        seat("座位-1-5", 1, 5, 1, 1)
+                )
+        );
+        return meetingService.create(new CreateMeetingRequest(
+                "单值字段向上合并排座图-" + UUID.randomUUID(),
+                venue.id()
+        ));
+    }
+
+    private void importUpwardMergeParticipants(String meetingId) throws Exception {
+        previewAndCommit(meetingId, "工号,姓名,获奖批次", "a12345678,张三,第一批");
+        previewAndCommit(meetingId, "工号,姓名,获奖批次", "b12345678,李四,第一批");
+        previewAndCommit(meetingId, "工号,姓名,获奖批次", "c12345678,王五,第三批");
+        previewAndCommit(meetingId, "工号,姓名,获奖批次", "d12345678,赵六,第三批");
+        previewAndCommit(meetingId, "工号,姓名,获奖批次", "e12345678,钱八,第二批");
+        previewAndCommit(meetingId, "工号,姓名,获奖批次", "e12345678,钱八,第四批");
+    }
+
+    private void assignSequentialParticipants(WorkspaceResponse workspace) {
+        Map<String, WorkspaceResponse.ParticipantView> participantByNo = workspace.participants().stream()
+                .collect(Collectors.toMap(WorkspaceResponse.ParticipantView::employeeNo, Function.identity()));
+        Map<Integer, WorkspaceResponse.ElementView> seatByColumn = workspace.layout().elements().stream()
+                .filter(value -> "SEAT".equals(value.kind()))
+                .collect(Collectors.toMap(WorkspaceResponse.ElementView::column, Function.identity()));
+        for (int column = 1; column <= 5; column++) {
+            String employeeNo = "%c12345678".formatted('a' + column - 1);
+            seatingService.assign(
+                    workspace.plan().id(),
+                    new AssignmentRequest(participantByNo.get(employeeNo).id(), seatByColumn.get(column).id())
+            );
+        }
+    }
+
+    private void assertUpwardMergedSharedBatch(XSSFWorkbook workbook) {
+        XSSFSheet sheet = workbook.getSheet("排座图");
+        Cell topReference = findCell(sheet, "第二批");
+        Cell bottomReference = findCell(sheet, "第四批");
+        Cell sharedBatch = findCell(sheet, "第三批");
+        Cell thirdSeat = findCell(sheet, "1排03");
+        Cell fourthSeat = findCell(sheet, "1排04");
+
+        CellRangeAddress sharedRegion = mergedRegion(sheet, sharedBatch);
+        assertThat(sharedRegion.getFirstRow()).isEqualTo(topReference.getRowIndex());
+        assertThat(sharedRegion.getLastRow()).isEqualTo(bottomReference.getRowIndex());
+        assertThat(sharedRegion.getFirstColumn()).isEqualTo(thirdSeat.getColumnIndex());
+        assertThat(sharedRegion.getLastColumn()).isEqualTo(fourthSeat.getColumnIndex());
+        assertThat(sharedRegion.getNumberOfCells()).isEqualTo(4);
+    }
+
+    @Test
     void layoutSheetUsesProvidedStyleRulesForFieldColors() throws Exception {
         VenueDetail venue = createVenueWithElements(
                 "前端颜色规则排座图场馆-" + UUID.randomUUID(),

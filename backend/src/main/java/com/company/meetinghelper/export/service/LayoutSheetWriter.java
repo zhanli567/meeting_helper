@@ -768,6 +768,11 @@ public void write(
                     .toList();
             valuesByElement.put(element.id(), values);
         }
+        FieldPlanningContext planningContext = new FieldPlanningContext(
+                rowSeats,
+                valuesByElement,
+                fieldHeight
+        );
         List<String> sharedValues = sharedAdjacentValues(rowSeats, valuesByElement);
         LinkedHashMap<String, Integer> sharedOffsets = new LinkedHashMap<String, Integer>();
         for (String value : sharedValues) {
@@ -788,10 +793,16 @@ public void write(
                 String value = entry.getKey();
                 int offset = entry.getValue();
                 if (values.contains(value)) {
-                    int height = sharedValueHeight(rowSeats, valuesByElement, element, value, offset, fieldHeight);
-                    spans.add(new FieldCellSpan(field.code(), field.label(), value, offset, height));
+                    SharedValueSpan sharedSpan = sharedValueSpan(planningContext, element, value, offset);
+                    spans.add(new FieldCellSpan(
+                            field.code(),
+                            field.label(),
+                            value,
+                            sharedSpan.offset(),
+                            sharedSpan.height()
+                    ));
                     consumed.add(value);
-                    markOccupied(occupied, offset, height);
+                    markOccupied(occupied, sharedSpan.offset(), sharedSpan.height());
                 }
             }
 
@@ -837,63 +848,58 @@ public void write(
         return result;
     }
 
-    private int sharedValueHeight(
-            List<WorkspaceResponse.ElementView> rowSeats,
-            Map<String, List<String>> valuesByElement,
+    private SharedValueSpan sharedValueSpan(
+            FieldPlanningContext context,
             WorkspaceResponse.ElementView element,
             String value,
-            int offset,
-            int fieldHeight
+            int offset
     ) {
-        if (fieldHeight <= offset + 1) {
-            return 1;
+        if (canSharedValueFillBlock(context, element, value)) {
+            return new SharedValueSpan(0, context.fieldHeight());
         }
-        if (!canSharedValueFillTail(rowSeats, valuesByElement, element, value)) {
-            return 1;
-        }
-        return fieldHeight - offset;
+        return new SharedValueSpan(offset, 1);
     }
 
-    private boolean canSharedValueFillTail(
-            List<WorkspaceResponse.ElementView> rowSeats,
-            Map<String, List<String>> valuesByElement,
+    private boolean canSharedValueFillBlock(
+            FieldPlanningContext context,
             WorkspaceResponse.ElementView element,
             String value
     ) {
-        if (nonBlankValues(valuesByElement.getOrDefault(element.id(), List.of())).size() != 1) {
+        if (nonBlankValues(context.valuesByElement().getOrDefault(element.id(), List.of())).size() != 1) {
             return false;
         }
-        return adjacentValueGroup(rowSeats, valuesByElement, element, value).stream()
-                .map(candidate -> valuesByElement.getOrDefault(candidate.id(), List.of()))
+        return adjacentValueGroup(context, element, value).stream()
+                .map(candidate -> context.valuesByElement().getOrDefault(candidate.id(), List.of()))
                 .map(this::nonBlankValues)
                 .allMatch(values -> values.size() == 1);
     }
 
     private List<WorkspaceResponse.ElementView> adjacentValueGroup(
-            List<WorkspaceResponse.ElementView> rowSeats,
-            Map<String, List<String>> valuesByElement,
+            FieldPlanningContext context,
             WorkspaceResponse.ElementView element,
             String value
     ) {
+        List<WorkspaceResponse.ElementView> rowSeats = context.rowSeats();
         int index = rowSeats.indexOf(element);
         int start = index;
         int end = index;
-        while (start > 0 && hasAdjacentValue(rowSeats, valuesByElement, start - 1, start, value)) {
+        while (start > 0 && hasAdjacentValue(context, start - 1, start, value)) {
             start--;
         }
-        while (end + 1 < rowSeats.size() && hasAdjacentValue(rowSeats, valuesByElement, end, end + 1, value)) {
+        while (end + 1 < rowSeats.size() && hasAdjacentValue(context, end, end + 1, value)) {
             end++;
         }
         return rowSeats.subList(start, end + 1);
     }
 
     private boolean hasAdjacentValue(
-            List<WorkspaceResponse.ElementView> rowSeats,
-            Map<String, List<String>> valuesByElement,
+            FieldPlanningContext context,
             int leftIndex,
             int rightIndex,
             String value
     ) {
+        List<WorkspaceResponse.ElementView> rowSeats = context.rowSeats();
+        Map<String, List<String>> valuesByElement = context.valuesByElement();
         WorkspaceResponse.ElementView left = rowSeats.get(leftIndex);
         WorkspaceResponse.ElementView right = rowSeats.get(rightIndex);
         return left.column() + left.columnSpan() == right.column()
@@ -911,6 +917,16 @@ public void write(
         for (int index = offset; index < offset + height && index < occupied.length; index++) {
             occupied[index] = true;
         }
+    }
+
+    private record FieldPlanningContext(
+            List<WorkspaceResponse.ElementView> rowSeats,
+            Map<String, List<String>> valuesByElement,
+            int fieldHeight
+    ) {
+    }
+
+    private record SharedValueSpan(int offset, int height) {
     }
 
     private List<String> sharedAdjacentValues(
