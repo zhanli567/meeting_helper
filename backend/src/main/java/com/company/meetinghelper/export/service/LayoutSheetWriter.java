@@ -865,13 +865,20 @@ public void write(
             WorkspaceResponse.ElementView element,
             String value
     ) {
-        if (nonBlankValues(context.valuesByElement().getOrDefault(element.id(), List.of())).size() != 1) {
+        if (!hasOnlySharedValue(context, element, value)) {
             return false;
         }
         return adjacentValueGroup(context, element, value).stream()
-                .map(candidate -> context.valuesByElement().getOrDefault(candidate.id(), List.of()))
-                .map(this::nonBlankValues)
-                .allMatch(values -> values.size() == 1);
+                .allMatch(candidate -> hasOnlySharedValue(context, candidate, value));
+    }
+
+    private boolean hasOnlySharedValue(
+            FieldPlanningContext context,
+            WorkspaceResponse.ElementView element,
+            String value
+    ) {
+        List<String> values = nonBlankValues(context.valuesByElement().getOrDefault(element.id(), List.of()));
+        return values.size() == 1 && value.equals(values.getFirst());
     }
 
     private List<WorkspaceResponse.ElementView> adjacentValueGroup(

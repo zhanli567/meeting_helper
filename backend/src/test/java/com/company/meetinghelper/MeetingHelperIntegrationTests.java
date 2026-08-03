@@ -2114,6 +2114,78 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
+    void layoutSheetDoesNotExpandSharedFieldValueAcrossNeighborExtraRows() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "共享字段防覆盖排座图场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(
+                        seat("座位-1-1", 1, 1, 1, 1),
+                        seat("座位-1-2", 1, 2, 1, 1)
+                )
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "共享字段防覆盖排座图-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,部门", "a12345678,张三,第一批,部门1");
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,部门", "b12345678,李四,第二批,部门2");
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次,部门", "b12345678,李四,第一批,部门2");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        Map<String, WorkspaceResponse.ParticipantView> participantByNo = workspace.participants().stream()
+                .collect(Collectors.toMap(WorkspaceResponse.ParticipantView::employeeNo, Function.identity()));
+        Map<Integer, WorkspaceResponse.ElementView> seatByColumn = workspace.layout().elements().stream()
+                .filter(value -> "SEAT".equals(value.kind()))
+                .collect(Collectors.toMap(WorkspaceResponse.ElementView::column, Function.identity()));
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(participantByNo.get("a12345678").id(), seatByColumn.get(1).id())
+        );
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(participantByNo.get("b12345678").id(), seatByColumn.get(2).id())
+        );
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {
+                      "enabled": true,
+                      "fieldCodes": ["获奖批次", "部门"],
+                      "colorFieldCodes": ["获奖批次", "部门"]
+                    },
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            assertSharedBatchDoesNotCoverExtraRows(workbook);
+        }
+    }
+
+    private void assertSharedBatchDoesNotCoverExtraRows(XSSFWorkbook workbook) {
+        XSSFSheet sheet = workbook.getSheet("排座图");
+        Cell firstBatch = findCell(sheet, "第一批");
+        Cell secondBatch = findCell(sheet, "第二批");
+        Cell firstSeat = findCell(sheet, "1排01");
+        Cell secondSeat = findCell(sheet, "1排02");
+        Cell departmentLabel = findCell(sheet, "部门");
+        Cell departmentOne = findCell(sheet, "部门1");
+        Cell departmentTwo = findCell(sheet, "部门2");
+
+        CellRangeAddress firstBatchRegion = mergedRegion(sheet, firstBatch);
+        assertThat(firstBatchRegion.getFirstRow()).isEqualTo(firstBatchRegion.getLastRow());
+        assertThat(firstBatchRegion.getFirstColumn()).isEqualTo(firstSeat.getColumnIndex());
+        assertThat(firstBatchRegion.getLastColumn()).isEqualTo(secondSeat.getColumnIndex());
+        assertThat(secondBatch.getRowIndex()).isLessThan(departmentLabel.getRowIndex());
+        assertThat(departmentOne.getRowIndex()).isEqualTo(departmentLabel.getRowIndex());
+        assertThat(departmentTwo.getRowIndex()).isEqualTo(departmentLabel.getRowIndex());
+
+        Cell leftBlank = sheet.getRow(secondBatch.getRowIndex()).getCell(firstSeat.getColumnIndex());
+        assertThat(leftBlank.toString()).isBlank();
+        assertThat(isMerged(sheet, leftBlank)).isFalse();
+    }
+
+    @Test
     void layoutSheetVerticallyMergesSharedSingleFieldValuesWhenSeatRowIsExpanded() throws Exception {
         VenueDetail venue = createVenueWithElements(
                 "单值字段纵向合并排座图场馆-" + UUID.randomUUID(),
@@ -4111,6 +4183,11 @@ class MeetingHelperIntegrationTests {
                 .filter(region -> region.isInRange(cell))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("单元格未合并：" + cell));
+    }
+
+    private boolean isMerged(XSSFSheet sheet, Cell cell) {
+        return sheet.getMergedRegions().stream()
+                .anyMatch(region -> region.isInRange(cell));
     }
 
     private String cellFill(Cell cell) {
