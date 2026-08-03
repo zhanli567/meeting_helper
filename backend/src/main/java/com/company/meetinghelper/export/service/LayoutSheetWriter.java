@@ -788,9 +788,10 @@ public void write(
                 String value = entry.getKey();
                 int offset = entry.getValue();
                 if (values.contains(value)) {
-                    spans.add(new FieldCellSpan(field.code(), field.label(), value, offset, 1));
+                    int height = sharedValueHeight(rowSeats, valuesByElement, element, value, offset, fieldHeight);
+                    spans.add(new FieldCellSpan(field.code(), field.label(), value, offset, height));
                     consumed.add(value);
-                    occupied[offset] = true;
+                    markOccupied(occupied, offset, height);
                 }
             }
 
@@ -834,6 +835,82 @@ public void write(
                     .toList());
         }
         return result;
+    }
+
+    private int sharedValueHeight(
+            List<WorkspaceResponse.ElementView> rowSeats,
+            Map<String, List<String>> valuesByElement,
+            WorkspaceResponse.ElementView element,
+            String value,
+            int offset,
+            int fieldHeight
+    ) {
+        if (fieldHeight <= offset + 1) {
+            return 1;
+        }
+        if (!canSharedValueFillTail(rowSeats, valuesByElement, element, value)) {
+            return 1;
+        }
+        return fieldHeight - offset;
+    }
+
+    private boolean canSharedValueFillTail(
+            List<WorkspaceResponse.ElementView> rowSeats,
+            Map<String, List<String>> valuesByElement,
+            WorkspaceResponse.ElementView element,
+            String value
+    ) {
+        if (nonBlankValues(valuesByElement.getOrDefault(element.id(), List.of())).size() != 1) {
+            return false;
+        }
+        return adjacentValueGroup(rowSeats, valuesByElement, element, value).stream()
+                .map(candidate -> valuesByElement.getOrDefault(candidate.id(), List.of()))
+                .map(this::nonBlankValues)
+                .allMatch(values -> values.size() == 1);
+    }
+
+    private List<WorkspaceResponse.ElementView> adjacentValueGroup(
+            List<WorkspaceResponse.ElementView> rowSeats,
+            Map<String, List<String>> valuesByElement,
+            WorkspaceResponse.ElementView element,
+            String value
+    ) {
+        int index = rowSeats.indexOf(element);
+        int start = index;
+        int end = index;
+        while (start > 0 && hasAdjacentValue(rowSeats, valuesByElement, start - 1, start, value)) {
+            start--;
+        }
+        while (end + 1 < rowSeats.size() && hasAdjacentValue(rowSeats, valuesByElement, end, end + 1, value)) {
+            end++;
+        }
+        return rowSeats.subList(start, end + 1);
+    }
+
+    private boolean hasAdjacentValue(
+            List<WorkspaceResponse.ElementView> rowSeats,
+            Map<String, List<String>> valuesByElement,
+            int leftIndex,
+            int rightIndex,
+            String value
+    ) {
+        WorkspaceResponse.ElementView left = rowSeats.get(leftIndex);
+        WorkspaceResponse.ElementView right = rowSeats.get(rightIndex);
+        return left.column() + left.columnSpan() == right.column()
+                && valuesByElement.getOrDefault(left.id(), List.of()).contains(value)
+                && valuesByElement.getOrDefault(right.id(), List.of()).contains(value);
+    }
+
+    private List<String> nonBlankValues(List<String> values) {
+        return values.stream()
+                .filter(value -> !value.isBlank())
+                .toList();
+    }
+
+    private void markOccupied(boolean[] occupied, int offset, int height) {
+        for (int index = offset; index < offset + height && index < occupied.length; index++) {
+            occupied[index] = true;
+        }
     }
 
     private List<String> sharedAdjacentValues(

@@ -2114,6 +2114,73 @@ class MeetingHelperIntegrationTests {
     }
 
     @Test
+    void layoutSheetVerticallyMergesSharedSingleFieldValuesWhenSeatRowIsExpanded() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "单值字段纵向合并排座图场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(
+                        seat("座位-1-1", 1, 1, 1, 1),
+                        seat("座位-1-2", 1, 2, 1, 1),
+                        seat("座位-1-3", 1, 3, 1, 1)
+                )
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "单值字段纵向合并排座图-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次", "a12345678,张三,第一批");
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次", "a12345678,张三,第二批");
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次", "b12345678,李四,第三批");
+        previewAndCommit(meeting.id(), "工号,姓名,获奖批次", "c12345678,王五,第三批");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        Map<String, WorkspaceResponse.ParticipantView> participantByNo = workspace.participants().stream()
+                .collect(Collectors.toMap(WorkspaceResponse.ParticipantView::employeeNo, Function.identity()));
+        Map<Integer, WorkspaceResponse.ElementView> seatByColumn = workspace.layout().elements().stream()
+                .filter(value -> "SEAT".equals(value.kind()))
+                .collect(Collectors.toMap(WorkspaceResponse.ElementView::column, Function.identity()));
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(participantByNo.get("a12345678").id(), seatByColumn.get(1).id())
+        );
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(participantByNo.get("b12345678").id(), seatByColumn.get(2).id())
+        );
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(participantByNo.get("c12345678").id(), seatByColumn.get(3).id())
+        );
+
+        try (XSSFWorkbook workbook = exportWorkbook(meeting.id(), """
+                {
+                  "sheets": {
+                    "participants": {"enabled": false},
+                    "layout": {
+                      "enabled": true,
+                      "fieldCodes": ["获奖批次"],
+                      "colorFieldCodes": ["获奖批次"]
+                    },
+                    "seatDetails": {"enabled": false}
+                  }
+                }
+                """)) {
+            XSSFSheet sheet = workbook.getSheet("排座图");
+            Cell firstBatch = findCell(sheet, "第一批");
+            Cell secondBatch = findCell(sheet, "第二批");
+            Cell sharedBatch = findCell(sheet, "第三批");
+            Cell secondSeat = findCell(sheet, "1排02");
+            Cell thirdSeat = findCell(sheet, "1排03");
+
+            CellRangeAddress sharedRegion = mergedRegion(sheet, sharedBatch);
+            assertThat(sharedRegion.getFirstRow()).isEqualTo(firstBatch.getRowIndex());
+            assertThat(sharedRegion.getLastRow()).isEqualTo(secondBatch.getRowIndex());
+            assertThat(sharedRegion.getFirstColumn()).isEqualTo(secondSeat.getColumnIndex());
+            assertThat(sharedRegion.getLastColumn()).isEqualTo(thirdSeat.getColumnIndex());
+            assertThat(sharedRegion.getNumberOfCells()).isEqualTo(4);
+        }
+    }
+
+    @Test
     void layoutSheetUsesProvidedStyleRulesForFieldColors() throws Exception {
         VenueDetail venue = createVenueWithElements(
                 "前端颜色规则排座图场馆-" + UUID.randomUUID(),
