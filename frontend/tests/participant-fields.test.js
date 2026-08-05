@@ -5,9 +5,11 @@ import {
   canAddParticipantRecord,
   createParticipantPayload,
   createParticipantUpdatePayload,
+  filterParticipantsByGroupValue,
   filteredParticipants,
   firstParticipantSummary,
   groupParticipants,
+  groupValueOptions,
   groupableFields,
   matchesParticipant,
   normalizeExtraFields,
@@ -220,16 +222,84 @@ test('待排列表保留临时不出席人员，排座人员仅在全部列表�
   )
 })
 
-test('分页后仅按当前页人员分组', () => {
+test('人员分组先按字段值筛选完整列表再分页', () => {
   const people = [
-    { ...person, id: 'first', primaryAttributes: { 批次: '第一批' } },
-    { ...person, id: 'second', primaryAttributes: { 批次: '第二批' } },
-    { ...person, id: 'third', primaryAttributes: { 批次: '第二批' } },
+    {
+      ...person,
+      id: 'first',
+      primaryAttributes: { 批次: '第一批' },
+      attributeValues: { 批次: ['第一批'] },
+    },
+    {
+      ...person,
+      id: 'second',
+      primaryAttributes: { 批次: '第二批' },
+      attributeValues: { 批次: ['第二批'] },
+    },
+    {
+      ...person,
+      id: 'third',
+      primaryAttributes: { 批次: '第二批' },
+      attributeValues: { 批次: ['第二批'] },
+    },
   ]
-  const currentPage = paginateParticipants(people, 2, 2)
+  const groupOptions = groupValueOptions(people, '批次')
+  const filteredByGroup = filterParticipantsByGroupValue(people, '批次', '第二批')
+  const currentPage = paginateParticipants(filteredByGroup, 1, 2)
 
-  assert.deepEqual(currentPage.map((participant) => participant.id), ['third'])
-  assert.deepEqual(groupParticipants(currentPage, '批次').map((group) => group.label), ['第二批'])
+  assert.deepEqual(groupOptions.map((option) => option.label), ['第一批', '第二批'])
+  assert.deepEqual(groupOptions.map((option) => option.count), [1, 2])
+  assert.deepEqual(filteredByGroup.map((participant) => participant.id), ['second', 'third'])
+  assert.deepEqual(currentPage.map((participant) => participant.id), ['second', 'third'])
+})
+
+test('人员分组值匹配同一人员的多条动态记录', () => {
+  const people = [
+    {
+      ...person,
+      id: 'multi',
+      primaryAttributes: { 批次: '第一批' },
+      attributeValues: { 批次: ['第一批', '第三批'] },
+    },
+    {
+      ...person,
+      id: 'single',
+      primaryAttributes: { 批次: '第二批' },
+      attributeValues: { 批次: ['第二批'] },
+    },
+  ]
+
+  assert.deepEqual(groupValueOptions(people, '批次'), [
+    { value: '第一批', label: '第一批', count: 1 },
+    { value: '第三批', label: '第三批', count: 1 },
+    { value: '第二批', label: '第二批', count: 1 },
+  ])
+  assert.deepEqual(
+    filterParticipantsByGroupValue(people, '批次', '第三批').map((participant) => participant.id),
+    ['multi'],
+  )
+})
+
+test('人员分组值包含未填写且空分组值不过滤列表', () => {
+  const people = [
+    { ...personWithoutGroup, id: 'blank' },
+    {
+      ...person,
+      id: 'filled',
+      primaryAttributes: { 批次: '第二批' },
+      attributeValues: { 批次: ['第二批'] },
+    },
+  ]
+
+  assert.deepEqual(groupValueOptions(people, '批次'), [
+    { value: '未填写', label: '未填写', count: 1 },
+    { value: '第二批', label: '第二批', count: 1 },
+  ])
+  assert.deepEqual(
+    filterParticipantsByGroupValue(people, '批次', '未填写').map((participant) => participant.id),
+    ['blank'],
+  )
+  assert.deepEqual(filterParticipantsByGroupValue(people, '批次', ''), people)
 })
 
 test('座位摘要取首个动态值，拖放数据只使用人员 ID', () => {

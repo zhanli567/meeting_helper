@@ -67,6 +67,7 @@ const refreshingWorkspace = ref(false)
 const switchingMeetingId = ref('')
 const switchingVersionKey = ref('')
 const participantBusyActions = ref({})
+const clearingAssignments = ref(false)
 const layoutSaving = ref(false)
 const publishVisible = ref(false)
 const addTargetElementId = ref()
@@ -172,7 +173,7 @@ const currentSaveLabel = computed(() => (
 ))
 const currentSaveLoading = computed(() => (
   {
-    seating: store.saving,
+    seating: store.saving || clearingAssignments.value,
     layout: layoutSaving.value,
     marker: markerSubmitting.value,
   }[workbenchMode.value] || false
@@ -186,6 +187,7 @@ const workspaceBusy = computed(
     exporting.value ||
     restoringDraft.value ||
     refreshingWorkspace.value ||
+    clearingAssignments.value ||
     Boolean(switchingMeetingId.value || switchingVersionKey.value),
 )
 const markerDirty = computed(() => (
@@ -215,6 +217,9 @@ const saveStatusText = computed(() => {
   }
   if (store.saving) {
     return '排座保存中'
+  }
+  if (clearingAssignments.value) {
+    return '排座处理中'
   }
   return store.dirty ? '排座未保存' : '排座已保存'
 })
@@ -471,7 +476,7 @@ function modeDirty(mode) {
 }
 function modeSaving(mode) {
   if (mode === 'seating') {
-    return Boolean(store.saving)
+    return Boolean(store.saving || clearingAssignments.value)
   }
   if (mode === 'layout') {
     return Boolean(layoutSaving.value)
@@ -1222,6 +1227,67 @@ async function performUnassign(participantId) {
     redoStack.value = []
   }
 }
+async function restoreClearedAssignments(assignments) {
+  for (const assignment of assignments || []) {
+    await store.assign(assignment.participantId, assignment.targetElementId)
+  }
+}
+function pushClearAssignmentsHistory(assignments) {
+  if (!assignments?.length || applyingHistory.value) {
+    return
+  }
+  undoStack.value.push({
+    label: '清空已排',
+    undo: async () => {
+      await restoreClearedAssignments(assignments)
+    },
+    redo: async () => {
+      store.unassignAll()
+    },
+  })
+  redoStack.value = []
+}
+function showUnassignAllMessage(result) {
+  if (result.skipped) {
+    ElMessage.warning(`已清空 ${result.cleared} 名可移动人员，${result.skipped} 名锁定人员保留原座位`)
+    return
+  }
+  ElMessage.success(`已清空 ${result.cleared} 名已排人员`)
+}
+async function performUnassignAll() {
+  if (readonlyMode.value || workbenchMode.value !== 'seating' || workspaceBusy.value) {
+    return
+  }
+  if (!store.assignedCount) {
+    return
+  }
+  clearingAssignments.value = true
+  try {
+    await ElMessageBox.confirm(
+      `确定将 ${store.assignedCount} 名已排人员全部移回待排列表吗？`,
+      '清空已排人员',
+      {
+        type: 'warning',
+        confirmButtonText: '确认清空',
+        cancelButtonText: '取消',
+      },
+    )
+    const result = store.unassignAll()
+    if (!result.changed) {
+      ElMessage.warning('已排人员均为锁定状态，无法清空')
+      return
+    }
+    pushClearAssignmentsHistory(result.clearedAssignments)
+    showUnassignAllMessage(result)
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') {
+      return
+    }
+    ElMessage.error(apiErrorMessage(error))
+  } finally {
+    clearingAssignments.value = false
+  }
+}
 async function undo() {
   if (readonlyMode.value) {
     return
@@ -1795,11 +1861,12 @@ watch(
             :participants="workspace.participants"
             :field-definitions="workspace.fieldDefinitions"
             :selected-id="store.selectedParticipantId"
-            :saving="store.saving"
+            :saving="store.saving || clearingAssignments"
             :busy-actions="participantBusyActions"
             :readonly="readonlyMode"
             @select="selectParticipant"
             @unassign="performUnassign"
+            @unassign-all="performUnassignAll"
             @attendance="updateParticipantAttendance"
             @remove="removeParticipant"
             @edit="openParticipantEdit"
