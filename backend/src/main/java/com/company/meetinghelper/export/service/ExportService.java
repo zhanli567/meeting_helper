@@ -24,6 +24,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.Row;
@@ -241,6 +242,7 @@ public static ExportOptions defaultOptions() {
             ExportExcelRequest.SeatDetailSheet options
     ) {
         XSSFSheet sheet = workbook.createSheet("座位明细");
+        XSSFCellStyle centeredStyle = createCenteredCellStyle(workbook);
         List<FieldDefinitionView> participantFields = selectedDynamicFields(workspace, options.fieldCodes());
         ArrayList<String> headers = new ArrayList<>(List.of("座位编号"));
         if (options.includeOccupancyType()) {
@@ -254,7 +256,7 @@ public static ExportOptions defaultOptions() {
             headers.add("姓名");
         }
         participantFields.forEach(field -> headers.add(field.label()));
-        writeHeaderRow(sheet, headers.toArray(String[]::new));
+        writeHeaderRow(workbook, sheet, headers.toArray(String[]::new));
         Map<String,ParticipantView> participantById = workspace.participants().stream()
                 .collect(Collectors.toMap(WorkspaceResponse.ParticipantView::id, Function.identity()));
         LinkedHashMap<String,PlanItemView> itemByElement = new LinkedHashMap<String, WorkspaceResponse.PlanItemView>();
@@ -277,8 +279,8 @@ public static ExportOptions defaultOptions() {
                 row.createCell(columnIndex++).setCellValue(regionName(item));
             }
             if (options.includeParticipant()) {
-                row.createCell(columnIndex++).setCellValue(participant == null ? "" : participant.employeeNo());
-                row.createCell(columnIndex++).setCellValue(participant == null ? "" : participant.name());
+                writeStyledTextCell(row, columnIndex++, participant == null ? "" : participant.employeeNo(), centeredStyle);
+                writeStyledTextCell(row, columnIndex++, participant == null ? "" : participant.name(), centeredStyle);
             }
             for (int fieldIndex = 0; fieldIndex < participantFields.size(); fieldIndex++) {
                 String value = participant == null
@@ -314,6 +316,7 @@ public static ExportOptions defaultOptions() {
             ExportOptions options
     ) {
         XSSFSheet sheet = workbook.createSheet("人员名单");
+        XSSFCellStyle centeredStyle = createCenteredCellStyle(workbook);
         List<FieldDefinitionView> participantFields = selectedDynamicFields(workspace, options.fieldCodes());
         ArrayList<String> headers = new ArrayList<>(List.of("工号", "姓名"));
         participantFields.forEach(field -> headers.add(field.label()));
@@ -323,12 +326,13 @@ public static ExportOptions defaultOptions() {
         if (options.includeSeatLabel()) {
             headers.add("座位编号");
         }
-        writeHeaderRow(sheet, headers.toArray(String[]::new));
+        writeHeaderRow(workbook, sheet, headers.toArray(String[]::new));
         Map<String,String> seatLabelByParticipant = seatLabelByParticipant(workspace);
         ParticipantRowContext rowContext = new ParticipantRowContext(
                 participantFields,
                 options,
-                seatLabelByParticipant
+                seatLabelByParticipant,
+                centeredStyle
         );
         int rowIndex = 1;
         for (ParticipantView participant : workspace.participants()) {
@@ -362,8 +366,8 @@ public static ExportOptions defaultOptions() {
             Map<String, String> attributes,
             ParticipantRowContext context
     ) {
-        row.createCell(0).setCellValue(participant.employeeNo());
-        row.createCell(1).setCellValue(participant.name());
+        writeStyledTextCell(row, 0, participant.employeeNo(), context.centeredStyle());
+        writeStyledTextCell(row, 1, participant.name(), context.centeredStyle());
         for (int fieldIndex = 0; fieldIndex < context.participantFields().size(); fieldIndex++) {
             row.createCell(2 + fieldIndex).setCellValue(attributes.getOrDefault(
                     context.participantFields().get(fieldIndex).code(),
@@ -379,13 +383,27 @@ public static ExportOptions defaultOptions() {
         }
     }
 
-    private void writeHeaderRow(Sheet sheet, String[] headers) {
+    private void writeHeaderRow(XSSFWorkbook workbook, XSSFSheet sheet, String[] headers) {
         Row row = sheet.createRow(0);
+        XSSFCellStyle headerStyle = createCenteredCellStyle(workbook);
         for (int index = 0; index < headers.length; index++) {
-            row.createCell(index).setCellValue(headers[index]);
+            writeStyledTextCell(row, index, headers[index], headerStyle);
         }
         sheet.createFreezePane(0, 1);
         sheet.setAutoFilter(new CellRangeAddress(0, 0, 0, headers.length - 1));
+    }
+
+    private XSSFCellStyle createCenteredCellStyle(XSSFWorkbook workbook) {
+        XSSFCellStyle style = workbook.createCellStyle();
+        style.setAlignment(HorizontalAlignment.CENTER);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+        return style;
+    }
+
+    private void writeStyledTextCell(Row row, int column, String value, XSSFCellStyle style) {
+        Cell cell = row.createCell(column);
+        cell.setCellValue(value);
+        cell.setCellStyle(style);
     }
 
     private void autosize(Sheet sheet, int count) {
@@ -486,7 +504,8 @@ public static ExportOptions defaultOptions() {
     private record ParticipantRowContext(
             List<WorkspaceResponse.FieldDefinitionView> participantFields,
             ExportOptions options,
-            Map<String, String> seatLabelByParticipant
+            Map<String, String> seatLabelByParticipant,
+            XSSFCellStyle centeredStyle
     ) {
     }
 }
