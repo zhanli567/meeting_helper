@@ -69,6 +69,47 @@ function normalizeWorkspace(value) {
     })),
   }
 }
+function lockedAssignedParticipantIds(items = []) {
+  return new Set(
+    (items || [])
+      .filter((item) => item.type === 'PERSON' && item.locked && item.participantId)
+      .map((item) => item.participantId),
+  )
+}
+function releaseEditableAssignments(participants = [], lockedParticipantIds = new Set()) {
+  const clearedAssignments = []
+  let skipped = 0
+  for (const person of participants || []) {
+    if (!person.assignedElementId) {
+      continue
+    }
+    if (person.locked || lockedParticipantIds.has(person.id)) {
+      skipped += 1
+      continue
+    }
+    clearedAssignments.push({
+      participantId: person.id,
+      targetElementId: person.assignedElementId,
+    })
+    person.assignedElementId = undefined
+  }
+  return {
+    changed: Boolean(clearedAssignments.length),
+    cleared: clearedAssignments.length,
+    skipped,
+    clearedAssignments,
+  }
+}
+function removeReleasedPersonItems(value) {
+  const assignedParticipantIds = new Set(
+    (value.participants || [])
+      .filter((person) => person.assignedElementId)
+      .map((person) => person.id),
+  )
+  value.items = (value.items || []).filter(
+    (item) => item.type !== 'PERSON' || assignedParticipantIds.has(item.participantId),
+  )
+}
 function createWorkspaceStore() {
   const initialRecentSession = readRecentMeetingSession()
   const meetings = ref([])
@@ -196,6 +237,22 @@ function createWorkspaceStore() {
     workspace.value.items = workspace.value.items.filter((value) => value !== item)
     dirty.value = true
     return true
+  }
+
+  function unassignAll() {
+    if (!workspace.value) {
+      return { changed: false, cleared: 0, skipped: 0, clearedAssignments: [] }
+    }
+    const result = releaseEditableAssignments(
+      workspace.value.participants,
+      lockedAssignedParticipantIds(workspace.value.items),
+    )
+    if (result.changed) {
+      removeReleasedPersonItems(workspace.value)
+      selectedParticipantId.value = undefined
+      dirty.value = true
+    }
+    return result
   }
 
   async function saveAssignments({ silent = false } = {}) {
@@ -365,6 +422,7 @@ function createWorkspaceStore() {
     switchMeeting,
     assign,
     unassign,
+    unassignAll,
     saveAssignments,
     setLock,
     removeParticipant,

@@ -54,6 +54,39 @@ export function groupParticipants(participants, fieldName) {
   return Array.from(groups, ([key, people]) => ({ key, label: key, people }))
 }
 
+function participantGroupFieldValues(participant, fieldName) {
+  const values = [
+    participant?.primaryAttributes?.[fieldName],
+    ...[participant?.attributeValues?.[fieldName]].flat(),
+  ]
+    .map(nonEmptyValue)
+    .filter(Boolean)
+  const dedupedValues = [...new Set(values)]
+  return dedupedValues.length ? dedupedValues : ['未填写']
+}
+
+export function groupValueOptions(participants, fieldName) {
+  if (!fieldName) {
+    return []
+  }
+  const groups = new Map()
+  for (const participant of participants || []) {
+    for (const label of participantGroupFieldValues(participant, fieldName)) {
+      groups.set(label, (groups.get(label) || 0) + 1)
+    }
+  }
+  return Array.from(groups, ([label, count]) => ({ value: label, label, count }))
+}
+
+export function filterParticipantsByGroupValue(participants, fieldName, groupValue) {
+  if (!fieldName || !groupValue) {
+    return participants || []
+  }
+  return (participants || []).filter(
+    (participant) => participantGroupFieldValues(participant, fieldName).includes(groupValue),
+  )
+}
+
 export function groupableFields(fieldDefinitions) {
   return (fieldDefinitions || []).filter(
     (field) => field.filterable && !fixedFieldCodes.has(field.code),

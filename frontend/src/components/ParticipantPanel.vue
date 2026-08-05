@@ -5,13 +5,15 @@ import {
   CircleCloseFilled,
   Delete,
   Edit,
+  RefreshLeft,
   Search,
   UploadFilled,
 } from '@element-plus/icons-vue'
 import SidePanelEmptyState from '@/components/SidePanelEmptyState.vue'
 import {
+  filterParticipantsByGroupValue,
   filteredParticipants,
-  groupParticipants,
+  groupValueOptions,
   groupableFields,
   paginateParticipants,
   participantSummary,
@@ -33,33 +35,72 @@ const props = defineProps({
   busyActions: { type: Object, default: () => ({}) },
   readonly: { type: Boolean, default: false },
 })
-const emit = defineEmits(['select', 'unassign', 'dragState', 'attendance', 'remove', 'edit', 'add'])
+const emit = defineEmits([
+  'select',
+  'unassign',
+  'unassignAll',
+  'dragState',
+  'attendance',
+  'remove',
+  'edit',
+  'add',
+])
 const tab = ref(props.readonly ? 'all' : 'pending')
 const search = ref('')
 const groupField = ref('')
+const groupValue = ref('')
 const currentPage = ref(1)
 const pageSize = ref(8)
 const dropActive = ref(false)
 const groupFields = computed(() => groupableFields(props.fieldDefinitions))
 const pendingCount = computed(() => attendingPendingCount(props.participants))
+const assignedCount = computed(
+  () => props.participants.filter((person) => person.assignedElementId).length,
+)
 const absentCount = computed(
   () => props.participants.filter((person) => isTemporarilyAbsent(person)).length,
 )
-const filtered = computed(() => {
+const baseFiltered = computed(() => {
   const keyword = search.value.trim().toLocaleLowerCase()
   return filteredParticipants(props.participants, tab.value, keyword)
+})
+const groupOptions = computed(() => groupValueOptions(baseFiltered.value, groupField.value))
+const activeGroupOption = computed(() =>
+  groupOptions.value.find((option) => option.value === groupValue.value),
+)
+const filtered = computed(() => {
+  return filterParticipantsByGroupValue(baseFiltered.value, groupField.value, groupValue.value)
 })
 const paged = computed(() => {
   return paginateParticipants(filtered.value, currentPage.value, pageSize.value)
 })
-const grouped = computed(() => {
-  if (!groupField.value) {
-    return [{ key: '', label: '', people: paged.value }]
+const grouped = computed(() => [
+  {
+    key: groupValue.value || 'all',
+    label: activeGroupOption.value?.label || '',
+    total: filtered.value.length,
+    people: paged.value,
+  },
+])
+const emptyTitle = computed(() => {
+  if (groupValue.value) {
+    return '当前分组没有人员'
   }
-  return groupParticipants(paged.value, groupField.value)
+  if (tab.value === 'pending') {
+    return '当前没有待排人员'
+  }
+  return '没有匹配的参会人员'
 })
-watch([tab, search, groupField], () => {
+watch(groupField, () => {
+  groupValue.value = ''
+})
+watch([tab, search, groupField, groupValue], () => {
   currentPage.value = resetParticipantPage()
+})
+watch(groupOptions, (options) => {
+  if (groupValue.value && !options.some((option) => option.value === groupValue.value)) {
+    groupValue.value = ''
+  }
 })
 watch(
   () => props.readonly,
@@ -151,7 +192,22 @@ function leavePanel(event) {
   >
     <div class="panel-heading">
       <h2 class="panel-title">人员安排</h2>
-      <el-tag size="small" effect="plain">{{ filtered.length }} 人</el-tag>
+      <div class="panel-heading-actions">
+        <el-button
+          v-if="!readonly"
+          class="clear-assigned-button"
+          size="small"
+          plain
+          type="warning"
+          :icon="RefreshLeft"
+          :loading="saving"
+          :disabled="saving || !assignedCount"
+          @click="emit('unassignAll')"
+        >
+          清空已排
+        </el-button>
+        <el-tag size="small" effect="plain">{{ filtered.length }} 人</el-tag>
+      </div>
     </div>
 
     <div class="panel-tabs" :class="{ single: readonly }">
@@ -188,6 +244,20 @@ function leavePanel(event) {
           :value="field.code"
         />
       </el-select>
+      <el-select
+        v-if="groupField"
+        v-model="groupValue"
+        clearable
+        class="group-select"
+        aria-label="人员分组值"
+      >
+        <el-option
+          v-for="option in groupOptions"
+          :key="option.value"
+          :label="`${option.label}（${option.count}人）`"
+          :value="option.value"
+        />
+      </el-select>
     </div>
 
     <div class="participant-list" :class="{ saving }">
@@ -195,7 +265,7 @@ function leavePanel(event) {
         <section v-for="group in grouped" :key="group.key || 'all'" class="person-group">
           <header v-if="group.label">
             <span>{{ group.label }}</span>
-            <b>{{ group.people.length }}</b>
+            <b>{{ group.total }}</b>
           </header>
           <article
             v-for="person in group.people"
@@ -279,7 +349,7 @@ function leavePanel(event) {
       <div v-else class="empty-copy">
         <SidePanelEmptyState
           :icon="UploadFilled"
-          :title="tab === 'pending' ? '当前没有待排人员' : '没有匹配的参会人员'"
+          :title="emptyTitle"
           :description="readonly ? '' : '点击新增人员'"
           :clickable="!readonly"
           @activate="emit('add')"
@@ -331,8 +401,21 @@ function leavePanel(event) {
 .panel-heading {
   flex: none;
   display: flex;
+  gap: 10px;
   justify-content: space-between;
   align-items: center;
+}
+
+.panel-heading-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clear-assigned-button {
+  height: 24px;
+  padding: 0 8px;
 }
 
 .panel-tabs {
