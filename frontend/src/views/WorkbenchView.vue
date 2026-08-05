@@ -14,6 +14,7 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AddParticipantDialog from '@/components/AddParticipantDialog.vue'
+import AgentChatPanel from '@/agent/components/AgentChatPanel.vue'
 import EditParticipantDialog from '@/components/EditParticipantDialog.vue'
 import ExportOptionsDialog from '@/components/ExportOptionsDialog.vue'
 import GroupColorLegend from '@/components/GroupColorLegend.vue'
@@ -2023,6 +2024,11 @@ watch(
       @submit="createReservedAreaFromDialog"
       @merge="mergeReservedAreaFromDialog"
       @cancel="resetMarkerDraft"
+    />
+    <AgentChatPanel
+      :meeting-id="workspace?.meeting?.id"
+      :workspace-revision="String(workspace?.meeting?.layoutVersion || '')"
+      :disabled="!workspace?.meeting?.id"
     />
   </div>
 </template>

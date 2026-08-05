@@ -1,0 +1,3 @@
+data: {"choices":[{"delta":{"content":[{"type":"tool_call","name":"workspace.get_summary","id":"call_1","arguments":"{}"}]}}]}
+
+data: [DONE]

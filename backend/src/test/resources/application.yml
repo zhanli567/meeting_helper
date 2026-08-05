@@ -4,6 +4,17 @@ spring:
     username: postgres
     password: 123456
     driver-class-name: org.postgresql.Driver
+
+agent:
+  enabled: false
+  provider: mock
+  max-tool-steps: 8
+  max-model-retries-per-step: 1
+  max-tool-retries-per-step: 1
+  max-duration-seconds: 60
+  allow-frontend-draft-tools: false
+  allow-commit-tools: false
+
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
   configuration:

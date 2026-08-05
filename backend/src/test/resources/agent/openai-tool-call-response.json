@@ -1,0 +1,19 @@
+{
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "id": "call_1",
+            "type": "function",
+            "function": {
+              "name": "workspace.get_summary",
+              "arguments": "{\"limit\":5}"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

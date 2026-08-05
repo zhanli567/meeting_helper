@@ -1,0 +1,10 @@
+{
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "当前会议共有 10 人，8 人已排座。"
+      }
+    }
+  ]
+}

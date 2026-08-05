@@ -1,0 +1,3 @@
+data: {"choices":[{"delta":{"content":[{"type":"text","text":"当前会议共有 10 人。"}]}}]}
+
+data: [DONE]

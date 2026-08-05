@@ -16,6 +16,29 @@ spring:
 server:
   port: 8080
 
+agent:
+  enabled: false
+  provider: mock
+  max-tool-steps: 8
+  max-model-retries-per-step: 1
+  max-tool-retries-per-step: 1
+  max-duration-seconds: 60
+  allow-frontend-draft-tools: false
+  allow-commit-tools: false
+  internal:
+    agent-chat-url: ''
+    model-url: ''
+    model: ''
+    iam-token-env: MEETING_AGENT_INTERNAL_IAM_TOKEN
+    space-id: ''
+    super-agent-id: ''
+    bundle-id: ''
+    agent-alias: ''
+  external:
+    base-url: ''
+    api-key-env: MEETING_AGENT_EXTERNAL_API_KEY
+    model: deepseek-chat
+
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
   configuration:
