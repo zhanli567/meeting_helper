@@ -1,12 +1,12 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
-import { scheduleCanvasCenter } from '@/utils/canvasSchedule'
+import { scheduleCanvasReset } from '@/utils/canvasSchedule'
 
 defineOptions({ inheritAttrs: false })
 
 const props = defineProps({
   panning: { type: Boolean, default: false },
-  centerKey: { type: [String, Number, Array, Object], default: undefined },
+  resetKey: { type: [String, Number, Array, Object], default: undefined },
   contentClass: { type: [String, Array, Object], default: undefined },
 })
 
@@ -16,26 +16,26 @@ function getViewportElement() {
   return viewportRef.value
 }
 
-function centerCanvas() {
+function resetViewport() {
   const viewport = viewportRef.value
   if (!viewport) {
     return
   }
-  viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2)
-  viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 2)
+  viewport.scrollLeft = 0
+  viewport.scrollTop = 0
 }
 
-function centerCanvasAfterRender() {
-  scheduleCanvasCenter(centerCanvas)
+function resetViewportAfterRender() {
+  scheduleCanvasReset(resetViewport)
 }
 
 defineExpose({
-  centerCanvas,
+  resetViewport,
   getViewportElement,
 })
 
-onMounted(centerCanvasAfterRender)
-watch(() => props.centerKey, centerCanvasAfterRender, { deep: true })
+onMounted(resetViewportAfterRender)
+watch(() => props.resetKey, resetViewportAfterRender, { deep: true })
 </script>
 
 <template>
@@ -76,8 +76,8 @@ watch(() => props.centerKey, centerCanvasAfterRender, { deep: true })
   height: max-content;
   min-height: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: flex-start;
   padding: 26px 68px 38px;
 }
 </style>

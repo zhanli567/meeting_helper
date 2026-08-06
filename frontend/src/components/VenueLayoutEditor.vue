@@ -22,7 +22,7 @@ import CanvasBoard from '@/components/CanvasBoard.vue'
 import CanvasViewport from '@/components/CanvasViewport.vue'
 import VenueElementPanel from '@/components/VenueElementPanel.vue'
 import VenueElementPicker from '@/components/VenueElementPicker.vue'
-import { scheduleCanvasCenter } from '@/utils/canvasSchedule'
+import { scheduleCanvasReset } from '@/utils/canvasSchedule'
 import {
   activeSelectionRect,
   appendHistorySnapshot,
@@ -45,7 +45,7 @@ import {
   nextWheelZoom,
   scrollToElementZoomAnchor,
 } from '@/utils/pointerZoom'
-import { elementBox } from '@/utils/venueCanvasMetrics'
+import { elementBox, fitCanvasZoom } from '@/utils/venueCanvasMetrics'
 import {
   DEFAULT_CANVAS,
   ELEMENT_KINDS,
@@ -300,7 +300,7 @@ watch(
     canvasOffsetY.value = 0
     undoStack.value = []
     redoStack.value = []
-    scheduleCenterCanvas()
+    scheduleResetViewport()
   },
   { immediate: true, deep: true },
 )
@@ -1007,19 +1007,18 @@ function onWheel(event) {
 function setZoom(value) {
   updateZoomValue(value)
   nextTick(() => {
-    centerCanvas()
     if (pickerVisible.value) {
       positionPicker()
     }
   })
 }
 
-function centerCanvas() {
-  viewportRef.value?.centerCanvas?.()
+function resetViewport() {
+  viewportRef.value?.resetViewport?.()
 }
 
-function scheduleCenterCanvas() {
-  scheduleCanvasCenter(centerCanvas)
+function scheduleResetViewport() {
+  scheduleCanvasReset(resetViewport)
 }
 
 function centerLayout() {
@@ -1043,7 +1042,7 @@ function centerLayout() {
   editorPreview.value = undefined
   closePicker()
   publishLayout()
-  nextTick(centerCanvas)
+  nextTick(resetViewport)
 }
 
 function fitCanvas() {
@@ -1053,13 +1052,14 @@ function fitCanvas() {
   }
   canvasOffsetX.value = 0
   canvasOffsetY.value = 0
-  const fitted = Math.min(
-    (viewport.clientWidth - 120) / (gridColumns.value * CELL_SIZE),
-    (viewport.clientHeight - 120) / (gridRows.value * CELL_SIZE),
-    1,
-  )
-  updateZoomValue(fitted)
-  nextTick(centerCanvas)
+  const nextZoom = fitCanvasZoom({
+    gridColumns: gridColumns.value,
+    gridRows: gridRows.value,
+    viewportWidth: viewport.clientWidth,
+    viewportHeight: viewport.clientHeight,
+  })
+  updateZoomValue(nextZoom)
+  nextTick(resetViewport)
 }
 
 defineExpose({
@@ -1125,7 +1125,7 @@ function requestSave() {
 
 onMounted(() => {
   window.addEventListener('pointerdown', closeOnOutsidePointer)
-  scheduleCenterCanvas()
+  scheduleResetViewport()
 })
 
 onBeforeUnmount(() => {
@@ -1271,7 +1271,7 @@ onBeforeUnmount(() => {
             ref="viewportRef"
             class="canvas-viewport"
             :panning="isPanning"
-            :center-key="[displayRows, displayColumns, sidePanelTarget]"
+            :reset-key="[displayRows, displayColumns, sidePanelTarget]"
             @pointerdown="startPan"
             @contextmenu.prevent
             @wheel="onWheel"

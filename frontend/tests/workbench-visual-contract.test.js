@@ -45,6 +45,7 @@ test('layout mode canvas and right panel use the same rounded white shell as sea
   assert.doesNotMatch(editor, /\.venue-layout-editor\.external-panel-mode \.designer-canvas\s*\{/)
   assert.match(canvasViewport, /\.app-canvas-viewport\s*\{[\s\S]*#f7f8fa;[\s\S]*scrollbar-gutter:\s*stable;/)
   assert.match(canvasViewport, /\.app-canvas-content\s*\{[\s\S]*display:\s*flex;[\s\S]*padding:\s*26px 68px 38px;/)
+  assert.match(canvasViewport, /\.app-canvas-content\s*\{[\s\S]*align-items:\s*flex-start;[\s\S]*justify-content:\s*flex-start;/)
   assert.match(elementPanel, /\.element-editor\s*\{[\s\S]*background:\s*#fff;/)
   assert.match(markerPanel, /\.marker-detail-section\s*\{[\s\S]*background:\s*#fff;/)
   assert.doesNotMatch(elementPanel, /\.panel-title\s*\{[\s\S]*font-size:\s*18px;/)

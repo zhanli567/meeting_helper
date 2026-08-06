@@ -55,3 +55,18 @@ test('场馆预览适应窗口时仍保持可辨识的单元格尺寸', async ()
     0.86,
   )
 })
+
+test('工作台适应缩放不使用预览的最小可读下限', async () => {
+  const metrics = await import('../src/utils/venueCanvasMetrics.js').catch(() => ({}))
+  assert.equal(typeof metrics.fitCanvasZoom, 'function')
+
+  assert.equal(
+    metrics.fitCanvasZoom({
+      gridColumns: 43,
+      gridRows: 18,
+      viewportWidth: 1120,
+      viewportHeight: 680,
+    }),
+    0.52,
+  )
+})

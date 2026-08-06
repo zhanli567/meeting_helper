@@ -7,7 +7,7 @@ import { startParticipantDrag as performParticipantDrag } from '@/utils/particip
 import { captureElementZoomAnchor, scrollToElementZoomAnchor } from '@/utils/pointerZoom'
 import { regionLabelAnchors, reservedItems } from '@/utils/seatRegions'
 import { computeElementColumnBounds, computeSeatLabels } from '@/utils/seatNumbering'
-import { displayCellUnit, elementBox, previewFitZoom } from '@/utils/venueCanvasMetrics'
+import { displayCellUnit, elementBox, fitCanvasZoom } from '@/utils/venueCanvasMetrics'
 const props = defineProps({
   workspace: { type: Object, required: true },
   zoom: { type: Number, required: true },
@@ -439,38 +439,38 @@ function onWheel(event) {
     scrollToElementZoomAnchor(current, currentCanvas, anchor)
   })
 }
-function centerCanvas() {
-  viewportRef.value?.centerCanvas?.()
+function resetViewport() {
+  viewportRef.value?.resetViewport?.()
 }
 function fitCanvas() {
   const container = viewportElement()
   if (!container) {
     return
   }
-  const nextZoom = previewFitZoom({
+  const nextZoom = fitCanvasZoom({
     gridRows: props.workspace.layout.gridRows,
     gridColumns: props.workspace.layout.gridColumns,
     viewportWidth: container.clientWidth,
     viewportHeight: container.clientHeight,
   })
   emit('zoomChange', nextZoom - props.zoom)
-  nextTick(centerCanvas)
+  nextTick(resetViewport)
 }
-function centerCanvasAfterRender() {
-  nextTick(centerCanvas)
+function resetViewportAfterRender() {
+  nextTick(resetViewport)
 }
 
 defineExpose({
   fitCanvas,
 })
-onMounted(centerCanvasAfterRender)
+onMounted(resetViewportAfterRender)
 watch(
   () => [
     props.workspace.meeting.id,
     props.workspace.layout.gridRows,
     props.workspace.layout.gridColumns,
   ],
-  centerCanvasAfterRender,
+  resetViewportAfterRender,
 )
 onBeforeUnmount(() => {
   endPan()
@@ -484,7 +484,7 @@ onBeforeUnmount(() => {
     class="canvas-scroll"
     :class="{ 'drag-active': draggingParticipantId, 'marker-mode': markerMode }"
     :panning="isPanning"
-    :center-key="[workspace.meeting.id, workspace.layout.gridRows, workspace.layout.gridColumns]"
+    :reset-key="[workspace.meeting.id, workspace.layout.gridRows, workspace.layout.gridColumns]"
     @mousedown="startPan"
     @contextmenu.prevent
     @wheel="onWheel"
