@@ -21,8 +21,8 @@ function resetViewport() {
   if (!viewport) {
     return
   }
-  viewport.scrollLeft = 0
-  viewport.scrollTop = 0
+  viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2)
+  viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 2)
 }
 
 function resetViewportAfterRender() {
@@ -72,12 +72,12 @@ watch(() => props.resetKey, resetViewportAfterRender, { deep: true })
 
 .app-canvas-content {
   width: max-content;
-  min-width: 100%;
+  min-width: 200%;
   height: max-content;
-  min-height: 100%;
+  min-height: 200%;
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
+  align-items: center;
+  justify-content: center;
   padding: 26px 68px 38px;
 }
 </style>
