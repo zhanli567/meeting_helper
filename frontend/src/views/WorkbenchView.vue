@@ -44,7 +44,8 @@ const router = useRouter()
 const route = useRoute()
 const store = useWorkspaceStore()
 const DEFAULT_CANVAS_ZOOM = 0.8
-const zoom = ref(DEFAULT_CANVAS_ZOOM)
+const seatingZoom = ref(DEFAULT_CANVAS_ZOOM)
+const markerZoom = ref(DEFAULT_CANVAS_ZOOM)
 const exportOptionsVisible = ref(false)
 const addVisible = ref(false)
 const undoStack = ref([])
@@ -316,8 +317,11 @@ const toolbarRedoDisabled = computed(() => {
   }
   return true
 })
+const activeCanvasZoom = computed(() => (
+  workbenchMode.value === 'marker' ? markerZoom.value : seatingZoom.value
+))
 const toolbarZoomValue = computed(() => (
-  workbenchMode.value === 'layout' ? layoutPublicValue('zoom', 1) : zoom.value
+  workbenchMode.value === 'layout' ? layoutPublicValue('zoom', 1) : activeCanvasZoom.value
 ))
 const toolbarZoomMin = computed(() => (workbenchMode.value === 'layout' ? 0.25 : 0.4))
 const toolbarZoomMax = computed(() => 2.5)
@@ -1463,7 +1467,8 @@ async function removeParticipant(person) {
   })
 }
 function changeZoom(delta) {
-  zoom.value = Math.min(2.5, Math.max(0.4, Number((zoom.value + delta).toFixed(2))))
+  const targetZoom = workbenchMode.value === 'marker' ? markerZoom : seatingZoom
+  targetZoom.value = Math.min(2.5, Math.max(0.4, Number((targetZoom.value + delta).toFixed(2))))
 }
 function zoomCurrentCanvas(delta) {
   if (workbenchMode.value === 'layout') {
@@ -1992,7 +1997,7 @@ watch(
             v-else
             ref="venueCanvasRef"
             :workspace="canvasWorkspace"
-            :zoom="zoom"
+            :zoom="activeCanvasZoom"
             :readonly="readonlyMode"
             :marker-mode="workbenchMode === 'marker'"
             :marker-rect-enabled="workbenchMode === 'marker' && !markerDraft.id"

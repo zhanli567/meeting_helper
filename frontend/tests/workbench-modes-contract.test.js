@@ -110,7 +110,11 @@ test('三种工作台模式初始缩放和画布背景保持一致', async () =>
   const schedule = await readFile(new URL('../src/utils/canvasSchedule.js', import.meta.url), 'utf8')
 
   assert.match(source, /const DEFAULT_CANVAS_ZOOM = 0\.8/)
-  assert.match(source, /const zoom = ref\(DEFAULT_CANVAS_ZOOM\)/)
+  assert.match(source, /const seatingZoom = ref\(DEFAULT_CANVAS_ZOOM\)/)
+  assert.match(source, /const markerZoom = ref\(DEFAULT_CANVAS_ZOOM\)/)
+  assert.match(source, /const activeCanvasZoom = computed\(\(\) => \([\s\S]*markerZoom\.value[\s\S]*seatingZoom\.value/)
+  assert.match(source, /const targetZoom = workbenchMode\.value === 'marker' \? markerZoom : seatingZoom/)
+  assert.match(source, /:zoom="activeCanvasZoom"/)
   assert.match(editor, /const DEFAULT_EDITOR_ZOOM = 0\.8/)
   assert.match(editor, /const zoom = ref\(DEFAULT_EDITOR_ZOOM\)/)
   assert.match(editor, /canvasOffsetX\.value = 0[\s\S]*canvasOffsetY\.value = 0[\s\S]*scheduleCenterCanvas\(\)/)
