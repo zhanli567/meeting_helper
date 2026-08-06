@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { scheduleCanvasReset } from '@/utils/canvasSchedule'
 
 defineOptions({ inheritAttrs: false })
@@ -10,7 +10,23 @@ const props = defineProps({
   contentClass: { type: [String, Array, Object], default: undefined },
 })
 
+function resetKeySignature(value) {
+  if (value === undefined || value === null) {
+    return ''
+  }
+  const valueType = typeof value
+  if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') {
+    return String(value)
+  }
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
 const viewportRef = ref()
+const resetSignature = computed(() => resetKeySignature(props.resetKey))
 
 function getViewportElement() {
   return viewportRef.value
@@ -35,7 +51,7 @@ defineExpose({
 })
 
 onMounted(resetViewportAfterRender)
-watch(() => props.resetKey, resetViewportAfterRender, { deep: true })
+watch(resetSignature, resetViewportAfterRender)
 </script>
 
 <template>
