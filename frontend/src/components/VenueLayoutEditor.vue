@@ -40,6 +40,11 @@ import {
   resizeRect,
   shouldDismissDesignerOverlays,
 } from '@/utils/designerGeometry'
+import {
+  capturePointerZoomAnchor,
+  nextWheelZoom,
+  scrollToZoomAnchor,
+} from '@/utils/pointerZoom'
 import { elementBox } from '@/utils/venueCanvasMetrics'
 import {
   DEFAULT_CANVAS,
@@ -101,9 +106,13 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  viewportZoom: {
+    type: Number,
+    default: 0.8,
+  },
 })
 
-const emit = defineEmits(['update:modelValue', 'change', 'save', 'back'])
+const emit = defineEmits(['update:modelValue', 'update:viewportZoom', 'change', 'save', 'back'])
 const CELL_SIZE = 44
 const DEFAULT_EDITOR_ZOOM = 0.8
 const resizeHandles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
@@ -261,6 +270,21 @@ function redo() {
   publishLayout()
 }
 
+function boundedZoom(value) {
+  const numericValue = Number(value)
+  const nextValue = Number.isFinite(numericValue) ? numericValue : DEFAULT_EDITOR_ZOOM
+  return Number(Math.min(2.5, Math.max(0.25, nextValue)).toFixed(2))
+}
+
+function updateZoomValue(value) {
+  const nextValue = boundedZoom(value)
+  if (nextValue !== zoom.value) {
+    zoom.value = nextValue
+    emit('update:viewportZoom', nextValue)
+  }
+  return nextValue
+}
+
 watch(
   () => props.modelValue,
   (layout) => {
@@ -272,7 +296,6 @@ watch(
       gridColumns: layout.gridColumns || DEFAULT_CANVAS.columns,
       elements: layout.elements || [],
     })
-    zoom.value = DEFAULT_EDITOR_ZOOM
     canvasOffsetX.value = 0
     canvasOffsetY.value = 0
     undoStack.value = []
@@ -280,6 +303,17 @@ watch(
     scheduleCenterCanvas()
   },
   { immediate: true, deep: true },
+)
+
+watch(
+  () => props.viewportZoom,
+  (value) => {
+    const nextValue = boundedZoom(value)
+    if (nextValue !== zoom.value) {
+      zoom.value = nextValue
+    }
+  },
+  { immediate: true },
 )
 
 const selectedElement = computed(() =>
@@ -947,17 +981,18 @@ function onWheel(event) {
     return
   }
   const oldZoom = zoom.value
-  const nextZoom = Math.min(2.5, Math.max(0.25, oldZoom + (event.deltaY < 0 ? 0.1 : -0.1)))
+  const nextZoom = nextWheelZoom(oldZoom, event.deltaY, {
+    step: 0.1,
+    min: 0.25,
+    max: 2.5,
+  })
   if (nextZoom === oldZoom) {
     return
   }
-  const bounds = viewport.getBoundingClientRect()
-  const pointerX = event.clientX - bounds.left + viewport.scrollLeft
-  const pointerY = event.clientY - bounds.top + viewport.scrollTop
-  zoom.value = Number(nextZoom.toFixed(2))
+  const anchor = capturePointerZoomAnchor(viewport, event, oldZoom)
+  updateZoomValue(nextZoom)
   nextTick(() => {
-    viewport.scrollLeft = (pointerX / oldZoom) * zoom.value - (event.clientX - bounds.left)
-    viewport.scrollTop = (pointerY / oldZoom) * zoom.value - (event.clientY - bounds.top)
+    scrollToZoomAnchor(viewport, anchor, zoom.value)
     if (pickerVisible.value) {
       positionPicker()
     }
@@ -965,7 +1000,7 @@ function onWheel(event) {
 }
 
 function setZoom(value) {
-  zoom.value = Number(Math.min(2.5, Math.max(0.25, value)).toFixed(2))
+  updateZoomValue(value)
   nextTick(() => {
     centerCanvas()
     if (pickerVisible.value) {
@@ -1018,7 +1053,7 @@ function fitCanvas() {
     (viewport.clientHeight - 120) / (gridRows.value * CELL_SIZE),
     1,
   )
-  zoom.value = Number(Math.min(2.5, Math.max(0.25, fitted)).toFixed(2))
+  updateZoomValue(fitted)
   nextTick(centerCanvas)
 }
 

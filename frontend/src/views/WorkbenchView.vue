@@ -45,6 +45,7 @@ const route = useRoute()
 const store = useWorkspaceStore()
 const DEFAULT_CANVAS_ZOOM = 0.8
 const seatingZoom = ref(DEFAULT_CANVAS_ZOOM)
+const layoutZoom = ref(DEFAULT_CANVAS_ZOOM)
 const markerZoom = ref(DEFAULT_CANVAS_ZOOM)
 const exportOptionsVisible = ref(false)
 const addVisible = ref(false)
@@ -321,7 +322,7 @@ const activeCanvasZoom = computed(() => (
   workbenchMode.value === 'marker' ? markerZoom.value : seatingZoom.value
 ))
 const toolbarZoomValue = computed(() => (
-  workbenchMode.value === 'layout' ? layoutPublicValue('zoom', 1) : activeCanvasZoom.value
+  workbenchMode.value === 'layout' ? layoutZoom.value : activeCanvasZoom.value
 ))
 const toolbarZoomMin = computed(() => (workbenchMode.value === 'layout' ? 0.25 : 0.4))
 const toolbarZoomMax = computed(() => 2.5)
@@ -1472,7 +1473,7 @@ function changeZoom(delta) {
 }
 function zoomCurrentCanvas(delta) {
   if (workbenchMode.value === 'layout') {
-    const current = layoutPublicValue('zoom', 1)
+    const current = layoutZoom.value
     layoutEditorRef.value?.setZoom(Number((current + delta).toFixed(2)))
     return
   }
@@ -1980,6 +1981,7 @@ watch(
             v-if="workbenchMode === 'layout'"
             ref="layoutEditorRef"
             v-model="layoutDraft"
+            v-model:viewport-zoom="layoutZoom"
             title="编辑布局"
             save-label="保存布局"
             :show-back="false"
