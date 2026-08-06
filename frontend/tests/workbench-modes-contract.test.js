@@ -101,11 +101,11 @@ test('工作台工具栏和侧栏按当前模式统一派发', async () => {
   assert.match(canvas, /defineExpose/)
   assert.match(canvas, /fitCanvas/)
   assert.match(canvas, /emit\('zoomChange', nextZoom - props\.zoom/)
-  assert.match(canvas, /capturePointerZoomAnchor/)
-  assert.match(canvas, /scrollToZoomAnchor/)
-  assert.match(editor, /capturePointerZoomAnchor/)
+  assert.match(canvas, /captureElementZoomAnchor/)
+  assert.match(canvas, /scrollToElementZoomAnchor/)
+  assert.match(editor, /captureElementZoomAnchor/)
   assert.match(editor, /nextWheelZoom/)
-  assert.match(editor, /scrollToZoomAnchor/)
+  assert.match(editor, /scrollToElementZoomAnchor/)
 })
 
 test('三种工作台模式初始缩放和画布背景保持一致', async () => {

@@ -4,7 +4,7 @@ import { Lock } from '@element-plus/icons-vue'
 import CanvasBoard from '@/components/CanvasBoard.vue'
 import CanvasViewport from '@/components/CanvasViewport.vue'
 import { startParticipantDrag as performParticipantDrag } from '@/utils/participantActions'
-import { capturePointerZoomAnchor, scrollToZoomAnchor } from '@/utils/pointerZoom'
+import { captureElementZoomAnchor, scrollToElementZoomAnchor } from '@/utils/pointerZoom'
 import { regionLabelAnchors, reservedItems } from '@/utils/seatRegions'
 import { computeElementColumnBounds, computeSeatLabels } from '@/utils/seatNumbering'
 import { displayCellUnit, elementBox, previewFitZoom } from '@/utils/venueCanvasMetrics'
@@ -423,18 +423,20 @@ function endPan() {
 function onWheel(event) {
   event.preventDefault()
   const container = viewportElement()
-  if (!container) {
+  const canvas = canvasRef.value?.getElement?.()
+  if (!container || !canvas) {
     return
   }
   const oldZoom = props.zoom
-  const anchor = capturePointerZoomAnchor(container, event, oldZoom)
+  const anchor = captureElementZoomAnchor(canvas, event)
   emit('zoomChange', event.deltaY < 0 ? 0.08 : -0.08, event)
   nextTick(() => {
     const current = viewportElement()
-    if (!current || props.zoom === oldZoom) {
+    const currentCanvas = canvasRef.value?.getElement?.()
+    if (!current || !currentCanvas || props.zoom === oldZoom) {
       return
     }
-    scrollToZoomAnchor(current, anchor, props.zoom)
+    scrollToElementZoomAnchor(current, currentCanvas, anchor)
   })
 }
 function centerCanvas() {

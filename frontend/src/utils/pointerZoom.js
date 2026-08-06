@@ -32,8 +32,28 @@ export function capturePointerZoomAnchor(viewport, event, oldZoom) {
   }
 }
 
+export function captureElementZoomAnchor(element, event) {
+  const bounds = element.getBoundingClientRect()
+  const width = Math.max(1, bounds.width)
+  const height = Math.max(1, bounds.height)
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    ratioX: (event.clientX - bounds.left) / width,
+    ratioY: (event.clientY - bounds.top) / height,
+  }
+}
+
 export function scrollToZoomAnchor(viewport, anchor, newZoom) {
   const safeZoom = normalizeZoom(newZoom, anchor.oldZoom)
   viewport.scrollLeft = (anchor.contentX / anchor.oldZoom) * safeZoom - anchor.localX
   viewport.scrollTop = (anchor.contentY / anchor.oldZoom) * safeZoom - anchor.localY
+}
+
+export function scrollToElementZoomAnchor(viewport, element, anchor) {
+  const bounds = element.getBoundingClientRect()
+  const nextClientX = bounds.left + bounds.width * anchor.ratioX
+  const nextClientY = bounds.top + bounds.height * anchor.ratioY
+  viewport.scrollLeft += nextClientX - anchor.clientX
+  viewport.scrollTop += nextClientY - anchor.clientY
 }

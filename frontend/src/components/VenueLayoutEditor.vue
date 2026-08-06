@@ -41,9 +41,9 @@ import {
   shouldDismissDesignerOverlays,
 } from '@/utils/designerGeometry'
 import {
-  capturePointerZoomAnchor,
+  captureElementZoomAnchor,
   nextWheelZoom,
-  scrollToZoomAnchor,
+  scrollToElementZoomAnchor,
 } from '@/utils/pointerZoom'
 import { elementBox } from '@/utils/venueCanvasMetrics'
 import {
@@ -977,7 +977,8 @@ function cancelPointerSession(event) {
 function onWheel(event) {
   event.preventDefault()
   const viewport = viewportElement()
-  if (!viewport) {
+  const canvas = canvasRef.value?.getElement?.()
+  if (!viewport || !canvas) {
     return
   }
   const oldZoom = zoom.value
@@ -989,10 +990,14 @@ function onWheel(event) {
   if (nextZoom === oldZoom) {
     return
   }
-  const anchor = capturePointerZoomAnchor(viewport, event, oldZoom)
+  const anchor = captureElementZoomAnchor(canvas, event)
   updateZoomValue(nextZoom)
   nextTick(() => {
-    scrollToZoomAnchor(viewport, anchor, zoom.value)
+    const currentCanvas = canvasRef.value?.getElement?.()
+    if (!currentCanvas) {
+      return
+    }
+    scrollToElementZoomAnchor(viewport, currentCanvas, anchor)
     if (pickerVisible.value) {
       positionPicker()
     }
