@@ -40,6 +40,18 @@ class AgentToolExecutionTests {
     }
 
     @Test
+    void registryUsesValidObjectSchemaForEveryTool() {
+        AgentToolRegistry registry = new AgentToolRegistry();
+
+        assertThat(registry.enabledDefinitions())
+                .allSatisfy(definition -> {
+                    assertThat(definition.inputSchema()).containsEntry("type", "object");
+                    assertThat(definition.inputSchema()).containsKey("properties");
+                    assertThat(definition.inputSchema()).containsEntry("additionalProperties", false);
+                });
+    }
+
+    @Test
     void executorRunsSummaryTool() {
         AgentWorkspaceQueryService queryService = mock(AgentWorkspaceQueryService.class);
         when(queryService.summarize("meeting-1"))

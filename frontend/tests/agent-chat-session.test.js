@@ -67,22 +67,24 @@ test('send submits trimmed input and clears loading after request settles', asyn
 
 test('stream events are reduced into assistant text and tool trace', async () => {
   const request = deferred()
+  const flushed = deferred()
   const session = createAgentChatSession({
-    sendAgentChat({ onEvent }) {
-      onEvent({ type: 'RUN_STARTED', runId: 'run-1', payload: {} })
-      onEvent({
+    async sendAgentChat({ onEvent }) {
+      await onEvent({ type: 'RUN_STARTED', runId: 'run-1', payload: {} })
+      await onEvent({
         type: 'TOOL_CALL',
         runId: 'run-1',
         payload: { toolName: 'queryWorkspace', args: { tableId: 'T1' } },
       })
-      onEvent({
+      await onEvent({
         type: 'TOOL_RESULT',
         runId: 'run-1',
         payload: { toolName: 'queryWorkspace', result: { count: 3 } },
       })
-      onEvent({ type: 'ASSISTANT_TEXT', runId: 'run-1', payload: { text: 'Table 1 has ' } })
-      onEvent({ type: 'ASSISTANT_TEXT', runId: 'run-1', payload: { text: '3 people.' } })
-      onEvent({ type: 'RUN_DONE', runId: 'run-1', payload: {} })
+      await onEvent({ type: 'ASSISTANT_TEXT', runId: 'run-1', payload: { text: 'Table 1 has ' } })
+      await onEvent({ type: 'ASSISTANT_TEXT', runId: 'run-1', payload: { text: '3 people.' } })
+      await onEvent({ type: 'RUN_DONE', runId: 'run-1', payload: {} })
+      flushed.resolve()
       return request.promise
     },
     reduceAgentMessages,
@@ -93,6 +95,7 @@ test('stream events are reduced into assistant text and tool trace', async () =>
 
   session.input = 'Show table 1'
   const pending = session.send({ meetingId: 'meeting-1', workspaceRevision: 'rev-7' })
+  await flushed.promise
 
   assert.equal(session.messages.length, 2)
   assert.equal(session.messages[1].role, 'assistant')
@@ -108,6 +111,37 @@ test('stream events are reduced into assistant text and tool trace', async () =>
 
   request.resolve()
   await pending
+})
+
+test('assistant text is displayed through small paced slices', async () => {
+  const snapshots = []
+  const session = createAgentChatSession({
+    async sendAgentChat({ onEvent }) {
+      await onEvent({ type: 'RUN_STARTED', runId: 'run-typing', payload: {} })
+      await onEvent({
+        type: 'ASSISTANT_TEXT',
+        runId: 'run-typing',
+        payload: { text: 'abcdef' },
+      })
+      await onEvent({ type: 'RUN_DONE', runId: 'run-typing', payload: {} })
+    },
+    reduceAgentMessages,
+    createAbortController: createControllerSpy,
+    createConversationId: () => 'conversation-1',
+    createMessageId: () => 'user-1',
+    assistantTextSliceLength: 2,
+    assistantTextDelayMs: 1,
+    async wait() {
+      snapshots.push(session.messages[1]?.text || '')
+    },
+  })
+
+  session.input = 'Stream it'
+  await session.send({ meetingId: 'meeting-1', workspaceRevision: 'rev-7' })
+
+  assert.deepEqual(snapshots, ['ab', 'abcd'])
+  assert.equal(session.messages[1].text, 'abcdef')
+  assert.equal(session.messages[1].status, 'done')
 })
 
 test('enter submits the current input once', async () => {

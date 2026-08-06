@@ -15,12 +15,16 @@ async function readAgentStream(response, onEvent) {
     }
     const parsed = parseAgentEventStreamChunk(buffer, decoder.decode(result.value, { stream: true }))
     buffer = parsed.buffer
-    parsed.events.forEach(onEvent)
+    for (const event of parsed.events) {
+      await onEvent(event)
+    }
   }
 
   const tail = decoder.decode()
   const parsed = parseAgentEventStreamChunk(buffer, `${tail}\n\n`)
-  parsed.events.forEach(onEvent)
+  for (const event of parsed.events) {
+    await onEvent(event)
+  }
 }
 export async function sendAgentChat({
   meetingId,

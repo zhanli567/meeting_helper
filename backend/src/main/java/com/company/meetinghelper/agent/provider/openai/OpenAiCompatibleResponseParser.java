@@ -5,6 +5,8 @@ import com.company.meetinghelper.agent.tool.AgentToolCall;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** 将 OpenAI-compatible JSON 响应归一化为项目 provider 响应。 */
@@ -39,7 +41,8 @@ public class OpenAiCompatibleResponseParser {
                 Map<String, Object> arguments = objectMapper.readValue(
                         function.path("arguments").asText("{}"), new TypeReference<>() { });
                 return AgentProviderResponse.toolCall(new AgentToolCall(
-                        call.path("id").asText(null), function.path("name").asText(null), arguments));
+                        call.path("id").asText(null), function.path("name").asText(null),
+                        arguments, providerContext(message)));
             }
             JsonNode content = message.get("content");
             if (content != null && !content.isNull()) {
@@ -49,5 +52,20 @@ public class OpenAiCompatibleResponseParser {
         } catch (Exception exception) {
             return AgentProviderResponse.error("EXTERNAL_RESPONSE_INVALID", "无法解析外部模型响应");
         }
+    }
+
+    private Map<String, Object> providerContext(JsonNode message) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        Iterator<Map.Entry<String, JsonNode>> fields = message.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> field = fields.next();
+            String key = field.getKey();
+            if ("role".equals(key) || "tool_calls".equals(key)) {
+                continue;
+            }
+            context.put(key, field.getValue().isNull() ? null
+                    : objectMapper.convertValue(field.getValue(), Object.class));
+        }
+        return context;
     }
 }

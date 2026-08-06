@@ -36,8 +36,12 @@ agent:
     agent-alias: ''
   external:
     base-url: ''
-    api-key-env: MEETING_AGENT_EXTERNAL_API_KEY
+    api-key: ''
     model: deepseek-chat
+    stream: false
+    tool-choice: auto
+    system-prompt: '你是会议排座系统的查询助手。必须优先通过工具查询当前工作区数据，不要编造人员或座位信息。'
+    extra-params: {}
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml

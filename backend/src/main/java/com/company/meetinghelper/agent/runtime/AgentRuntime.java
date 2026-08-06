@@ -21,6 +21,9 @@ import org.springframework.stereotype.Service;
 /** 驱动 provider 与只读工具之间交互的智能体运行循环。 */
 @Service
 public class AgentRuntime {
+    private static final int ASSISTANT_TEXT_CHUNK_LENGTH = 48;
+    private static final String ASSISTANT_TEXT_BREAKS = "。！？；;，,\n";
+
     private final AgentProperties properties;
     private final AgentToolRegistry registry;
     private final AgentToolExecutor executor;
@@ -86,7 +89,7 @@ public class AgentRuntime {
                 return;
             }
             if (response.assistantText() != null) {
-                emitter.emit(step, AgentEventType.ASSISTANT_TEXT, Map.of("text", response.assistantText()));
+                emitAssistantText(emitter, step, response.assistantText());
             }
             AgentToolCall call = response.toolCall();
             if (call == null) {
@@ -106,6 +109,40 @@ public class AgentRuntime {
             }
         }
         emitter.emit(emitter.stepNo() + 1, AgentEventType.ERROR, Map.of("code", "MAX_TOOL_STEPS", "message", "已达到最大工具步数"));
+    }
+
+    private void emitAssistantText(EventEmitter emitter, int step, String text) {
+        assistantTextChunks(text).forEach(chunk ->
+                emitter.emit(step, AgentEventType.ASSISTANT_TEXT, Map.of("text", chunk)));
+    }
+
+    private List<String> assistantTextChunks(String text) {
+        if (text == null || text.length() <= ASSISTANT_TEXT_CHUNK_LENGTH) {
+            return List.of(text == null ? "" : text);
+        }
+        List<String> chunks = new ArrayList<>();
+        int start = 0;
+        while (start < text.length()) {
+            int end = Math.min(start + ASSISTANT_TEXT_CHUNK_LENGTH, text.length());
+            if (end < text.length()) {
+                int breakAt = lastBreakIndex(text, start, end);
+                if (breakAt >= start) {
+                    end = breakAt + 1;
+                }
+            }
+            chunks.add(text.substring(start, end));
+            start = end;
+        }
+        return chunks;
+    }
+
+    private int lastBreakIndex(String text, int start, int end) {
+        for (int index = end - 1; index >= start; index--) {
+            if (ASSISTANT_TEXT_BREAKS.indexOf(text.charAt(index)) >= 0) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     private Map<String, Object> payloadForToolResult(AgentToolResult result) {

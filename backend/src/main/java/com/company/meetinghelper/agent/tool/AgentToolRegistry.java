@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class AgentToolRegistry {
     private final List<AgentToolDefinition> definitions = List.of(
-            definition("workspace.get_summary", "查询工作区摘要；只读，不改变排座结果。", Map.of()),
+            definition("workspace.get_summary", "查询工作区摘要；只读，不改变排座结果。", emptyObjectSchema()),
             definition("assignment.list_unassigned", "查询未分配座位的参会人；只读，不改变排座结果。", pageSchema()),
             definition("participant.search", "按关键词查询参会人；只读，不改变排座结果。", pageSchema()),
             definition("seat.search", "按关键词查询座位及占用情况；只读，不改变排座结果。", pageSchema())
@@ -40,6 +40,14 @@ public class AgentToolRegistry {
             Map<String, Object> inputSchema
     ) {
         return new AgentToolDefinition(name, description, AgentToolSideEffect.READ, "LOW", false, true, inputSchema);
+    }
+
+    private static Map<String, Object> emptyObjectSchema() {
+        return Map.of(
+                "type", "object",
+                "properties", Map.of(),
+                "additionalProperties", false
+        );
     }
 
     private static Map<String, Object> pageSchema() {

@@ -1,4 +1,6 @@
 const DEFAULT_ERROR_MESSAGE = '查询失败，请稍后重试'
+const DEFAULT_ASSISTANT_TEXT_SLICE_LENGTH = 4
+const DEFAULT_ASSISTANT_TEXT_DELAY_MS = 14
 
 function defaultConversationId() {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
@@ -13,6 +15,18 @@ function defaultMessageId() {
 
 function defaultAbortController() {
   return new AbortController()
+}
+
+function defaultWait(ms) {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, ms)
+  })
+}
+
+function abortError() {
+  const error = new Error('Agent chat request aborted')
+  error.name = 'AbortError'
+  return error
 }
 
 function createUserMessage(id, text) {
@@ -40,6 +54,9 @@ export function createAgentChatSession({
   createAbortController = defaultAbortController,
   createConversationId = defaultConversationId,
   createMessageId = defaultMessageId,
+  assistantTextSliceLength = DEFAULT_ASSISTANT_TEXT_SLICE_LENGTH,
+  assistantTextDelayMs = DEFAULT_ASSISTANT_TEXT_DELAY_MS,
+  wait = defaultWait,
 } = {}) {
   if (typeof sendAgentChat !== 'function') {
     throw new TypeError('sendAgentChat is required')
@@ -50,6 +67,41 @@ export function createAgentChatSession({
 
   let activeController
   let activeRequestId = 0
+  const textSliceLength = Math.max(1, Number(assistantTextSliceLength) || DEFAULT_ASSISTANT_TEXT_SLICE_LENGTH)
+  const textDelayMs = Math.max(0, Number(assistantTextDelayMs) || 0)
+
+  async function applyAssistantTextEvent(target, event, signal) {
+    const text = String(event?.payload?.text || '')
+    if (!text) {
+      target.messages = reduceAgentMessages(target.messages, event)
+      return
+    }
+
+    for (let index = 0; index < text.length; index += textSliceLength) {
+      if (signal?.aborted) {
+        throw abortError()
+      }
+      const nextEvent = {
+        ...event,
+        payload: {
+          ...event.payload,
+          text: text.slice(index, index + textSliceLength),
+        },
+      }
+      target.messages = reduceAgentMessages(target.messages, nextEvent)
+      if (index + textSliceLength < text.length && textDelayMs > 0) {
+        await wait(textDelayMs)
+      }
+    }
+  }
+
+  async function applyAgentEvent(target, event, signal) {
+    if (event?.type === 'ASSISTANT_TEXT') {
+      await applyAssistantTextEvent(target, event, signal)
+      return
+    }
+    target.messages = reduceAgentMessages(target.messages, event)
+  }
 
   return {
     input: '',
@@ -84,8 +136,8 @@ export function createAgentChatSession({
           workspaceRevision,
           mode: 'QUERY',
           signal: controller.signal,
-          onEvent: (event) => {
-            this.messages = reduceAgentMessages(this.messages, event)
+          onEvent: async (event) => {
+            await applyAgentEvent(this, event, controller.signal)
           },
         })
         return true

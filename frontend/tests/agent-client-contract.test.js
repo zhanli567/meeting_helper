@@ -63,3 +63,54 @@ test('agent client sends the chat contract and forwards streamed events', async 
     globalThis.fetch = originalFetch
   }
 })
+
+test('agent client waits for streamed event handlers in order', async () => {
+  const originalFetch = globalThis.fetch
+  const encoder = new TextEncoder()
+  globalThis.fetch = async () => ({
+    ok: true,
+    body: {
+      getReader() {
+        let read = false
+        return {
+          async read() {
+            if (read) return { done: true, value: undefined }
+            read = true
+            return {
+              done: false,
+              value: encoder.encode(
+                'data: {"type":"ASSISTANT_TEXT","payload":{"text":"你好"}}\n\n'
+                  + 'data: {"type":"RUN_DONE","payload":{}}\n\n',
+              ),
+            }
+          },
+        }
+      },
+    },
+  })
+
+  try {
+    const order = []
+    await sendAgentChat({
+      meetingId: 'meeting-1',
+      conversationId: 'conversation-1',
+      message: '当前会议概况',
+      workspaceRevision: 'rev-1',
+      mode: 'QUERY',
+      async onEvent(event) {
+        order.push(`start:${event.type}`)
+        await Promise.resolve()
+        order.push(`end:${event.type}`)
+      },
+    })
+
+    assert.deepEqual(order, [
+      'start:ASSISTANT_TEXT',
+      'end:ASSISTANT_TEXT',
+      'start:RUN_DONE',
+      'end:RUN_DONE',
+    ])
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})

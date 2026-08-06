@@ -107,6 +107,24 @@ class AgentRuntimeTests {
     }
 
     @Test
+    void longAssistantTextIsSplitIntoSeveralStreamEvents() {
+        String text = "以下是当前工作区的摘要信息：会议名称为经营会，参会人员总数为十五人，"
+                + "当前已经完成两人的座位分配，还有十三人等待排座。"
+                + "如果需要，我可以继续查询未分配人员、空闲座位或指定座位的占用情况。";
+        AgentRuntime runtime = runtime(true, AgentProviderResponse.text(text));
+
+        List<AgentEvent> events = runtime.runOnce(request("获取工作区摘要", AgentMode.QUERY));
+
+        List<AgentEvent> textEvents = events.stream()
+                .filter(event -> event.type() == AgentEventType.ASSISTANT_TEXT)
+                .toList();
+        assertThat(textEvents).hasSizeGreaterThan(1);
+        assertThat(textEvents.stream()
+                .map(event -> String.valueOf(event.payload().get("text")))
+                .reduce("", String::concat)).isEqualTo(text);
+    }
+
+    @Test
     void unknownToolEmitsErrorWithoutExecutingTool() {
         AgentProviderResponse unknownTool = AgentProviderResponse.toolCall(
                 new AgentToolCall("call-1", "assignment.save", Map.of()));
@@ -146,7 +164,7 @@ class AgentRuntimeTests {
                         + "\"function\":{\"name\":\"workspace.get_summary\",\"arguments\":\"{\\\"limit\\\":5}\"}}]}}]}",
                 "{\"choices\":[{\"message\":{\"content\":\"ok\"}}]}");
         OpenAiCompatibleProvider provider = new OpenAiCompatibleProvider(
-                new MockEnvironment().withProperty("agent.external.api-key-env", "PATH"), client);
+                new MockEnvironment().withProperty("agent.external.api-key", "sk-test"), client);
         AgentRuntime runtime = runtime(properties, provider, realExecutor());
 
         runtime.runOnce(request("current meeting summary", AgentMode.QUERY));
@@ -162,7 +180,7 @@ class AgentRuntimeTests {
         assertThat(toolCall.get("id")).isEqualTo("call-1");
         assertThat(toolCall.get("type")).isEqualTo("function");
         Map<?, ?> function = (Map<?, ?>) toolCall.get("function");
-        assertThat(function.get("name")).isEqualTo("workspace.get_summary");
+        assertThat(function.get("name")).isEqualTo("workspace_get_summary");
         assertThat(function.get("arguments")).isEqualTo("{\"limit\":5}");
         Map<?, ?> toolMessage = (Map<?, ?>) messages.get(2);
         assertThat(toolMessage.get("role")).isEqualTo("tool");

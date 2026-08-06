@@ -57,7 +57,7 @@ public class AgentProviderFactory {
      * @return provider
      */
     public AgentProvider current() {
-        if ("openai-compatible".equalsIgnoreCase(properties.getProvider())) {
+        if (isExternalProvider(properties.getProvider())) {
             return openAiCompatibleProvider;
         }
         if ("internal-agent".equalsIgnoreCase(properties.getProvider())) {
@@ -70,5 +70,12 @@ public class AgentProviderFactory {
             LOGGER.warn("未知 agent provider '{}'，回退到 mock", properties.getProvider());
         }
         return mockProvider;
+    }
+
+    private boolean isExternalProvider(String provider) {
+        return "external".equalsIgnoreCase(provider)
+                || "deepseek".equalsIgnoreCase(provider)
+                || "openai".equalsIgnoreCase(provider)
+                || "openai-compatible".equalsIgnoreCase(provider);
     }
 }
