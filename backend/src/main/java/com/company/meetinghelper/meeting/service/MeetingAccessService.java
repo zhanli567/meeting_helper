@@ -1,11 +1,13 @@
 package com.company.meetinghelper.meeting.service;
 
+import com.company.meetinghelper.common.context.CurrentUserHolder;
 import com.company.meetinghelper.common.exception.ApiException;
-import com.company.meetinghelper.common.user.CurrentUserProvider;
+import com.company.meetinghelper.common.security.CurrentUser;
 import com.company.meetinghelper.meeting.entity.MeetingEntity;
 import com.company.meetinghelper.meeting.repository.MeetingRepository;
 import com.company.meetinghelper.seating.entity.SeatingPlanEntity;
 import com.company.meetinghelper.seating.repository.SeatingPlanRepository;
+import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,23 +17,19 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class MeetingAccessService {
-    private final CurrentUserProvider currentUserProvider;
     private final MeetingRepository meetingRepository;
     private final SeatingPlanRepository planRepository;
 
     /**
      * 创建会议归属校验服务。
      *
-     * @param currentUserProvider 当前用户提供器
      * @param meetingRepository 会议仓储
      * @param planRepository 排座方案仓储
      */
     public MeetingAccessService(
-            CurrentUserProvider currentUserProvider,
             MeetingRepository meetingRepository,
             SeatingPlanRepository planRepository
     ) {
-        this.currentUserProvider = currentUserProvider;
         this.meetingRepository = meetingRepository;
         this.planRepository = planRepository;
     }
@@ -44,7 +42,8 @@ public class MeetingAccessService {
      */
     @Transactional(readOnly = true)
     public MeetingEntity requireOwnedMeeting(String meetingId) {
-        String userId = currentUserProvider.requireUserId();
+        CurrentUser currentUser = CurrentUserHolder.get();
+        String userId = currentUser == null ? "" : Objects.toString(currentUser.userId(), "");
         return meetingRepository.findByIdAndCreatedById(meetingId, userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议不存在"));
     }
@@ -57,7 +56,8 @@ public class MeetingAccessService {
      */
     @Transactional(readOnly = true)
     public SeatingPlanEntity requireOwnedPlan(String planId) {
-        String userId = currentUserProvider.requireUserId();
+        CurrentUser currentUser = CurrentUserHolder.get();
+        String userId = currentUser == null ? "" : Objects.toString(currentUser.userId(), "");
         return planRepository.findOwnedById(planId, userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "排座方案不存在"));
     }

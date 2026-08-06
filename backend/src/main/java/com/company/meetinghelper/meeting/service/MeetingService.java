@@ -1,7 +1,8 @@
 package com.company.meetinghelper.meeting.service;
 
+import com.company.meetinghelper.common.context.CurrentUserHolder;
 import com.company.meetinghelper.common.exception.ApiException;
-import com.company.meetinghelper.common.user.CurrentUserProvider;
+import com.company.meetinghelper.common.security.CurrentUser;
 import com.company.meetinghelper.meeting.api.dto.request.CreateMeetingRequest;
 import com.company.meetinghelper.meeting.api.dto.request.MeetingElementInput;
 import com.company.meetinghelper.meeting.api.dto.request.UpdateMeetingNameRequest;
@@ -35,6 +36,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -57,7 +59,6 @@ public class MeetingService {
     private final ParticipantRepository participantRepository;
     private final ParticipantRecordRepository recordRepository;
     private final MeetingParticipantFieldRepository fieldRepository;
-    private final CurrentUserProvider currentUserProvider;
     private final SeatingService seatingService;
     private final WorkspaceService workspaceService;
     private final VenueLayoutValidator layoutValidator;
@@ -76,7 +77,6 @@ public class MeetingService {
      * @param participantRepository 人员仓储
      * @param recordRepository 人员扩展记录仓储
      * @param fieldRepository 人员字段仓储
-     * @param currentUserProvider 当前用户提供器
      * @param seatingService 排座服务
      * @param workspaceService 工作区服务
      * @param layoutValidator 布局校验器
@@ -93,7 +93,6 @@ public class MeetingService {
             ParticipantRepository participantRepository,
             ParticipantRecordRepository recordRepository,
             MeetingParticipantFieldRepository fieldRepository,
-            CurrentUserProvider currentUserProvider,
             SeatingService seatingService,
             WorkspaceService workspaceService,
             VenueLayoutValidator layoutValidator
@@ -109,7 +108,6 @@ public class MeetingService {
         this.participantRepository = participantRepository;
         this.recordRepository = recordRepository;
         this.fieldRepository = fieldRepository;
-        this.currentUserProvider = currentUserProvider;
         this.seatingService = seatingService;
         this.workspaceService = workspaceService;
         this.layoutValidator = layoutValidator;
@@ -122,7 +120,8 @@ public class MeetingService {
      */
     @Transactional(readOnly = true)
     public List<MeetingSummary> list() {
-        String userId = currentUserProvider.requireUserId();
+        CurrentUser currentUser = CurrentUserHolder.get();
+        String userId = currentUser == null ? "" : Objects.toString(currentUser.userId(), "");
         return meetingRepository.findAllByCreatedByIdOrderByUpdatedAtDesc(userId).stream()
                 .map(this::toSummary)
                 .toList();
@@ -136,7 +135,9 @@ public class MeetingService {
      */
     @Transactional
     public MeetingSummary create(CreateMeetingRequest request) {
-        String userId = currentUserProvider.requireUserId();
+        CurrentUser currentUser = CurrentUserHolder.get();
+        String userId = currentUser == null ? "" : Objects.toString(currentUser.userId(), "");
+        String userName = currentUser == null ? "" : Objects.toString(currentUser.displayName(), "");
         String normalizedName = request.name().trim();
         if (meetingRepository.existsByCreatedByIdAndNameIgnoreCase(userId, normalizedName)) {
             throw new ApiException(HttpStatus.CONFLICT, "会议名称已存在");
@@ -154,9 +155,9 @@ public class MeetingService {
         meeting.setGridColumns(venue.gridColumns());
         meeting.setLayoutVersion(1);
         meeting.setCreatedById(userId);
-        meeting.setCreatedByName(userId);
+        meeting.setCreatedByName(userName);
         meeting.setUpdatedById(userId);
-        meeting.setUpdatedByName(userId);
+        meeting.setUpdatedByName(userName);
         meetingRepository.save(meeting);
 
         List<VenueElementEntity> sources = venueElementRepository
@@ -197,7 +198,8 @@ public class MeetingService {
      */
     @Transactional
     public MeetingSummary updateName(String meetingId, UpdateMeetingNameRequest request) {
-        String userId = currentUserProvider.requireUserId();
+        CurrentUser currentUser = CurrentUserHolder.get();
+        String userId = currentUser == null ? "" : Objects.toString(currentUser.userId(), "");
         MeetingEntity meeting = meetingRepository.findByIdAndCreatedById(meetingId, userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议不存在"));
         String normalizedName = request.name().trim();
@@ -218,7 +220,8 @@ public class MeetingService {
      */
     @Transactional
     public MeetingSummary delete(String meetingId) {
-        String userId = currentUserProvider.requireUserId();
+        CurrentUser currentUser = CurrentUserHolder.get();
+        String userId = currentUser == null ? "" : Objects.toString(currentUser.userId(), "");
         MeetingEntity meeting = meetingRepository.findByIdAndCreatedById(meetingId, userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议不存在"));
         MeetingSummary summary = toSummary(meeting);
@@ -239,7 +242,8 @@ public class MeetingService {
      */
     @Transactional
     public WorkspaceResponse updateLayout(String meetingId, UpdateMeetingLayoutRequest request) {
-        String userId = currentUserProvider.requireUserId();
+        CurrentUser currentUser = CurrentUserHolder.get();
+        String userId = currentUser == null ? "" : Objects.toString(currentUser.userId(), "");
         MeetingEntity meeting = meetingRepository.findByIdAndCreatedById(meetingId, userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "会议不存在"));
         List<ElementInput> normalizedElements = validateMeetingLayout(request);

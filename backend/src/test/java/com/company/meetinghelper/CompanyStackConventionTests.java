@@ -46,6 +46,7 @@ class CompanyStackConventionTests {
 
             assertThat(productionSources).doesNotContain("DemoDataInitializer");
             assertThat(productionSources).doesNotContain("X-User-Id");
+            assertThat(productionSources).doesNotContain("CurrentUserProvider");
             assertThat(productionSources).contains("CurrentUserHolder");
         }
     }
