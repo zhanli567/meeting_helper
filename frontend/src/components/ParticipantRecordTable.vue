@@ -2,7 +2,11 @@
 import { computed, nextTick, ref } from 'vue'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { canAddParticipantRecord, groupableFields } from '@/utils/participantFields'
+import {
+  MAX_PARTICIPANT_FIELD_COUNT,
+  canAddParticipantRecord,
+  groupableFields,
+} from '@/utils/participantFields'
 
 const records = defineModel('records', { type: Array, required: true })
 const customFields = defineModel('customFields', { type: Array, default: () => [] })
@@ -22,6 +26,12 @@ const props = defineProps({
 
 const recordTableRef = ref()
 const dynamicFields = computed(() => groupableFields(props.fieldDefinitions))
+const totalFieldCount = computed(
+  () => dynamicFields.value.length + (customFields.value || []).length,
+)
+const customFieldLimitReached = computed(
+  () => totalFieldCount.value >= MAX_PARTICIPANT_FIELD_COUNT,
+)
 const recordFields = computed(() => [
   ...dynamicFields.value.map((field) => ({
     id: field.code,
@@ -60,6 +70,10 @@ function removeRecord(index) {
 }
 
 function addColumn(label = '') {
+  if (customFieldLimitReached.value) {
+    ElMessage.warning('已达到最多 15 个字段')
+    return
+  }
   const normalizedLabel = String(label || '').trim()
   const id = normalizedLabel || `custom-field-${++customFieldSerial}`
   if (
@@ -196,6 +210,7 @@ defineExpose({
           v-if="allowAddColumns"
           size="small"
           :icon="Plus"
+          :disabled="customFieldLimitReached"
           @click="addColumn()"
         >
           {{ addColumnLabel }}
@@ -212,9 +227,9 @@ defineExpose({
         size="small"
         :empty-text="recordFields.length ? '暂无记录' : '暂无扩展字段'"
       >
-        <el-table-column fixed label="记录" width="82">
+        <el-table-column fixed label="序号" width="82">
           <template #default="{ $index }">
-            <span class="record-row-index">记录 {{ $index + 1 }}</span>
+            <span class="record-row-index">{{ $index + 1 }}</span>
           </template>
         </el-table-column>
         <el-table-column
@@ -340,6 +355,18 @@ defineExpose({
   box-shadow: none;
 }
 
+.record-table-wrap :deep(.el-table__header-wrapper th) {
+  text-align: center;
+}
+
+.record-table-wrap :deep(.cell) {
+  text-align: center;
+}
+
+.record-table-wrap :deep(.el-input__inner) {
+  text-align: center;
+}
+
 .record-row-index,
 .record-row-status {
   color: var(--muted);
@@ -351,8 +378,12 @@ defineExpose({
   min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 6px;
+}
+
+.field-header .el-button {
+  flex: none;
 }
 
 .custom-field-name-input {

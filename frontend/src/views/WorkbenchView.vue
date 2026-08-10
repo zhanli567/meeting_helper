@@ -2196,7 +2196,7 @@ watch(
   gap: 14px;
   padding: 14px;
   background: var(--workspace);
-  overflow: hidden;
+  overflow: auto;
   transition: grid-template-columns 0.18s ease;
 }
 
@@ -2274,11 +2274,11 @@ watch(
   min-height: 68px;
   flex: none;
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
-  overflow: hidden;
+  overflow: visible;
   background: #fff;
   border-bottom: 1px solid var(--line);
 }
@@ -2403,6 +2403,84 @@ watch(
 
   .version-selector {
     width: 158px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .workbench-page > .app-header {
+    height: auto;
+    min-height: 60px;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-block: 10px;
+  }
+
+  .header-spacer {
+    flex-basis: 100%;
+    height: 0;
+  }
+
+  .workspace-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+    align-content: start;
+    overflow: auto;
+  }
+
+  .workspace-shell.participant-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .participant-side {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 360px;
+  }
+
+  .canvas-shell {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 520px;
+  }
+
+  .participant-panel-toggle {
+    display: none;
+  }
+
+  .side-panel-content,
+  .layout-editor-host-target {
+    height: 100%;
+  }
+}
+
+@media (max-width: 760px) {
+  .toolbar-card {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .canvas-title {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .canvas-stats {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .meeting-selector,
+  .version-selector,
+  .header-auto-save {
+    width: min(100%, 220px);
+  }
+
+  .header-save-control {
+    flex-wrap: wrap;
   }
 }
 

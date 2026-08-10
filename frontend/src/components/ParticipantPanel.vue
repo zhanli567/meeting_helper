@@ -231,33 +231,35 @@ function leavePanel(event) {
         </template>
       </el-input>
 
-      <el-select
-        v-model="groupField"
-        clearable
-        class="group-select"
-        aria-label="人员分组方式"
-      >
-        <el-option
-          v-for="field in groupFields"
-          :key="field.code"
-          :label="`按${field.label}分组`"
-          :value="field.code"
-        />
-      </el-select>
-      <el-select
-        v-if="groupField"
-        v-model="groupValue"
-        clearable
-        class="group-select"
-        aria-label="人员分组值"
-      >
-        <el-option
-          v-for="option in groupOptions"
-          :key="option.value"
-          :label="`${option.label}（${option.count}人）`"
-          :value="option.value"
-        />
-      </el-select>
+      <div class="group-filter-row">
+        <el-select
+          v-model="groupField"
+          clearable
+          class="group-select"
+          aria-label="人员分组方式"
+        >
+          <el-option
+            v-for="field in groupFields"
+            :key="field.code"
+            :label="`按${field.label}分组`"
+            :value="field.code"
+          />
+        </el-select>
+        <el-select
+          v-model="groupValue"
+          clearable
+          class="group-select"
+          aria-label="人员分组值"
+          :disabled="!groupField"
+        >
+          <el-option
+            v-for="option in groupOptions"
+            :key="option.value"
+            :label="`${option.label}（${option.count}人）`"
+            :value="option.value"
+          />
+        </el-select>
+      </div>
     </div>
 
     <div class="participant-list" :class="{ saving }">
@@ -466,6 +468,12 @@ function leavePanel(event) {
   background: #fbfcfd;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
+}
+
+.group-filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
 }
 
 .group-select {
@@ -683,6 +691,12 @@ function leavePanel(event) {
 .pagination-row :deep(.el-pagination) {
   --el-pagination-button-width: 24px;
   --el-pagination-button-height: 24px;
+}
+
+@media (max-width: 420px) {
+  .group-filter-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 </style>

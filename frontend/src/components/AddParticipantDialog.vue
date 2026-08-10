@@ -257,7 +257,6 @@ async function submit() {
       <section v-if="allowMultipleRows" class="import-card import-card--template">
         <div>
           <strong>导入Excel</strong>
-          <p>导入后会先填入下方表格，确认无误后再增加到待排人员。</p>
         </div>
         <div class="import-actions">
           <el-button
@@ -321,8 +320,6 @@ async function submit() {
           <span>去重 {{ preview.ignoredDuplicateRows }}</span>
         </div>
       </section>
-
-      <p v-if="targetElementId" class="seat-add-note">保存后会直接安排到所选空座。</p>
 
       <ParticipantRecordTable
         ref="tableRef"
@@ -394,12 +391,6 @@ async function submit() {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   background: #fbfcfd;
-}
-
-.import-card--template p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .import-actions {
@@ -480,12 +471,6 @@ async function submit() {
   background: #f3f6fb;
   border: 1px solid var(--line);
   border-radius: 7px;
-}
-
-.seat-add-note {
-  margin: 0 0 6px;
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .sr-only-add-row {

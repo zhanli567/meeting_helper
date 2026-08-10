@@ -1,3 +1,5 @@
+export const MAX_PARTICIPANT_FIELD_COUNT = 15
+
 const fixedFieldCodes = new Set(['employeeNo', 'name'])
 
 function nonEmptyValue(value) {
@@ -10,6 +12,8 @@ function nonEmptyValue(value) {
 function normalizeFieldName(value) {
   return nonEmptyValue(value).toLocaleLowerCase()
 }
+
+const fixedFieldKeys = new Set([...fixedFieldCodes].map(normalizeFieldName))
 
 export function primaryFieldValue(participant, fieldName) {
   return nonEmptyValue(participant?.primaryAttributes?.[fieldName]) || '未填写'
@@ -131,6 +135,7 @@ export function mergePreviewRowsIntoParticipantDraft({
   preview,
 } = {}) {
   const fieldKeys = knownFieldKeys(fieldDefinitions, customFields)
+  const fieldLimitKeys = participantFieldLimitKeys(fieldDefinitions, customFields)
   const nextCustomFields = [...(customFields || [])]
   const currentRows = (records || [])
     .filter((row) => !isBlankParticipantDraftRow(row))
@@ -146,6 +151,9 @@ export function mergePreviewRowsIntoParticipantDraft({
       if (!label || fieldKeys.has(key)) {
         return
       }
+      if (fieldLimitKeys.size >= MAX_PARTICIPANT_FIELD_COUNT) {
+        throw new Error(`已达到最多 ${MAX_PARTICIPANT_FIELD_COUNT} 个字段，无法新增“${label}”`)
+      }
       nextCustomFields.push({
         id: label,
         code: label,
@@ -153,6 +161,7 @@ export function mergePreviewRowsIntoParticipantDraft({
         custom: true,
       })
       fieldKeys.add(key)
+      fieldLimitKeys.add(key)
     })
 
     const nextRow = cloneParticipantDraftRow({
@@ -260,6 +269,25 @@ function knownFieldKeys(fieldDefinitions = [], customFields = []) {
       .map(normalizeFieldName)
       .filter(Boolean),
   )
+}
+
+function participantFieldLimitKeys(fieldDefinitions = [], customFields = []) {
+  const keys = new Set()
+  for (const field of [...(fieldDefinitions || []), ...(customFields || [])]) {
+    const key = participantFieldLimitKey(field)
+    if (key) {
+      keys.add(key)
+    }
+  }
+  return keys
+}
+
+function participantFieldLimitKey(field = {}) {
+  const candidates = [field?.code, field?.label, field?.id].map(normalizeFieldName).filter(Boolean)
+  if (candidates.some((key) => fixedFieldKeys.has(key))) {
+    return ''
+  }
+  return candidates[0] || ''
 }
 
 function cloneParticipantDraftRow(row = {}) {

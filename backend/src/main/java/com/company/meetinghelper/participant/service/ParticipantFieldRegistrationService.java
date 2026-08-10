@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class ParticipantFieldRegistrationService {
+    private static final int MAX_PARTICIPANT_FIELD_COUNT = 15;
     private final MeetingRepository meetingRepository;
     private final MeetingParticipantFieldRepository fieldRepository;
 
@@ -82,6 +83,9 @@ public class ParticipantFieldRegistrationService {
             String normalizedName = normalize(fieldName);
             if (canonicalNames.containsKey(normalizedName)) {
                 continue;
+            }
+            if (canonicalNames.size() >= MAX_PARTICIPANT_FIELD_COUNT) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "每个会议最多支持 15 个扩展字段");
             }
             MeetingParticipantFieldEntity field = new MeetingParticipantFieldEntity();
             field.setMeetingId(meetingId);

@@ -27,7 +27,19 @@ test('workbench shared toolbar does not expose a layout-only center button', () 
 
   assert.doesNotMatch(workbench, /performToolbarCenterLayout/)
   assert.doesNotMatch(workbench, /:icon="Rank"/)
-  assert.match(workbench, /\.toolbar-card\s*\{[\s\S]*flex-wrap:\s*nowrap;[\s\S]*overflow:\s*hidden;/)
+  assert.match(workbench, /\.toolbar-card\s*\{[\s\S]*flex-wrap:\s*wrap;[\s\S]*overflow:\s*visible;/)
+})
+
+test('workbench adapts when browser width is reduced without hiding core panels', () => {
+  const workbench = source('../src/views/WorkbenchView.vue')
+  const mainCss = source('../src/styles/main.css')
+
+  assert.doesNotMatch(mainCss, /min-width:\s*1180px;/)
+  assert.match(workbench, /\.workspace-shell\s*\{[\s\S]*overflow:\s*auto;/)
+  assert.match(workbench, /@media \(max-width:\s*1180px\)\s*\{[\s\S]*\.workspace-shell\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\);/)
+  assert.match(workbench, /@media \(max-width:\s*1180px\)\s*\{[\s\S]*\.participant-side\s*\{[\s\S]*grid-column:\s*1;/)
+  assert.match(workbench, /@media \(max-width:\s*1180px\)\s*\{[\s\S]*\.canvas-shell\s*\{[\s\S]*min-height:\s*520px;/)
+  assert.match(workbench, /@media \(max-width:\s*760px\)\s*\{[\s\S]*\.canvas-stats\s*\{[\s\S]*display:\s*grid;/)
 })
 
 test('layout mode canvas and right panel use the same rounded white shell as seating mode', () => {
