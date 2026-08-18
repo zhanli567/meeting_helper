@@ -339,17 +339,20 @@ test('only selected sheets appear as configuration tabs', async (t) => {
   assert.ok(!summaryLabels.includes('座位明细配置'))
 })
 
-test('sheet choices start empty and configuration tabs do not appear before selection', async (t) => {
+test('business sheet choices start empty while lookup stays fixed selected', async (t) => {
   const Dialog = await loadDialog(t)
   const root = await mountDialog(t, Dialog)
-  const checked = allNodes(root).filter((node) => node.props?.['aria-checked'] === true)
+  const checkedLabels = allNodes(root)
+    .filter((node) => node.props?.['aria-checked'] === true)
+    .map((node) => nodeText(node).trim())
 
-  assert.equal(checked.length, 0)
+  assert.deepEqual(checkedLabels, ['Lookup'])
   assert.equal(buttonsByText(root, '人员名单配置').length, 0)
   assert.equal(buttonsByText(root, '排座图配置').length, 0)
   assert.equal(buttonsByText(root, '座位明细配置').length, 0)
   assert.match(nodeText(root), /人员名单/)
   assert.match(nodeText(root), /排座图/)
   assert.match(nodeText(root), /座位明细/)
+  assert.match(nodeText(root), /Lookup/)
   assert.match(nodeText(root), /确认导出/)
 })

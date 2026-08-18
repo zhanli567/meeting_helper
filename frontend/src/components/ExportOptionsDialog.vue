@@ -1,6 +1,5 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
 
 const visible = defineModel({ required: true })
 const props = defineProps({
@@ -71,8 +70,6 @@ const layoutColorFieldCodes = computed({
     form.layout.colorFieldCodes = codes
   },
 })
-const selectedSheetCount = computed(() => selectedSheetDefinitions.value.length)
-
 function resetOptions() {
   const codes = dynamicFields.value.map((field) => field.code)
   activeTab.value = 'sheets'
@@ -116,14 +113,6 @@ function includeSummary(included) {
   return included ? '包含' : '不包含'
 }
 
-function canExport() {
-  if (!selectedSheetCount.value) {
-    ElMessage.warning('请至少选择一个导出子表')
-    return false
-  }
-  return true
-}
-
 function normalizeActiveTab() {
   const tabs = exportTabs.value
   if (!tabs.some((tab) => tab.name === activeTab.value)) {
@@ -140,9 +129,6 @@ function goPrevious() {
 }
 
 function goNext() {
-  if (!canExport()) {
-    return
-  }
   const index = currentTabIndex.value
   const tabs = exportTabs.value
   activeTab.value = tabs[Math.min(index + 1, tabs.length - 1)].name
@@ -150,9 +136,6 @@ function goNext() {
 
 function submit() {
   if (props.submitting) {
-    return
-  }
-  if (!canExport()) {
     return
   }
   emit('export', {
@@ -237,6 +220,11 @@ watch(
                   >
                     <el-checkbox v-model="form[sheet.key].enabled">
                       {{ sheet.label }}
+                    </el-checkbox>
+                  </label>
+                  <label class="sheet-option sheet-option--active sheet-option--fixed check-card">
+                    <el-checkbox :model-value="true" disabled>
+                      Lookup
                     </el-checkbox>
                   </label>
                 </div>
@@ -362,6 +350,7 @@ watch(
                   <el-tag v-if="form.participants.enabled">人员名单</el-tag>
                   <el-tag v-if="form.layout.enabled">排座图</el-tag>
                   <el-tag v-if="form.seatDetails.enabled">座位明细</el-tag>
+                  <el-tag>Lookup</el-tag>
                 </div>
               </el-form-item>
               <el-collapse v-model="confirmCollapse" class="summary-collapse">
@@ -506,7 +495,7 @@ watch(
 
 .sheet-card-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   width: 100%;
 }
@@ -527,6 +516,10 @@ watch(
 .sheet-option--active {
   border-color: var(--brand);
   box-shadow: 0 8px 20px rgba(10, 89, 247, 0.08);
+}
+
+.sheet-option--fixed {
+  cursor: not-allowed;
 }
 
 .field-checks,
