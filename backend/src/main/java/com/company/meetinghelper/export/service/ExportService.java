@@ -29,6 +29,7 @@ import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.VerticalAlignment;
@@ -50,12 +51,20 @@ import org.springframework.stereotype.Service;
 @Service
 public class ExportService {
     private static final ObjectMapper LOOKUP_OBJECT_MAPPER = new ObjectMapper();
-    private static final String LOOKUP_SHEET_NAME = "Lookup";
+    private static final String LOOKUP_CLASSIFY_SHEET_NAME = "Lookup Classify";
+    private static final String LOOKUP_ITEM_SHEET_NAME = "Lookup Item";
     private static final String LOOKUP_INFO_SUFFIX = "INFO";
     private static final String LOOKUP_USERS_SUFFIX = "USERS";
     private static final String LOOKUP_LANGUAGE_ZH = "zh_CN";
     private static final String LOOKUP_LANGUAGE_EN = "en_US";
-    private static final String[] LOOKUP_HEADERS = {
+    private static final String[] LOOKUP_CLASSIFY_HEADERS = {
+            "Code",
+            "Parent Classify",
+            "Name",
+            "Status",
+            "Desc"
+    };
+    private static final String[] LOOKUP_ITEM_HEADERS = {
             "Classify Code",
             "Item Code",
             "Item Name",
@@ -153,7 +162,7 @@ public static ExportOptions defaultOptions() {
             if (sheets.seatDetails().enabled()) {
                 writeSeatDetailSheet(workbook, workspace, sheets.seatDetails());
             }
-            writeLookupSheet(workbook, workspace);
+            writeLookupSheets(workbook, workspace);
             workbook.write(output);
             return output.toByteArray();
         } catch (IOException exception) {
@@ -404,14 +413,40 @@ public static ExportOptions defaultOptions() {
         }
     }
 
-    private void writeLookupSheet(XSSFWorkbook workbook, WorkspaceResponse workspace) {
-        XSSFSheet sheet = workbook.createSheet(LOOKUP_SHEET_NAME);
-        writeLookupHeader(sheet);
+    private void writeLookupSheets(XSSFWorkbook workbook, WorkspaceResponse workspace) {
         String meetingId = workspace.meeting().id();
         String infoCode = lookupCode(meetingId, LOOKUP_INFO_SUFFIX);
         String usersCode = lookupCode(meetingId, LOOKUP_USERS_SUFFIX);
+        XSSFCellStyle headerStyle = createLookupHeaderStyle(workbook);
+        writeLookupClassifySheet(workbook, headerStyle, meetingId, infoCode, usersCode);
+        writeLookupItemSheet(workbook, headerStyle, workspace, infoCode, usersCode);
+    }
+
+    private void writeLookupClassifySheet(
+            XSSFWorkbook workbook,
+            XSSFCellStyle headerStyle,
+            String meetingId,
+            String infoCode,
+            String usersCode
+    ) {
+        XSSFSheet sheet = workbook.createSheet(LOOKUP_CLASSIFY_SHEET_NAME);
+        writeLookupHeader(sheet, LOOKUP_CLASSIFY_HEADERS, headerStyle);
+        writeLookupRow(sheet, 1, List.of(infoCode, "", meetingId + "会议信息", 1, ""));
+        writeLookupRow(sheet, 2, List.of(usersCode, "", meetingId + "用户信息", 1, ""));
+        autosize(sheet, LOOKUP_CLASSIFY_HEADERS.length, 14);
+    }
+
+    private void writeLookupItemSheet(
+            XSSFWorkbook workbook,
+            XSSFCellStyle headerStyle,
+            WorkspaceResponse workspace,
+            String infoCode,
+            String usersCode
+    ) {
+        XSSFSheet sheet = workbook.createSheet(LOOKUP_ITEM_SHEET_NAME);
+        writeLookupHeader(sheet, LOOKUP_ITEM_HEADERS, headerStyle);
         int rowIndex = writeLookupInfoRows(sheet, workspace, infoCode, usersCode);
-        Map<String,String> seatLabels = seatLabelByParticipant(workspace);
+        Map<String, String> seatLabels = seatLabelByParticipant(workspace);
         List<FieldDefinitionView> fields = dynamicFields(workspace);
         for (ParticipantView participant : workspace.participants()) {
             List<Object> values = participantLookupValues(
@@ -422,15 +457,27 @@ public static ExportOptions defaultOptions() {
             );
             writeLookupRow(sheet, rowIndex++, values);
         }
-        autosize(sheet, LOOKUP_HEADERS.length, 14);
+        autosize(sheet, LOOKUP_ITEM_HEADERS.length, 14);
     }
 
-    private void writeLookupHeader(XSSFSheet sheet) {
+    private void writeLookupHeader(XSSFSheet sheet, String[] headers, XSSFCellStyle headerStyle) {
         Row row = sheet.createRow(0);
-        for (int index = 0; index < LOOKUP_HEADERS.length; index++) {
-            row.createCell(index).setCellValue(LOOKUP_HEADERS[index]);
+        for (int index = 0; index < headers.length; index++) {
+            Cell cell = row.createCell(index);
+            cell.setCellValue(headers[index]);
+            cell.setCellStyle(headerStyle);
         }
         sheet.createFreezePane(0, 1);
+    }
+
+    private XSSFCellStyle createLookupHeaderStyle(XSSFWorkbook workbook) {
+        XSSFCellStyle style = createCenteredCellStyle(workbook);
+        style.setFillForegroundColor(IndexedColors.RED.getIndex());
+        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        XSSFFont font = workbook.createFont();
+        font.setBold(true);
+        style.setFont(font);
+        return style;
     }
 
     private int writeLookupInfoRows(

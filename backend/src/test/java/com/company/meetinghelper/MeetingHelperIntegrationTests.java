@@ -90,6 +90,8 @@ import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFRow;
@@ -1519,7 +1521,7 @@ class MeetingHelperIntegrationTests {
                   }
                 }
                 """)) {
-            assertThat(sheetNames(workbook)).containsExactly("排座图", "Lookup");
+            assertThat(sheetNames(workbook)).containsExactly("排座图", "Lookup Classify", "Lookup Item");
             XSSFSheet sheet = workbook.getSheet("排座图");
             assertThat(sheet).isNotNull();
             assertThat(sheet.isDisplayGridlines()).isFalse();
@@ -2446,7 +2448,7 @@ class MeetingHelperIntegrationTests {
                   }
                 }
                 """)) {
-            assertThat(sheetNames(workbook)).containsExactly("排座图", "Lookup");
+            assertThat(sheetNames(workbook)).containsExactly("排座图", "Lookup Classify", "Lookup Item");
         }
     }
 
@@ -2488,9 +2490,10 @@ class MeetingHelperIntegrationTests {
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(
                 result.getResponse().getContentAsByteArray()
         ))) {
-            assertThat(sheetNames(workbook)).containsExactly("Lookup");
-            assertLookupMeetingRows(workbook.getSheet("Lookup"), meeting, venue);
-            assertLookupParticipantRow(workbook.getSheet("Lookup"), meeting.id());
+            assertThat(sheetNames(workbook)).containsExactly("Lookup Classify", "Lookup Item");
+            assertLookupClassifyRows(workbook.getSheet("Lookup Classify"), meeting.id());
+            assertLookupMeetingRows(workbook.getSheet("Lookup Item"), meeting, venue);
+            assertLookupParticipantRow(workbook.getSheet("Lookup Item"), meeting.id());
         }
     }
 
@@ -2558,7 +2561,12 @@ class MeetingHelperIntegrationTests {
                   }
                 }
                 """)) {
-            assertThat(sheetNames(workbook)).containsExactly("人员名单", "座位明细", "Lookup");
+            assertThat(sheetNames(workbook)).containsExactly(
+                    "人员名单",
+                    "座位明细",
+                    "Lookup Classify",
+                    "Lookup Item"
+            );
             assertThat(cellValues(workbook.getSheet("人员名单").getRow(0)))
                     .containsExactly("工号", "姓名", "部门");
             assertThat(cellValues(workbook.getSheet("座位明细").getRow(0)))
@@ -4234,6 +4242,7 @@ class MeetingHelperIntegrationTests {
             MeetingSummary meeting,
             VenueDetail venue
     ) {
+        assertLookupHeaderStyle(sheet.getRow(0));
         String infoCode = "MEETING_" + meeting.id() + "_INFO";
         String usersCode = "MEETING_" + meeting.id() + "_USERS";
         assertThat(cellValues(sheet.getRow(0))).containsExactly(
@@ -4245,6 +4254,35 @@ class MeetingHelperIntegrationTests {
         assertLookupRow(sheet.getRow(2), infoCode, "MEETING_NAME", meeting.name(), "zh_CN");
         assertLookupRow(sheet.getRow(3), infoCode, "MEETING_PLACE", venue.location(), "zh_CN");
         assertLookupRow(sheet.getRow(4), infoCode, "USERS_CLASSIFY", usersCode, "zh_CN");
+    }
+
+    private void assertLookupClassifyRows(XSSFSheet sheet, String meetingId) {
+        assertLookupHeaderStyle(sheet.getRow(0));
+        assertThat(cellValues(sheet.getRow(0))).containsExactly(
+                "Code",
+                "Parent Classify",
+                "Name",
+                "Status",
+                "Desc"
+        );
+        assertLookupClassifyRow(sheet.getRow(1), "MEETING_" + meetingId + "_INFO", meetingId + "会议信息");
+        assertLookupClassifyRow(sheet.getRow(2), "MEETING_" + meetingId + "_USERS", meetingId + "用户信息");
+    }
+
+    private void assertLookupClassifyRow(Row row, String code, String name) {
+        assertThat(row.getCell(0).toString()).isEqualTo(code);
+        assertThat(row.getCell(1).toString()).isEmpty();
+        assertThat(row.getCell(2).toString()).isEqualTo(name);
+        assertThat(row.getCell(3).getNumericCellValue()).isEqualTo(1);
+        assertThat(row.getCell(4).toString()).isEmpty();
+    }
+
+    private void assertLookupHeaderStyle(Row row) {
+        for (Cell cell : row) {
+            assertThat(cell.getCellStyle().getFillPattern()).isEqualTo(FillPatternType.SOLID_FOREGROUND);
+            assertThat(cell.getCellStyle().getFillForegroundColor()).isEqualTo(IndexedColors.RED.getIndex());
+            assertThat(row.getSheet().getWorkbook().getFontAt(cell.getCellStyle().getFontIndex()).getBold()).isTrue();
+        }
     }
 
     private void assertLookupParticipantRow(XSSFSheet sheet, String meetingId)
