@@ -13,6 +13,8 @@ import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.Pa
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.ParticipantView;
 import com.company.meetinghelper.workspace.api.dto.response.WorkspaceResponse.PlanItemView;
 import com.company.meetinghelper.workspace.service.WorkspaceService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,6 +49,29 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class ExportService {
+    private static final ObjectMapper LOOKUP_OBJECT_MAPPER = new ObjectMapper();
+    private static final String LOOKUP_SHEET_NAME = "Lookup";
+    private static final String LOOKUP_INFO_SUFFIX = "INFO";
+    private static final String LOOKUP_USERS_SUFFIX = "USERS";
+    private static final String LOOKUP_LANGUAGE_ZH = "zh_CN";
+    private static final String LOOKUP_LANGUAGE_EN = "en_US";
+    private static final String[] LOOKUP_HEADERS = {
+            "Classify Code",
+            "Item Code",
+            "Item Name",
+            "Desc",
+            "Parent Item",
+            "Status",
+            "Language",
+            "Sort",
+            "Attribute1",
+            "Attribute2",
+            "Attribute3",
+            "Attribute4",
+            "Attribute5",
+            "Attribute6"
+    };
+
     private final PlanVersionService versionService;
     private final MeetingAccessService meetingAccessService;
     private final SeatLabelService seatLabelService;
@@ -105,11 +130,6 @@ public static ExportOptions defaultOptions() {
     public byte[] exportExcel(String meetingId, ExportExcelRequest request) {
         ExportExcelRequest.SheetSelection sheets = request.normalizedSheets();
         WorkspaceResponse workspace = resolveWorkspace(meetingId, request.versionId());
-        if (!sheets.participants().enabled()
-                && !sheets.layout().enabled()
-                && !sheets.seatDetails().enabled()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "请至少选择一个导出子表");
-        }
         validateFieldCodes(workspace, sheets.participants().fieldCodes());
         validateFieldCodes(workspace, sheets.layout().fieldCodes());
         validateFieldCodes(workspace, sheets.layout().colorFieldCodes());
@@ -133,6 +153,7 @@ public static ExportOptions defaultOptions() {
             if (sheets.seatDetails().enabled()) {
                 writeSeatDetailSheet(workbook, workspace, sheets.seatDetails());
             }
+            writeLookupSheet(workbook, workspace);
             workbook.write(output);
             return output.toByteArray();
         } catch (IOException exception) {
@@ -381,6 +402,122 @@ public static ExportOptions defaultOptions() {
         if (context.options().includeSeatLabel()) {
             row.createCell(nextColumn).setCellValue(context.seatLabelByParticipant().getOrDefault(participant.id(), ""));
         }
+    }
+
+    private void writeLookupSheet(XSSFWorkbook workbook, WorkspaceResponse workspace) {
+        XSSFSheet sheet = workbook.createSheet(LOOKUP_SHEET_NAME);
+        writeLookupHeader(sheet);
+        String meetingId = workspace.meeting().id();
+        String infoCode = lookupCode(meetingId, LOOKUP_INFO_SUFFIX);
+        String usersCode = lookupCode(meetingId, LOOKUP_USERS_SUFFIX);
+        int rowIndex = writeLookupInfoRows(sheet, workspace, infoCode, usersCode);
+        Map<String,String> seatLabels = seatLabelByParticipant(workspace);
+        List<FieldDefinitionView> fields = dynamicFields(workspace);
+        for (ParticipantView participant : workspace.participants()) {
+            List<Object> values = participantLookupValues(
+                    usersCode,
+                    participant,
+                    seatLabels.getOrDefault(participant.id(), ""),
+                    lookupAttributesJson(participant, fields)
+            );
+            writeLookupRow(sheet, rowIndex++, values);
+        }
+        autosize(sheet, LOOKUP_HEADERS.length, 14);
+    }
+
+    private void writeLookupHeader(XSSFSheet sheet) {
+        Row row = sheet.createRow(0);
+        for (int index = 0; index < LOOKUP_HEADERS.length; index++) {
+            row.createCell(index).setCellValue(LOOKUP_HEADERS[index]);
+        }
+        sheet.createFreezePane(0, 1);
+    }
+
+    private int writeLookupInfoRows(
+            XSSFSheet sheet,
+            WorkspaceResponse workspace,
+            String infoCode,
+            String usersCode
+    ) {
+        int rowIndex = 1;
+        writeLookupRow(sheet, rowIndex++, baseLookupValues(infoCode, "STREAM_INTERVAL", 0, LOOKUP_LANGUAGE_ZH));
+        writeLookupRow(sheet, rowIndex++, baseLookupValues(infoCode, "MEETING_NAME", workspace.meeting().name(),
+                LOOKUP_LANGUAGE_ZH));
+        writeLookupRow(sheet, rowIndex++, baseLookupValues(infoCode, "MEETING_PLACE", workspace.meeting().layoutName(),
+                LOOKUP_LANGUAGE_ZH));
+        writeLookupRow(sheet, rowIndex++, baseLookupValues(infoCode, "USERS_CLASSIFY", usersCode, LOOKUP_LANGUAGE_ZH));
+        return rowIndex;
+    }
+
+    private List<Object> baseLookupValues(String classifyCode, String itemCode, Object itemName, String language) {
+        Object safeItemName = itemName == null ? "" : itemName;
+        return List.of(classifyCode, itemCode, safeItemName, "", "", 1, language, 0, "", "", "", "", "", "");
+    }
+
+    private List<Object> participantLookupValues(
+            String usersCode,
+            ParticipantView participant,
+            String seatLabel,
+            String attributesJson
+    ) {
+        return List.of(
+                usersCode,
+                nullToEmpty(participant.employeeNo()),
+                nullToEmpty(participant.name()),
+                "",
+                "",
+                1,
+                LOOKUP_LANGUAGE_EN,
+                0,
+                nullToEmpty(seatLabel),
+                nullToEmpty(attributesJson),
+                "",
+                "",
+                "",
+                ""
+        );
+    }
+
+    private void writeLookupRow(XSSFSheet sheet, int rowIndex, List<Object> values) {
+        Row row = sheet.createRow(rowIndex);
+        for (int index = 0; index < values.size(); index++) {
+            writeLookupCell(row.createCell(index), values.get(index));
+        }
+    }
+
+    private void writeLookupCell(Cell cell, Object value) {
+        if (value instanceof Number number) {
+            cell.setCellValue(number.doubleValue());
+            return;
+        }
+        cell.setCellValue(value == null ? "" : value.toString());
+    }
+
+    private String lookupAttributesJson(ParticipantView participant, List<FieldDefinitionView> fields) {
+        LinkedHashMap<String,Object> attributes = new LinkedHashMap<String, Object>();
+        Map<String,List<String>> values = participant.attributeValues() == null ? Map.of() : participant.attributeValues();
+        for (FieldDefinitionView field : fields) {
+            List<String> fieldValues = values.getOrDefault(field.code(), List.of());
+            if (!fieldValues.isEmpty()) {
+                attributes.put(field.label(), lookupAttributeValue(fieldValues));
+            }
+        }
+        try {
+            return LOOKUP_OBJECT_MAPPER.writeValueAsString(attributes);
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "生成Lookup扩展信息失败");
+        }
+    }
+
+    private Object lookupAttributeValue(List<String> values) {
+        if (values.size() == 1) {
+            return values.getFirst();
+        }
+        return values;
+    }
+
+    private String lookupCode(String meetingId, String suffix) {
+        return "MEETING_" + meetingId + "_" + suffix;
     }
 
     private void writeHeaderRow(XSSFWorkbook workbook, XSSFSheet sheet, String[] headers) {

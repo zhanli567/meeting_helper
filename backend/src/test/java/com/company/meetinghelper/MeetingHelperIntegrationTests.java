@@ -1519,7 +1519,7 @@ class MeetingHelperIntegrationTests {
                   }
                 }
                 """)) {
-            assertThat(sheetNames(workbook)).containsExactly("排座图");
+            assertThat(sheetNames(workbook)).containsExactly("排座图", "Lookup");
             XSSFSheet sheet = workbook.getSheet("排座图");
             assertThat(sheet).isNotNull();
             assertThat(sheet.isDisplayGridlines()).isFalse();
@@ -2446,15 +2446,33 @@ class MeetingHelperIntegrationTests {
                   }
                 }
                 """)) {
-            assertThat(sheetNames(workbook)).containsExactly("排座图");
+            assertThat(sheetNames(workbook)).containsExactly("排座图", "Lookup");
         }
     }
 
     @Test
-    void excelExportRejectsNoSelectedSheets() throws Exception {
-        MeetingSummary meeting = createMeetingFromVenue("无子表导出");
+    void excelExportAlwaysAddsLookupSheetWithoutUserSelection() throws Exception {
+        VenueDetail venue = createVenueWithElements(
+                "Lookup场馆-" + UUID.randomUUID(),
+                "主校区",
+                List.of(seat("座位", 1, 1, 1, 1))
+        );
+        MeetingSummary meeting = meetingService.create(new CreateMeetingRequest(
+                "Lookup会议-" + UUID.randomUUID(),
+                venue.id()
+        ));
+        previewAndCommit(meeting.id(), "工号,姓名,部门,批次", "a12345678,张三,制造部,第一批");
+        previewAndCommit(meeting.id(), "工号,姓名,部门,批次", "a12345678,张三,制造部,第二批");
+        WorkspaceResponse workspace = workspaceService.getWorkspace(meeting.id());
+        seatingService.assign(
+                workspace.plan().id(),
+                new AssignmentRequest(
+                        workspace.participants().getFirst().id(),
+                        workspace.layout().elements().getFirst().id()
+                )
+        );
 
-        mockMvc.perform(post("/meetings/{meetingId}/exports/excel", meeting.id())
+        MvcResult result = mockMvc.perform(post("/meetings/{meetingId}/exports/excel", meeting.id())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -2465,8 +2483,15 @@ class MeetingHelperIntegrationTests {
                                   }
                                 }
                                 """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.msg").value("请至少选择一个导出子表"));
+                .andExpect(status().isOk())
+                .andReturn();
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(
+                result.getResponse().getContentAsByteArray()
+        ))) {
+            assertThat(sheetNames(workbook)).containsExactly("Lookup");
+            assertLookupMeetingRows(workbook.getSheet("Lookup"), meeting, venue);
+            assertLookupParticipantRow(workbook.getSheet("Lookup"), meeting.id());
+        }
     }
 
     @Test
@@ -2533,7 +2558,7 @@ class MeetingHelperIntegrationTests {
                   }
                 }
                 """)) {
-            assertThat(sheetNames(workbook)).containsExactly("人员名单", "座位明细");
+            assertThat(sheetNames(workbook)).containsExactly("人员名单", "座位明细", "Lookup");
             assertThat(cellValues(workbook.getSheet("人员名单").getRow(0)))
                     .containsExactly("工号", "姓名", "部门");
             assertThat(cellValues(workbook.getSheet("座位明细").getRow(0)))
@@ -4202,6 +4227,55 @@ class MeetingHelperIntegrationTests {
                 Byte.toUnsignedInt(rgb[1]),
                 Byte.toUnsignedInt(rgb[2])
         );
+    }
+
+    private void assertLookupMeetingRows(
+            XSSFSheet sheet,
+            MeetingSummary meeting,
+            VenueDetail venue
+    ) {
+        String infoCode = "MEETING_" + meeting.id() + "_INFO";
+        String usersCode = "MEETING_" + meeting.id() + "_USERS";
+        assertThat(cellValues(sheet.getRow(0))).containsExactly(
+                "Classify Code", "Item Code", "Item Name", "Desc", "Parent Item",
+                "Status", "Language", "Sort", "Attribute1", "Attribute2",
+                "Attribute3", "Attribute4", "Attribute5", "Attribute6"
+        );
+        assertLookupRow(sheet.getRow(1), infoCode, "STREAM_INTERVAL", "0.0", "zh_CN");
+        assertLookupRow(sheet.getRow(2), infoCode, "MEETING_NAME", meeting.name(), "zh_CN");
+        assertLookupRow(sheet.getRow(3), infoCode, "MEETING_PLACE", venue.location(), "zh_CN");
+        assertLookupRow(sheet.getRow(4), infoCode, "USERS_CLASSIFY", usersCode, "zh_CN");
+    }
+
+    private void assertLookupParticipantRow(XSSFSheet sheet, String meetingId)
+            throws Exception {
+        String usersCode = "MEETING_" + meetingId + "_USERS";
+        Row row = sheet.getRow(5);
+        assertThat(row.getCell(0).toString()).isEqualTo(usersCode);
+        assertThat(row.getCell(1).toString()).isEqualTo("a12345678");
+        assertThat(row.getCell(2).toString()).isEqualTo("张三");
+        assertThat(row.getCell(5).getNumericCellValue()).isEqualTo(1);
+        assertThat(row.getCell(6).toString()).isEqualTo("en_US");
+        assertThat(row.getCell(7).getNumericCellValue()).isEqualTo(0);
+        assertThat(row.getCell(8).toString()).isEqualTo("1排1");
+        JsonNode attributes = objectMapper.readTree(row.getCell(9).toString());
+        assertThat(attributes.path("部门").asText()).isEqualTo("制造部");
+        assertThat(jsonTextValues(attributes.path("批次"))).containsExactly("第一批", "第二批");
+    }
+
+    private void assertLookupRow(
+            Row row,
+            String classifyCode,
+            String itemCode,
+            String itemName,
+            String language
+    ) {
+        assertThat(row.getCell(0).toString()).isEqualTo(classifyCode);
+        assertThat(row.getCell(1).toString()).isEqualTo(itemCode);
+        assertThat(row.getCell(2).toString()).isEqualTo(itemName);
+        assertThat(row.getCell(5).getNumericCellValue()).isEqualTo(1);
+        assertThat(row.getCell(6).toString()).isEqualTo(language);
+        assertThat(row.getCell(7).getNumericCellValue()).isEqualTo(0);
     }
 
     private Map<String, String> readAttributes(String json) {
